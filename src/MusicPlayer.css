@@ -1,0 +1,185 @@
+/* MusicPlayer.css - Basic styling to match the dark purple theme from the UI */
+.music-player {
+  display: flex;
+  height: 100vh;
+  background-color: #1a0d2e; /* Dark purple-ish */
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+.sidebar {
+  width: 80px;
+  background-color: #16213e;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+  gap: 20px;
+}
+
+.sidebar-item {
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.search-bar {
+  margin-bottom: 30px;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 10px;
+  background-color: #0f3460;
+  border: none;
+  border-radius: 5px;
+  color: white;
+}
+
+.section {
+  margin-bottom: 40px;
+}
+
+.album-grid, .artist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.album-card, .artist-card {
+  background-color: #0f3460;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.album-art, .artist-art {
+  width: 100%;
+  height: 150px;
+  background-color: #533483; /* Purple placeholder */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.album-info, .song-title {
+  padding: 10px;
+  font-size: 12px;
+}
+
+.recommended-section {
+  position: absolute;
+  right: 20px;
+  top: 100px;
+  width: 200px;
+}
+
+.player-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 20px;
+}
+
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.album-art-small {
+  width: 50px;
+  height: 50px;
+  background-color: #533483;
+}
+
+.song-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.song-title {
+  font-weight: bold;
+}
+
+.song-artist {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.play-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-progress {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 300px;
+}
+
+.progress-bar, .volume-bar {
+  flex: 1;
+  height: 4px;
+  background-color: #333;
+  border-radius: 2px;
+  outline: none;
+}
+
+.progress-bar::-webkit-slider-thumb,
+.volume-bar::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background-color: #533483;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.time {
+  font-size: 12px;
+  min-width: 40px;
+}
+
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 100px;
+}

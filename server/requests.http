@@ -1,0 +1,91 @@
+@baseUrl = http://localhost:5000
+@contentType = application/json
+@token = 
+@artistId = 
+@songId = 
+@playlistId = 
+
+### Health
+GET {{baseUrl}}/health
+
+### Signup
+POST {{baseUrl}}/api/auth/signup
+Content-Type: {{contentType}}
+
+{
+  "name": "Alice",
+  "email": "alice@test.com",
+  "password": "pass1234"
+}
+
+### Login (sets token manually)
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "alice@test.com",
+  "password": "pass1234"
+}
+
+### Me
+GET {{baseUrl}}/api/users/me
+Authorization: Bearer {{token}}
+
+### Create Artist
+POST {{baseUrl}}/api/artists
+Authorization: Bearer {{token}}
+Content-Type: {{contentType}}
+
+{
+  "name": "Artist A",
+  "bio": "bio",
+  "image_url": "https://img"
+}
+
+### Create Song
+POST {{baseUrl}}/api/songs
+Authorization: Bearer {{token}}
+Content-Type: {{contentType}}
+
+{
+  "title": "Song 1",
+  "artist": "{{artistId}}",
+  "album": "Album",
+  "duration": 210,
+  "cover_art_url": "https://img",
+  "audio_url": "https://audio"
+}
+
+### Create Playlist
+POST {{baseUrl}}/api/playlists
+Authorization: Bearer {{token}}
+Content-Type: {{contentType}}
+
+{
+  "name": "My List",
+  "description": "chill"
+}
+
+### Add Song to Playlist
+POST {{baseUrl}}/api/playlists/{{playlistId}}/songs
+Authorization: Bearer {{token}}
+Content-Type: {{contentType}}
+
+{
+  "songId": "{{songId}}"
+}
+
+### Increment Play Count
+POST {{baseUrl}}/api/songs/{{songId}}/play
+
+### Get Lyrics
+GET {{baseUrl}}/api/songs/{{songId}}/lyrics
+
+### Update Lyrics
+PUT {{baseUrl}}/api/songs/{{songId}}/lyrics
+Authorization: Bearer {{token}}
+Content-Type: {{contentType}}
+
+{
+  "lyrics": "Verse 1\nChorus\nVerse 2\nChorus"
+}

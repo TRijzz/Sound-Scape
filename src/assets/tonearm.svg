@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <!-- THE BASE (STATIONARY) -->
+  <g id="tonearm-base">
+    <circle cx="50" cy="200" r="15" fill="#4A5568" />
+    <circle cx="50" cy="200" r="12" fill="#A0AEC0" />
+    <circle cx="50" cy="200" r="3" fill="#2D3748" />
+  </g>
+
+  <!-- THE STICK (THIS IS WHAT WILL ROTATE) -->
+  <g id="tonearm-stick">
+    <path d="M50 200 L190 100 L200 105" fill="none" stroke="#A0AEC0" stroke-width="3" />
+    <rect x="188" y="99" width="10" height="8" fill="#2D3748" rx="1" />
+    <path d="M200 105 L202 95" fill="none" stroke="#1A202C" stroke-width="1" />
+  </g>
+</svg>
