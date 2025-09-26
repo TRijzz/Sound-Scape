@@ -28,7 +28,10 @@ connectDB().then(() => {
 });
 
 // Healthcheck
-app.get('/health', (req, res) => res.json({ ok: true }));
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", message: "Backend is running on Render!" });
+});
+
 
 // Routes
 app.use('/api/auth', authRoutes);
