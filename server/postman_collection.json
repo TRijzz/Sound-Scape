@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "Vinyl Demo API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "artistId", "value": "" },
+    { "key": "songId", "value": "" },
+    { "key": "playlistId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+    },
+    {
+      "name": "Auth / Signup",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Alice\",\n  \"email\": \"alice@test.com\",\n  \"password\": \"pass1234\"\n}" },
+        "url": "{{baseUrl}}/api/auth/signup"
+      }
+    },
+    {
+      "name": "Auth / Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "if (json && json.token) { pm.collectionVariables.set('token', json.token); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"alice@test.com\",\n  \"password\": \"pass1234\"\n}" },
+        "url": "{{baseUrl}}/api/auth/login"
+      }
+    },
+    {
+      "name": "Users / Me",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": "{{baseUrl}}/api/users/me"
+      }
+    },
+    {
+      "name": "Artists / Create",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "if (json && json._id) { pm.collectionVariables.set('artistId', json._id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Artist A\",\n  \"bio\": \"bio\",\n  \"image_url\": \"https://img\"\n}" },
+        "url": "{{baseUrl}}/api/artists"
+      }
+    },
+    {
+      "name": "Songs / Create",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "if (json && json._id) { pm.collectionVariables.set('songId', json._id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"title\": \"Song 1\",\n  \"artist\": \"{{artistId}}\",\n  \"album\": \"Album\",\n  \"duration\": 210,\n  \"cover_art_url\": \"https://img\",\n  \"audio_url\": \"https://audio\"\n}" },
+        "url": "{{baseUrl}}/api/songs"
+      }
+    },
+    {
+      "name": "Playlists / Create",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "if (json && json._id) { pm.collectionVariables.set('playlistId', json._id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"My List\",\n  \"description\": \"chill\"\n}" },
+        "url": "{{baseUrl}}/api/playlists"
+      }
+    },
+    {
+      "name": "Playlists / Add Song",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"songId\": \"{{songId}}\"\n}" },
+        "url": "{{baseUrl}}/api/playlists/{{playlistId}}/songs"
+      }
+    },
+    {
+      "name": "Songs / Increment Play",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/songs/{{songId}}/play"
+      }
+    },
+    {
+      "name": "Songs / Get Lyrics",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/songs/{{songId}}/lyrics"
+      }
+    },
+    {
+      "name": "Songs / Update Lyrics",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"lyrics\": \"Verse 1\\nChorus\\nVerse 2\\nChorus\"\n}" },
+        "url": "{{baseUrl}}/api/songs/{{songId}}/lyrics"
+      }
+    }
+  ]
+}

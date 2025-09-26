@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Vinyl spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 4s linear infinite;
+}
+
+/* --- TONEARM ANIMATION --- */
+#tonearm-stick {
+  transform-origin: 50px 200px;
+  transition: transform 2s ease-in-out;
+}
+
+.is-playing #tonearm-stick {
+  transform: rotate(30deg);
+}
+
+.is-paused #tonearm-stick {
+  transform: rotate(-90deg);
+}
+
+/* Custom scrollbar for better aesthetics */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2a2a3a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+#root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+}
+
+/* Styles for SVG icons to inherit color */
+img[src$=".svg"] {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  color: inherit;
+}
