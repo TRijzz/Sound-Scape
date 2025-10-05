@@ -11,6 +11,8 @@ import songRoutes from './routes/song.routes.js';
 import playlistRoutes from './routes/playlist.routes.js';
 // Import Spotify routes using ES modules syntax
 import spotifyRoutes from './routes/spotify.routes.js';
+import db from './config/db.js';
+
 
 const app = express();
 dotenv.config();
