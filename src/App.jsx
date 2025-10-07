@@ -9,12 +9,34 @@ import heartIcon from './assets/heart_icon.svg';
 import ellipsisIcon from './assets/ellipsis_icon.svg';
 import userAvatar from './assets/user_avatar.svg';
 
+// Import our custom hooks and API service
+import { usePopularArtists, usePopularSongs, usePopularAlbums, useSearch, useCurrentTrack } from './hooks/useMusicData.js';
+import apiService from './services/api.js';
+
 export default function App() {
+  // Use our custom hooks to get real data
+  const { artists: popularArtists, loading: artistsLoading } = usePopularArtists(5);
+  const { songs: popularSongs, loading: songsLoading } = usePopularSongs(5);
+  const { albums: popularAlbums, loading: albumsLoading } = usePopularAlbums(5);
+  const { searchResults, searchLoading, search } = useSearch();
+  const { 
+    currentTrack, 
+    isPlaying, 
+    progress, 
+    duration, 
+    playTrack, 
+    pauseTrack, 
+    resumeTrack, 
+    stopTrack, 
+    setProgress 
+  } = useCurrentTrack();
+
+  // Local state
   const [playerState, setPlayerState] = useState('stopped');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(240); // Total duration in seconds (e.g., 4 minutes)
   const [volume, setVolume] = useState(60);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (progress / duration) * 100)) : 0;
 
   const handlePlayPause = () => {
@@ -22,12 +44,32 @@ export default function App() {
       setPlayerState('swinging');
       setTimeout(() => {
         setPlayerState('playing');
-        setIsPlaying(true);
+        resumeTrack();
       }, 2000);
     } else {
       setPlayerState('paused');
-      setIsPlaying(false);
+      pauseTrack();
     }
+  };
+
+  // Handle search
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      search(query);
+      setShowSearchResults(true);
+    } else {
+      setShowSearchResults(false);
+    }
+  };
+
+  // Handle track selection
+  const handleTrackSelect = async (track) => {
+    await playTrack(track);
+    setPlayerState('swinging');
+    setTimeout(() => {
+      setPlayerState('playing');
+    }, 2000);
   };
 
   useEffect(() => {
@@ -38,7 +80,7 @@ export default function App() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isPlaying, playerState, duration]);
+  }, [isPlaying, playerState, duration, setProgress]);
 
   const isSpinning = playerState === 'playing';
   const isTonearmPlaying = playerState === 'swinging' || playerState === 'playing';
@@ -50,29 +92,29 @@ export default function App() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const matchVibeWith = [
-    { id: 1, img: albumArtPlaceholder, name: 'Artist 1' },
-    { id: 2, img: albumArtPlaceholder, name: 'Artist 2' },
-    { id: 3, img: albumArtPlaceholder, name: 'Artist 3' },
-    { id: 4, img: albumArtPlaceholder, name: 'Artist 4' },
-    { id: 5, img: albumArtPlaceholder, name: 'Artist 5' },
-  ];
+  // Transform API data for display
+  const matchVibeWith = popularArtists.map(artist => ({
+    id: artist._id,
+    img: apiService.getImageUrl(artist.images, 'medium'),
+    name: artist.name,
+    data: artist
+  }));
 
-  const mostPlayedMusic = [
-    { id: 1, img: albumArtPlaceholder, name: 'Song 1' },
-    { id: 2, img: albumArtPlaceholder, name: 'Song 2' },
-    { id: 3, img: albumArtPlaceholder, name: 'Song 3' },
-    { id: 4, img: albumArtPlaceholder, name: 'Song 4' },
-    { id: 5, img: albumArtPlaceholder, name: 'Song 5' },
-  ];
+  const mostPlayedMusic = popularSongs.map(song => ({
+    id: song._id,
+    img: apiService.getImageUrl(song.album?.images, 'medium'),
+    name: song.name,
+    artist: song.artists?.[0]?.name || 'Unknown Artist',
+    data: song
+  }));
 
-  const recommendedArtists = [
-    { id: 1, img: albumArtPlaceholder, name: 'Rec Artist 1' },
-    { id: 2, img: albumArtPlaceholder, name: 'Rec Artist 2' },
-    { id: 3, img: albumArtPlaceholder, name: 'Rec Artist 3' },
-    { id: 4, img: albumArtPlaceholder, name: 'Rec Artist 4' },
-    { id: 5, img: albumArtPlaceholder, name: 'Rec Artist 5' },
-  ];
+  const recommendedArtists = popularAlbums.map(album => ({
+    id: album._id,
+    img: apiService.getImageUrl(album.images, 'medium'),
+    name: album.name,
+    artist: album.artists?.[0]?.name || 'Unknown Artist',
+    data: album
+  }));
 
   return (
     <div
@@ -103,9 +145,64 @@ export default function App() {
             <input
               type="text"
               placeholder="What's playing in your head?"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
               className="w-full py-2 pl-10 pr-4 rounded-full bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <img src={searchIcon} alt="Search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            
+            {/* Search Results Dropdown */}
+            {showSearchResults && (searchResults.artists.length > 0 || searchResults.songs.length > 0 || searchResults.albums.length > 0) && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
+                {searchLoading && (
+                  <div className="p-4 text-center text-gray-400">Searching...</div>
+                )}
+                
+                {searchResults.songs.length > 0 && (
+                  <div className="p-2">
+                    <h3 className="text-sm font-semibold text-gray-300 mb-2 px-2">Songs</h3>
+                    {searchResults.songs.slice(0, 5).map(song => (
+                      <div
+                        key={song._id}
+                        className="flex items-center space-x-3 p-2 hover:bg-gray-700 rounded cursor-pointer"
+                        onClick={() => handleTrackSelect(song)}
+                      >
+                        <img
+                          src={apiService.getImageUrl(song.album?.images, 'small')}
+                          alt={song.name}
+                          className="w-10 h-10 rounded object-cover"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{song.name}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {song.artists?.map(a => a.name).join(', ')}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {searchResults.artists.length > 0 && (
+                  <div className="p-2">
+                    <h3 className="text-sm font-semibold text-gray-300 mb-2 px-2">Artists</h3>
+                    {searchResults.artists.slice(0, 3).map(artist => (
+                      <div key={artist._id} className="flex items-center space-x-3 p-2 hover:bg-gray-700 rounded cursor-pointer">
+                        <img
+                          src={apiService.getImageUrl(artist.images, 'small')}
+                          alt={artist.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{artist.name}</p>
+                          <p className="text-xs text-gray-400">{artist.genres?.join(', ') || 'Artist'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             <img src={userAvatar} alt="User" className="w-8 h-8 rounded-full cursor-pointer" />
@@ -115,9 +212,24 @@ export default function App() {
 
         <div className="flex-1 relative p-6 grid grid-cols-1 md:grid-cols-2 gap-8 z-10">
           <div className="flex flex-col space-y-8">
-            <Section title="Match Your Vibe With" items={matchVibeWith} />
-            <Section title="Most Played Music" items={mostPlayedMusic} />
-            <Section title="Recommended Artists" items={recommendedArtists} />
+            <Section 
+              title="Match Your Vibe With" 
+              items={matchVibeWith} 
+              loading={artistsLoading}
+              onItemClick={(item) => console.log('Artist clicked:', item.data)}
+            />
+            <Section 
+              title="Most Played Music" 
+              items={mostPlayedMusic} 
+              loading={songsLoading}
+              onItemClick={(item) => handleTrackSelect(item.data)}
+            />
+            <Section 
+              title="Recommended Albums" 
+              items={recommendedArtists} 
+              loading={albumsLoading}
+              onItemClick={(item) => console.log('Album clicked:', item.data)}
+            />
           </div>
 
           <div className="relative flex items-center justify-center">
@@ -155,10 +267,18 @@ export default function App() {
             <div className="flex items-center justify-between mb-0">
               {/* Album Art + Info (Left) */}
               <div className="flex items-center space-x-3 w-1/4">
-                <img src={albumArtPlaceholder} alt="Current Album Art" className="w-12 h-12 rounded" />
+                <img 
+                  src={currentTrack ? apiService.getImageUrl(currentTrack.album?.images, 'small') : albumArtPlaceholder} 
+                  alt="Current Album Art" 
+                  className="w-12 h-12 rounded" 
+                />
                 <div className="text-left">
-                  <p className="font-medium text-sm">Perfect</p>
-                  <p className="text-xs text-gray-400">Ed Sheeran</p>
+                  <p className="font-medium text-sm">
+                    {currentTrack ? currentTrack.name : 'No track selected'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {currentTrack ? currentTrack.artists?.map(a => a.name).join(', ') : 'Select a track to play'}
+                  </p>
                 </div>
               </div>
               
@@ -286,16 +406,38 @@ export default function App() {
   );
 }
 
-const Section = ({ title, items }) => (
+const Section = ({ title, items, loading, onItemClick }) => (
   <div className="text-left">
     <h2 className="text-xl font-bold mb-4">{title}</h2>
-    <div className="grid grid-cols-5 gap-4">
-      {items.map(item => (
-        <div key={item.id} className="flex flex-col items-center">
-          <img src={item.img} alt={item.name} className="w-24 h-24 rounded-lg object-cover cursor-pointer" />
-          <p className="mt-2 text-sm">{item.name}</p>
-        </div>
-      ))}
-    </div>
+    {loading ? (
+      <div className="grid grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="flex flex-col items-center">
+            <div className="w-24 h-24 rounded-lg bg-gray-700 animate-pulse" />
+            <div className="mt-2 h-4 w-16 bg-gray-700 rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="grid grid-cols-5 gap-4">
+        {items.map(item => (
+          <div 
+            key={item.id} 
+            className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onItemClick && onItemClick(item)}
+          >
+            <img 
+              src={item.img} 
+              alt={item.name} 
+              className="w-24 h-24 rounded-lg object-cover" 
+            />
+            <p className="mt-2 text-sm text-center">{item.name}</p>
+            {item.artist && (
+              <p className="text-xs text-gray-400 text-center">{item.artist}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
   </div>
 );

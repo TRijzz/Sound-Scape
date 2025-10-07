@@ -1,10 +1,17 @@
 import mongoose from 'mongoose';
 
-const artistSchema = new mongoose.Schema(
+const albumSchema = new mongoose.Schema(
   {
     // Spotify fields
     spotify_id: { type: String, unique: true, index: true },
     name: { type: String, required: true, index: true },
+    album_type: { type: String, enum: ['album', 'single', 'compilation'] },
+    total_tracks: { type: Number },
+    release_date: { type: String },
+    release_date_precision: { type: String, enum: ['year', 'month', 'day'] },
+    
+    // Artists relationship
+    artists: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Artist' }],
     
     // Images
     images: [{
@@ -21,14 +28,13 @@ const artistSchema = new mongoose.Schema(
     // Genres and popularity
     genres: [String],
     popularity: { type: Number, min: 0, max: 100 },
-    followers: {
-      href: String,
-      total: { type: Number, default: 0 }
-    },
     
-    // Legacy fields (for backward compatibility)
-    bio: { type: String },
-    image_url: { type: String },
+    // Additional metadata
+    label: String,
+    copyrights: [{
+      text: String,
+      type: String
+    }],
     
     // Sync metadata
     last_synced: { type: Date, default: Date.now },
@@ -38,8 +44,8 @@ const artistSchema = new mongoose.Schema(
 );
 
 // Index for better search performance
-artistSchema.index({ name: 'text', genres: 'text' });
-artistSchema.index({ popularity: -1 });
-artistSchema.index({ 'followers.total': -1 });
+albumSchema.index({ name: 'text', genres: 'text' });
+albumSchema.index({ popularity: -1 });
+albumSchema.index({ release_date: -1 });
 
-export default mongoose.model('Artist', artistSchema);
+export default mongoose.model('Album', albumSchema);
