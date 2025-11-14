@@ -7,6 +7,16 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, index: true },
     password: { type: String, required: true, select: false },
     avatar_url: { type: String },
+    username: { type: String },
+    googleId: { type: String, index: true },
+    refreshTokenHash: { type: String, select: false },
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, select: false, index: true },
+    emailVerificationExpires: { type: Date, select: false },
+    emailVerificationCodeHash: { type: String, select: false, index: true },
+    emailVerificationCodeExpires: { type: Date, select: false },
+    passwordResetTokenHash: { type: String, select: false, index: true },
+    passwordResetExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );

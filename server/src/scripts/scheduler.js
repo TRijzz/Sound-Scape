@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { refreshData } from './spotify-sync.js';
 import { connectDB } from '../config/db.js';
+import { refreshAccessToken } from '../controllers/spotify.controller.js';
 
 // Schedule data refresh
 const scheduleDataRefresh = () => {
@@ -11,6 +12,8 @@ const scheduleDataRefresh = () => {
     console.log('Starting scheduled data refresh...');
     try {
       await connectDB();
+      // Refresh Spotify token before data update
+      await refreshAccessToken();
       await refreshData();
       console.log('Scheduled data refresh completed successfully');
     } catch (error) {
@@ -26,6 +29,8 @@ const scheduleDataRefresh = () => {
     console.log('Starting scheduled popular artists refresh...');
     try {
       await connectDB();
+      // Refresh Spotify token before data update
+      await refreshAccessToken();
       // You can customize this to only refresh popular artists
       await refreshData();
       console.log('Scheduled popular artists refresh completed successfully');

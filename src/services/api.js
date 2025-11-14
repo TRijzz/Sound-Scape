@@ -13,11 +13,25 @@ class ApiService {
         ...options,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Read body safely once, handle both success and error
+      const raw = await response.text();
+      let data = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        // non-JSON response
+        data = null;
       }
 
-      return await response.json();
+      if (!response.ok) {
+        const message = (data && data.message) || `HTTP error ${response.status}`;
+        const err = new Error(message);
+        err.status = response.status;
+        err.details = data;
+        throw err;
+      }
+
+      return data;
     } catch (error) {
       console.error(`API Error (${endpoint}):`, error);
       throw error;
@@ -115,17 +129,45 @@ class ApiService {
 
   // Search API
   async searchAll(query, limit = 20) {
-    const [artists, songs, albums] = await Promise.all([
-      this.getArtists(1, limit, query),
-      this.searchSongs(query, limit),
-      this.getAlbums(1, limit, query),
-    ]);
+    try {
+      // Ensure query is properly formatted
+      const formattedQuery = query.trim();
+      
+      // Direct API calls with proper error handling
+      let artistResults = [];
+      let songResults = [];
+      let albumResults = [];
+      
+      try {
+        const artistsResponse = await this.fetchData(`/artists?search=${encodeURIComponent(formattedQuery)}&limit=${limit}`);
+        artistResults = artistsResponse.artists || artistsResponse || [];
+      } catch (err) {
+        console.error('Artist search failed:', err);
+      }
+      
+      try {
+        songResults = await this.searchSongs(formattedQuery, limit) || [];
+      } catch (err) {
+        console.error('Song search failed:', err);
+      }
+      
+      try {
+        const albumsResponse = await this.fetchData(`/albums?search=${encodeURIComponent(formattedQuery)}&limit=${limit}`);
+        albumResults = albumsResponse.albums || albumsResponse || [];
+      } catch (err) {
+        console.error('Album search failed:', err);
+      }
 
-    return {
-      artists: artists.artists || artists,
-      songs: songs,
-      albums: albums.albums || albums,
-    };
+      return {
+        artists: Array.isArray(artistResults) ? artistResults : [],
+        songs: Array.isArray(songResults) ? songResults : [],
+        albums: Array.isArray(albumResults) ? albumResults : []
+      };
+    } catch (error) {
+      console.error('API searchAll error:', error);
+      // Return empty results instead of throwing to prevent UI errors
+      return { artists: [], songs: [], albums: [] };
+    }
   }
 
   // Utility methods
@@ -158,8 +200,43 @@ class ApiService {
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
+
+  // Auth: Signup/Register
+  async signup({ username, email, password, name }) {
+    return this.fetchData(`/auth/register`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: name || username,
+        email,
+        password,
+        username
+      })
+    });
+  }
+
+  // Auth: Verify Email with code
+  async verifyEmail({ email, code }) {
+    return this.fetchData(`/auth/verify-email`, {
+      method: 'POST',
+      body: JSON.stringify({ email, code })
+    });
+  }
+
+  // Auth: Resend Verification Code
+  async resendVerificationEmail(email) {
+    return this.fetchData(`/auth/resend-verification`, {
+      method: 'POST',
+      body: JSON.stringify({ email, type: 'code' }) // Indicate we want a code, not a link
+    });
+  }
+
+  // Auth: Login
+  async login({ email, password }) {
+    return this.fetchData(`/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+  }
 }
 
-// Create and export a singleton instance
-const apiService = new ApiService();
-export default apiService;
+export default new ApiService();

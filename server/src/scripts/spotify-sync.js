@@ -456,6 +456,13 @@ async function main() {
 // Export for use in other modules
 export default SpotifySyncService;
 
+// Export refreshData function for scheduler
+export async function refreshData() {
+  const syncService = new SpotifySyncService();
+  await syncService.initialize();
+  await syncService.refreshData();
+}
+
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1].endsWith('spotify-sync.js')) {
   main();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import apiService from '../services/api.js';
 
 // Custom hook for managing music data
@@ -99,7 +99,7 @@ export const useSearch = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
 
-  const search = async (query, limit = 20) => {
+  const search = useCallback(async (query, limit = 20) => {
     if (!query.trim()) {
       setSearchResults({ artists: [], songs: [], albums: [] });
       return;
@@ -117,7 +117,7 @@ export const useSearch = () => {
     } finally {
       setSearchLoading(false);
     }
-  };
+  }, []);
 
   return { searchResults, searchLoading, searchError, search };
 };
@@ -167,4 +167,65 @@ export const useCurrentTrack = () => {
     stopTrack,
     setProgress,
   };
+};
+
+// Hook for individual artist
+export const useArtist = (artistId) => {
+  const [artist, setArtist] = useState(null);
+  const [artistAlbums, setArtistAlbums] = useState([]);
+  const [artistTopTracks, setArtistTopTracks] = useState([]);
+  const musicData = useMusicData();
+  const { loading, error } = musicData;
+  
+  useEffect(() => {
+    if (!artistId) return;
+
+    const loadArtistData = async () => {
+      try {
+        // Direct API calls instead of using fetchData to avoid the undefined issue
+        const artistData = await apiService.getArtist(artistId);
+        const albumsData = await apiService.getArtistAlbums(artistId, 1, 20);
+        const tracksData = await apiService.getArtistTopTracks(artistId, 10);
+        
+        setArtist(artistData);
+        setArtistAlbums(albumsData.albums || albumsData || []);
+        setArtistTopTracks(tracksData.tracks || tracksData || []);
+      } catch (err) {
+        console.error('Failed to load artist data:', err);
+      }
+    };
+
+    loadArtistData();
+  }, [artistId]);
+
+  return { artist, artistAlbums, artistTopTracks, loading, error };
+};
+
+// Hook for individual album
+export const useAlbum = (albumId) => {
+  const [album, setAlbum] = useState(null);
+  const [albumTracks, setAlbumTracks] = useState([]);
+  const { loading, error, fetchData } = useMusicData();
+
+  useEffect(() => {
+    if (!albumId) return;
+
+    const loadAlbumData = async () => {
+      try {
+        const [albumData, tracksData] = await Promise.all([
+          fetchData(apiService.getAlbum, albumId),
+          fetchData(apiService.getAlbumTracks, albumId, 1, 50)
+        ]);
+        
+        setAlbum(albumData);
+        setAlbumTracks(tracksData.tracks || tracksData || []);
+      } catch (err) {
+        console.error('Failed to load album data:', err);
+      }
+    };
+
+    loadAlbumData();
+  }, [albumId]);
+
+  return { album, albumTracks, loading, error };
 };

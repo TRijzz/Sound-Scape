@@ -5,6 +5,7 @@ import { me, getUsers, getUser, updateUser, deleteUser } from '../controllers/us
 const router = Router();
 
 router.get('/me', requireAuth, me);
+router.get('/profile', requireAuth, me);
 router.get('/', getUsers);
 router.get('/:id', getUser);
 router.put('/:id', requireAuth, updateUser);

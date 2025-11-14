@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,7 +21,7 @@
 /* --- TONEARM ANIMATION --- */
 #tonearm-stick {
   transform-origin: 50px 200px;
-  transition: transform 2s ease-in-out;
+  transition: transform 3s ease-in-out;
 }
 
 .is-playing #tonearm-stick {
@@ -27,7 +29,7 @@
 }
 
 .is-paused #tonearm-stick {
-  transform: rotate(-90deg);
+  transform: rotate(-120deg);
 }
 
 /* Custom scrollbar for better aesthetics */
