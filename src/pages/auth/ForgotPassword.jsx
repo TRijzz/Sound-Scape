@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-// Using emoji instead of react-icons for better compatibility
+import apiService from '../../services/api';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -15,17 +15,18 @@ const ForgotPassword = () => {
     }
     
     setIsSubmitting(true);
-    // TODO: Implement actual password reset logic
-    console.log('Sending reset link to:', email);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const res = await apiService.forgotPassword(email);
       setMessage({ 
-        text: 'If an account exists with this email, you will receive a password reset link.', 
+        text: res?.message || 'If an account exists with this email, you will receive a password reset link.', 
         type: 'success' 
       });
+    } catch (err) {
+      const text = err?.details?.message || err?.message || 'Failed to send reset link';
+      setMessage({ text, type: 'error' });
+    } finally {
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
   return (

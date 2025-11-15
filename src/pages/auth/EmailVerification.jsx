@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useMusic } from '../../contexts/MusicContext';
 import apiService from '../../services/api';
 
 const EmailVerification = () => {
@@ -10,6 +11,7 @@ const EmailVerification = () => {
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [isResending, setIsResending] = useState(false);
   const navigate = useNavigate();
+  const { login } = useMusic();
   const inputRefs = [];
 
   // Handle code input changes
@@ -52,22 +54,31 @@ const EmailVerification = () => {
       setStatus('verifying');
       setMessage('Verifying your code...');
       
-      await apiService.verifyEmail({ email, code });
+      const response = await apiService.verifyEmail({ email, code });
       
-      setStatus('success');
-      setMessage('Your email has been verified successfully! Redirecting to login...');
-      
-      // Clear any existing tokens to force re-login
-      localStorage.removeItem('authTokens');
-      
-      // Redirect to login after a short delay
-      setTimeout(() => {
-        navigate('/login', { 
-          state: { 
-            message: 'Email verified successfully! Please log in to continue.'
-          } 
+      if (response.success && response.user) {
+        const tokens = (response.accessToken && response.refreshToken) ? {
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken
+        } : null;
+        if (tokens) {
+          localStorage.setItem('authTokens', JSON.stringify(tokens));
+        }
+        navigate('/email-verified', {
+          state: {
+            user: response.user,
+            tokens
+          },
+          replace: true
         });
-      }, 2000);
+      } else {
+        // Fallback: show success and proceed to verified page
+        setStatus('success');
+        navigate('/email-verified', {
+          state: { user: response?.user || null },
+          replace: true
+        });
+      }
       
     } catch (error) {
       console.error('Verification error:', error);
@@ -96,18 +107,42 @@ const EmailVerification = () => {
       setStatus('sending');
       setMessage('Sending a new verification code...');
       
-      await apiService.resendVerificationEmail(email);
+      const response = await apiService.resendVerificationEmail(email);
       
-      setStatus('success');
-      setMessage(`A new verification code has been sent to ${email}.`);
-      
-      // Clear the code and refocus first input
-      setVerificationCode(['', '', '', '', '', '']);
-      inputRefs[0]?.focus();
+      if (response && response.success) {
+        setStatus('success');
+        setMessage(`A new verification code has been sent to ${email}.`);
+        setVerificationCode(['', '', '', '', '', '']);
+        inputRefs[0]?.focus();
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          if (status === 'success') {
+            setStatus('idle');
+            setMessage('Enter the 6-digit verification code sent to ' + email);
+          }
+        }, 5000);
+      } else {
+        throw new Error(response?.message || 'Failed to resend verification code');
+      }
     } catch (error) {
       console.error('Resend error:', error);
       setStatus('error');
-      setMessage(error.response?.data?.message || 'Failed to resend verification email. Please try again.');
+      const errorMessage = error?.response?.data?.message || 
+                         error?.details?.message || 
+                         error?.message || 
+                         'Failed to resend verification email. Please try again.';
+      setMessage(errorMessage);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        if (status === 'error') {
+          setStatus('idle');
+          setMessage('Enter the 6-digit verification code sent to ' + email);
+        }
+      }, 5000);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -167,13 +202,35 @@ const EmailVerification = () => {
             </>
           )}
 
+          {status === 'success' && (
+            <div className="text-center">
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-12 h-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Email Verified!</h2>
+              <p className="text-gray-300 mb-8">Your email has been successfully verified. Setting up your account...</p>
+              
+              <div className="w-full bg-neon-blue/80 text-dark-bg font-medium py-3 px-4 rounded-lg flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-dark-bg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Setting up your account...
+              </div>
+            </div>
+          )}
+
           <div className="mt-8">
-            <Link
-              to="/login"
-              className="w-full block text-center py-3 px-4 bg-neon-blue text-dark-bg font-medium rounded-lg hover:bg-neon-blue/90 transition-colors"
+            <button
+              type="button"
+              onClick={handleVerifyCode}
+              disabled={status === 'verifying' || status === 'sending'}
+              className="w-full block text-center py-3 px-4 bg-neon-blue text-dark-bg font-medium rounded-lg hover:bg-neon-blue/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Back to Login
-            </Link>
+              Verify Email
+            </button>
           </div>
         </div>
       </div>

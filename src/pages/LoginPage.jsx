@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api.js';
@@ -12,6 +12,7 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useMusic();
 
   const handleChange = (e) => {
@@ -66,7 +67,8 @@ const LoginPage = () => {
       });
 
       // Check if email is verified
-      if (response.user && !response.user.isVerified) {
+      const isVerified = (response.user && (response.user.emailVerified ?? response.user.isVerified ?? false)) || false;
+      if (response.user && !isVerified) {
         // Store tokens temporarily
         if (response.accessToken || response.refreshToken) {
           localStorage.setItem(
@@ -78,14 +80,18 @@ const LoginPage = () => {
           );
         }
         
-        // Redirect to verification page
-        return navigate('/verify-email', { 
-          state: { 
-            email: formData.email,
-            message: 'Please verify your email before logging in.',
-            status: 'verifying'
-          } 
-        });
+        // Only redirect to verification page if not coming from a successful verification
+        const fromVerification = location.state?.fromVerification;
+        if (!fromVerification) {
+          return navigate('/verify-email', { 
+            state: { 
+              email: formData.email,
+              message: 'Please verify your email before logging in.',
+              status: 'verifying'
+            } 
+          });
+        }
+        // If coming from verification, continue with login
       }
 
       // If email is verified, proceed with login

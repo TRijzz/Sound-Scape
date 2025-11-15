@@ -99,12 +99,25 @@ const SignupPage = () => {
         } 
       });
     } catch (error) {
-      // Show backend-provided message when available
-      const serverMsg = error?.details?.message || error?.message;
-      const friendlyMsg = error?.status === 409
-        ? 'Email already in use. Try another email or log in.'
-        : serverMsg || 'Signup failed. Please try again.';
-      setErrors({ general: friendlyMsg });
+      console.error('Signup error:', error);
+      
+      // Handle specific error status codes
+      let errorMessage = 'Signup failed. Please try again.';
+      
+      if (error.status === 409) {
+        errorMessage = 'Email already in use. Try another email or log in.';
+      } else if (error.status === 423) {
+        errorMessage = 'Too many signup attempts. Please wait a few minutes before trying again.';
+      } else if (error.details?.message) {
+        errorMessage = error.details.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setErrors({ 
+        general: errorMessage,
+        ...(error.details?.errors || {}) // Include any field-specific errors
+      });
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-// Using emoji instead of react-icons for better compatibility
+import apiService from '../../services/api';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -25,23 +25,22 @@ const ResetPassword = () => {
     }
     
     setIsSubmitting(true);
-    
-    // TODO: Implement actual password reset logic with the token
-    console.log('Resetting password with token:', token);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const res = await apiService.resetPassword(token, password);
       setMessage({ 
-        text: 'Your password has been reset successfully!', 
+        text: res?.message || 'Your password has been reset successfully!', 
         type: 'success' 
       });
-      setIsSubmitting(false);
-      
       // Redirect to login after a short delay
       setTimeout(() => {
         navigate('/login');
       }, 2000);
-    }, 1500);
+    } catch (err) {
+      const text = err?.details?.message || err?.message || 'Failed to reset password';
+      setMessage({ text, type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

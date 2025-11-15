@@ -31,7 +31,7 @@ export const usePopularArtists = (limit = 20) => {
   useEffect(() => {
     const loadArtists = async () => {
       try {
-        const data = await fetchData(apiService.getPopularArtists, limit);
+        const data = await fetchData(apiService.getPopularArtists.bind(apiService), limit);
         setArtists(data);
       } catch (err) {
         console.error('Failed to load popular artists:', err);
@@ -52,7 +52,7 @@ export const usePopularSongs = (limit = 20) => {
   useEffect(() => {
     const loadSongs = async () => {
       try {
-        const data = await fetchData(apiService.getPopularSongs, limit);
+        const data = await fetchData(apiService.getPopularSongs.bind(apiService), limit);
         setSongs(data);
       } catch (err) {
         console.error('Failed to load popular songs:', err);
@@ -73,7 +73,7 @@ export const usePopularAlbums = (limit = 20) => {
   useEffect(() => {
     const loadAlbums = async () => {
       try {
-        const data = await fetchData(apiService.getPopularAlbums, limit);
+        const data = await fetchData(apiService.getPopularAlbums.bind(apiService), limit);
         // Fallback: if no popular albums (popularity can be 0 from Spotify search),
         // load recent albums instead
         if (Array.isArray(data) && data.length === 0) {
@@ -213,8 +213,8 @@ export const useAlbum = (albumId) => {
     const loadAlbumData = async () => {
       try {
         const [albumData, tracksData] = await Promise.all([
-          fetchData(apiService.getAlbum, albumId),
-          fetchData(apiService.getAlbumTracks, albumId, 1, 50)
+          fetchData(apiService.getAlbum.bind(apiService), albumId),
+          fetchData(apiService.getAlbumTracks.bind(apiService), albumId, 1, 50)
         ]);
         
         setAlbum(albumData);

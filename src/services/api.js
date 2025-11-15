@@ -2,15 +2,29 @@
 const API_BASE_URL = 'http://localhost:5000/api';
 
 class ApiService {
+  constructor() {
+    this.authToken = null;
+  }
+
+  setAuthToken(token) {
+    this.authToken = token;
+  }
+
+  getAuthHeader() {
+    return this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {};
+  }
   // Generic fetch method with error handling
   async fetchData(endpoint, options = {}) {
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeader(),
+        ...(options.headers || {})
+      };
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
         ...options,
+        headers,
       });
 
       // Read body safely once, handle both success and error
@@ -216,26 +230,128 @@ class ApiService {
 
   // Auth: Verify Email with code
   async verifyEmail({ email, code }) {
-    return this.fetchData(`/auth/verify-email`, {
-      method: 'POST',
-      body: JSON.stringify({ email, code })
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data.message || 'Verification failed');
+        error.status = response.status;
+        error.details = data;
+        throw error;
+      }
+      if (data && data.accessToken) {
+        this.setAuthToken(data.accessToken);
+      }
+      return data;
+    } catch (error) {
+      console.error('Email verification error:', error);
+      throw error;
+    }
   }
 
   // Auth: Resend Verification Code
   async resendVerificationEmail(email) {
-    return this.fetchData(`/auth/resend-verification`, {
-      method: 'POST',
-      body: JSON.stringify({ email, type: 'code' }) // Indicate we want a code, not a link
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email, 
+          type: 'code',
+          // Include any additional required fields here
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      
+      if (!response.ok) {
+        const error = new Error(data.message || 'Failed to resend verification code');
+        error.status = response.status;
+        error.details = data;
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Resend verification error:', error);
+      throw error;
+    }
+  }
+
+  // Auth: Forgot Password
+  async forgotPassword(email) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/password/forgot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data.message || 'Failed to send reset email');
+        error.status = response.status;
+        error.details = data;
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      throw error;
+    }
+  }
+
+  // Auth: Reset Password
+  async resetPassword(token, newPassword) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, newPassword })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data.message || 'Failed to reset password');
+        error.status = response.status;
+        error.details = data;
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error('Reset password error:', error);
+      throw error;
+    }
+  }
+
+  // Auth: Get current user
+  async getCurrentUser() {
+    try {
+      return await this.fetchData('/users/me');
+    } catch (error) {
+      console.error('Failed to fetch current user:', error);
+      return null;
+    }
   }
 
   // Auth: Login
   async login({ email, password }) {
-    return this.fetchData(`/auth/login`, {
+    const response = await this.fetchData(`/auth/login`, {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
+    
+    if (response.accessToken) {
+      this.setAuthToken(response.accessToken);
+    }
+    
+    return response;
   }
 }
 

@@ -103,6 +103,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setUser(null);
     setIsAuthenticated(false);
+    window.location.reload(); // Refresh the page after logout
   };
 
   const updateUser = (updates) => {

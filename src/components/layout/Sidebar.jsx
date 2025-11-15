@@ -49,7 +49,7 @@ function Sidebar() {
 
       {/* Sidebar */}
       <motion.div 
-        className={`w-64 bg-dark-gray h-screen flex flex-col border-r border-gray-800 fixed lg:relative z-50 ${
+        className={`w-64 bg-dark-gray h-screen flex flex-col border-r border-gray-800 fixed top-0 left-0 z-50 overflow-y-auto ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } transition-transform duration-300`}
         initial={{ x: -100, opacity: 0 }}

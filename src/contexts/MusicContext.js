@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useReducer } from 'react';
+import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
+import apiService from '../services/api';
 
 const MusicContext = createContext();
 
@@ -68,6 +69,7 @@ function musicReducer(state, action) {
 
 export function MusicProvider({ children }) {
   const [state, dispatch] = useReducer(musicReducer, initialState);
+  const [isLoading, setIsLoading] = useState(true);
 
   const playTrack = (track) => {
     dispatch({ type: 'PLAY_TRACK', payload: track });
@@ -101,13 +103,60 @@ export function MusicProvider({ children }) {
     dispatch({ type: 'SET_QUEUE', payload: queue });
   };
 
-  const login = (user) => {
+  const login = async (user, tokens) => {
+    if (tokens) {
+      localStorage.setItem('authTokens', JSON.stringify(tokens));
+      if (tokens.accessToken) {
+        apiService.setAuthToken(tokens.accessToken);
+      }
+    }
     dispatch({ type: 'SET_USER', payload: user });
+    return user;
   };
 
   const logout = () => {
+    localStorage.removeItem('authTokens');
     dispatch({ type: 'SET_USER', payload: null });
   };
+
+  // Check if user is already authenticated on initial load
+  const checkAuth = async () => {
+    try {
+      const storedTokens = localStorage.getItem('authTokens');
+      if (!storedTokens) {
+        setIsLoading(false);
+        return null;
+      }
+
+      const { accessToken } = JSON.parse(storedTokens);
+      if (!accessToken) {
+        setIsLoading(false);
+        return null;
+      }
+
+      // Set the auth header for all requests
+      apiService.setAuthToken(accessToken);
+
+      // Fetch the current user
+      const user = await apiService.getCurrentUser();
+      if (user) {
+        dispatch({ type: 'SET_USER', payload: user });
+      }
+      return user;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      // Clear invalid tokens
+      localStorage.removeItem('authTokens');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check authentication status on mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   const value = {
     ...state,
@@ -121,6 +170,8 @@ export function MusicProvider({ children }) {
     setQueue,
     login,
     logout,
+    checkAuth,
+    isLoading,
   };
 
   return (

@@ -18,6 +18,8 @@ import SettingsPage from './pages/SettingsPage';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 import EmailVerification from './pages/auth/EmailVerification';
+import EmailVerified from './pages/auth/EmailVerified';
+import VerificationSuccess from './pages/auth/VerificationSuccess';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -32,7 +34,7 @@ function App() {
             <Sidebar />
             
             {/* Main Content */}
-            <div className="flex-1 flex flex-col lg:ml-0">
+            <div className="flex-1 flex flex-col lg:ml-64">
               {/* Navbar */}
               <Navbar />
               
@@ -53,6 +55,8 @@ function App() {
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/verify-email" element={<EmailVerification />} />
+                    <Route path="/email-verified" element={<EmailVerified />} />
+                    <Route path="/verification-success" element={<VerificationSuccess />} />
                     <Route path="/settings" element={<SettingsPage />} />
                   </Routes>
                 </motion.div>

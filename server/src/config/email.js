@@ -1,19 +1,45 @@
 import nodemailer from 'nodemailer';
 
-const host = process.env.SMTP_HOST;
-const port = parseInt(process.env.SMTP_PORT || '587', 10);
-const secure = process.env.SMTP_SECURE === 'true'; // true for 465, false for 587
+// Check if required environment variables are set
+if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  console.error('SMTP_USER and SMTP_PASS must be set in the environment variables');
+  process.exit(1);
+}
+
 const user = process.env.SMTP_USER;
-const pass = process.env.SMTP_PASS;
-const fromEmail = process.env.FROM_EMAIL || user || 'no-reply@example.com';
+const pass = (process.env.SMTP_PASS || '').trim(); // Trim any whitespace from the password
+const fromEmail = process.env.FROM_EMAIL || user;
+
+console.log('SMTP Configuration:', {
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  user: user ? '***' : 'NOT SET',
+  pass: pass ? '***' : 'NOT SET',
+  fromEmail: fromEmail
+});
 
 const transporter = nodemailer.createTransport({
-  host,
-  port,
-  secure,
-  auth: user && pass ? { user, pass } : undefined,
-  // Ensure TLS negotiation on 587
-  requireTLS: !secure,
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: user,
+    pass: pass
+  },
+  tls: {
+    // Force IPv4 instead of IPv6 to avoid connection issues
+    rejectUnauthorized: false
+  }
+});
+
+// Verify connection configuration
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('SMTP Connection Error:', error);
+  } else {
+    console.log('SMTP Server is ready to take our messages');
+  }
 });
 
 export const sendMail = async ({ to, subject, html }) => {

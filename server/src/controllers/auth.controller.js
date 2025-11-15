@@ -4,26 +4,76 @@ import crypto from 'crypto';
 import { generateTokens, verifyRefreshToken } from '../middlewares/auth.js';
 import { sendMail } from '../config/email.js';
 
+// Track recent signup attempts
+const recentSignups = new Map();
+const SIGNUP_RATE_LIMIT = 3; // Max attempts
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+
 export const register = async (req, res) => {
   try {
     const { name, email, password, username, avatar_url } = req.body || {};
-    if (!name || !email || !password) return res.status(400).json({ message: 'Missing fields' });
-    if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: 'Invalid email format' });
-    if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    
+    // Input validation
+    const errors = {};
+    if (!name) errors.name = 'Name is required';
+    if (!email) {
+      errors.email = 'Email is required';
+    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
+      errors.email = 'Invalid email format';
+    }
+    
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors 
+      });
+    }
 
+    // Rate limiting check
+    const now = Date.now();
+    const recentSignup = recentSignups.get(email);
+    
+    if (recentSignup) {
+      const { count, timestamp } = recentSignup;
+      if (now - timestamp < RATE_LIMIT_WINDOW) {
+        if (count >= SIGNUP_RATE_LIMIT) {
+          return res.status(423).json({ 
+            message: 'Too many signup attempts. Please try again later.',
+            retryAfter: Math.ceil((RATE_LIMIT_WINDOW - (now - timestamp)) / 1000) // in seconds
+          });
+        }
+        recentSignups.set(email, { count: count + 1, timestamp });
+      } else {
+        recentSignups.set(email, { count: 1, timestamp: now });
+      }
+    } else {
+      recentSignups.set(email, { count: 1, timestamp: now });
+    }
+
+    // Check for existing user
     const exists = await User.findOne({ email });
-    if (exists) return res.status(409).json({ message: 'Email already in use' });
+    if (exists) {
+      return res.status(409).json({ 
+        message: 'Email already in use',
+        suggestion: 'Try logging in or use a different email address.'
+      });
+    }
 
     const user = await User.create({ name, email, password, username, avatar_url });
     const { accessToken, refreshToken } = generateTokens(user);
     user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
-    // Issue initial 6-digit verification code (for UI)
+    // Issue initial 6-digit verification code for UI flow
     const code = (crypto.randomInt(100000, 999999)).toString();
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     user.emailVerificationCodeHash = codeHash;
     user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
     await user.save();
 
     const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
@@ -166,8 +216,8 @@ export const requestEmailVerification = async (req, res) => {
     await user.save();
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const appBaseUrl = req.get('origin') || process.env.APP_BASE_URL || 'http://localhost:3000';
     const verifyUrlBackend = `${baseUrl}/api/auth/email/verify?token=${encodeURIComponent(token)}`;
-    const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
     const verifyUrlFrontend = `${appBaseUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
     if (process.env.NODE_ENV !== 'production') {
@@ -182,8 +232,7 @@ export const requestEmailVerification = async (req, res) => {
         html: `
           <p>Hi ${user.name || 'there'},</p>
           <p>Please verify your email:</p>
-          <p><a href="${verifyUrlFrontend}">Verify Email (Frontend)</a></p>
-          <p>Or GET: ${verifyUrlBackend}</p>
+          <p><a href="${verifyUrlFrontend}">Click here to verify your email</a></p>
           <p>This link expires in 24 hours.</p>
         `,
       });
@@ -239,8 +288,8 @@ export const forgotPassword = async (req, res) => {
     await user.save();
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const appBaseUrl = req.get('origin') || process.env.APP_BASE_URL || 'http://localhost:3000';
     const resetUrlBackend = `${baseUrl}/api/auth/password/reset`;
-    const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
     const resetUrlFrontend = `${appBaseUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
     if (process.env.NODE_ENV !== 'production') {
@@ -255,8 +304,7 @@ export const forgotPassword = async (req, res) => {
         html: `
           <p>Hi ${user.name || 'there'},</p>
           <p>You requested a password reset. This link expires in 1 hour.</p>
-          <p><a href="${resetUrlFrontend}">Reset Password (Frontend)</a></p>
-          <p>Or POST to: ${resetUrlBackend} with JSON {"token":"${token}","newPassword":"yourNewPassword"}</p>
+          <p><a href="${resetUrlFrontend}">Click here to reset your password</a></p>
         `,
       });
     } catch (mailErr) {
@@ -297,77 +345,81 @@ export const resetPassword = async (req, res) => {
 
 // New: resend 6-digit verification code
 export const resendVerification = async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email) return res.status(400).json({ message: 'Email required' });
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ message: 'Email required' });
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    if (user.emailVerified) return res.json({ message: 'Email already verified' });
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  if (user.emailVerified) return res.json({ message: 'Email already verified' });
 
-    const code = (crypto.randomInt(100000, 999999)).toString();
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-    user.emailVerificationCodeHash = codeHash;
-    user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    await user.save();
+  const code = (crypto.randomInt(100000, 999999)).toString();
+  const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+  user.emailVerificationCodeHash = codeHash;
+  user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
 
-    const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEV] Email verification code (resend):', code);
-      console.log('[DEV] Verify on frontend:', `${appBaseUrl}/verify-email`);
-    }
-
-    try {
-      await sendMail({
-        to: user.email,
-        subject: 'Your verification code',
-        html: `
-          <p>Hi ${user.name || 'there'},</p>
-          <p>Your verification code is: <strong>${code}</strong></p>
-          <p>This code expires in 10 minutes.</p>
-        `,
-      });
-    } catch (mailErr) {
-      console.warn('Email send failed:', mailErr.message);
-    }
-
-    res.json({ message: 'Verification code sent' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEV] Email verification code (resend):', code);
   }
-};
+
+  try {
+    await sendMail({
+      to: user.email,
+      subject: 'Your verification code',
+      html: `<p>Your verification code is: <strong>${code}</strong></p>`,
+    });
+  } catch (mailErr) {
+    console.warn('Email send failed:', mailErr.message);
+  }
+
+  res.json({ message: 'Verification code sent' });
+}
 
 // New: verify 6-digit code
 export const verifyEmailCode = async (req, res) => {
-  try {
-    const { email, code } = req.body || {};
-    if (!email || !code) return res.status(400).json({ message: 'Email and code required' });
-    if (!/^\d{6}$/.test(code)) return res.status(400).json({ message: 'Invalid code format' });
+  const { email, code } = req.body || {};
+  if (!email || !code) return res.status(400).json({ message: 'Email and code required' });
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ message: 'Invalid code format' });
 
-    const user = await User.findOne({ email }).select('+emailVerificationCodeHash +emailVerificationCodeExpires');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    if (!user.emailVerificationCodeHash || !user.emailVerificationCodeExpires) {
-      return res.status(400).json({ message: 'No active verification code' });
-    }
-    if (user.emailVerificationCodeExpires <= new Date()) {
-      return res.status(400).json({ message: 'Verification code expired' });
-    }
-
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-    if (codeHash !== user.emailVerificationCodeHash) {
-      return res.status(400).json({ message: 'Invalid verification code' });
-    }
-
-    user.emailVerified = true;
-    user.emailVerificationCodeHash = undefined;
-    user.emailVerificationCodeExpires = undefined;
-    // Also clear token-based fields if any
-    user.emailVerificationTokenHash = undefined;
-    user.emailVerificationExpires = undefined;
-    await user.save();
-
-    res.json({ message: 'Email verified successfully' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  const user = await User.findOne({ email }).select('+emailVerificationCodeHash +emailVerificationCodeExpires');
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  if (!user.emailVerificationCodeHash || !user.emailVerificationCodeExpires) {
+    return res.status(400).json({ message: 'No active verification code' });
   }
-};
+  if (user.emailVerificationCodeExpires <= new Date()) {
+    return res.status(400).json({ message: 'Verification code expired' });
+  }
+
+  const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+  if (codeHash !== user.emailVerificationCodeHash) {
+    return res.status(400).json({ message: 'Invalid verification code' });
+  }
+
+  user.emailVerified = true;
+  user.emailVerificationCodeHash = undefined;
+  user.emailVerificationCodeExpires = undefined;
+  user.emailVerificationTokenHash = undefined;
+  // Generate tokens for the user
+  const { accessToken, refreshToken } = await generateTokens(user);
+  
+  // Update user's refresh token in the database
+  user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+  user.emailVerificationExpires = undefined;
+  await user.save();
+
+  // Return success response with tokens and user info
+  res.json({ 
+    success: true,
+    message: 'Email verified successfully',
+    accessToken,
+    refreshToken,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      avatar_url: user.avatar_url,
+      isVerified: true
+    }
+  });
+}

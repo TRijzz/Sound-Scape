@@ -48,13 +48,13 @@ router.post('/logout', requireAuth, (req, res) => {
   res.status(200).json({ success: true });
 });
 
-// Email verification (link-based)
-router.post('/email/request-verification', requestEmailVerification);
-router.get('/email/verify', verifyEmail);
-
 // Email verification (6-digit code to match frontend)
 router.post('/verify-email', verifyEmailCode);
 router.post('/resend-verification', resendVerification);
+
+// Legacy email verification (link-based, kept for backward compatibility)
+router.post('/email/request-verification', requestEmailVerification);
+router.get('/email/verify', verifyEmail);
 router.post('/password/forgot', forgotPassword);
 router.post('/password/reset', resetPassword);
 
