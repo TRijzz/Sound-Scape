@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import vinylSvg from '../../assets/vinyl.svg';
 import { ReactComponent as Tonearm } from '../../assets/tonearm.svg';
-import { PlayIcon, PauseIcon, SkipNextIcon, SkipPrevIcon, VolumeIcon, RepeatIcon, ShuffleIcon } from './Icons';
+import { PlayIcon, PauseIcon, SkipNextIcon, SkipPrevIcon, VolumeIcon, RepeatIcon, ShuffleIcon, HeartIcon, LikedIcon, MoreIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
 
 const VinylPlayer = ({ isOpen, onClose }) => {
@@ -19,9 +19,19 @@ const VinylPlayer = ({ isOpen, onClose }) => {
     previousTrack,
     setProgress,
     setVolume,
+    toggleLike,
+    setRepeatMode,
+    repeatMode,
+    isLiked,
   } = useMusic();
 
   const [playerState, setPlayerState] = useState('stopped');
+  const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
+  const [playlists, setPlaylists] = useState([
+    { id: '1', name: 'My Playlist 1' },
+    { id: '2', name: 'Workout Mix' },
+    { id: '3', name: 'Chill Vibes' },
+  ]);
 
   // Vinyl player states
   const isSpinning = playerState === 'playing';
@@ -45,6 +55,27 @@ const VinylPlayer = ({ isOpen, onClose }) => {
     if (playerState !== 'swinging') {
       handlePlayPause();
     }
+  };
+
+  const handleLikeClick = (e) => {
+    e.stopPropagation();
+    if (currentTrack) {
+      toggleLike(currentTrack.id);
+    }
+  };
+
+  const handleRepeatClick = (e) => {
+    e.stopPropagation();
+    const repeatModes = ['off', 'all', 'one'];
+    const currentIndex = repeatModes.indexOf(repeatMode);
+    const nextIndex = (currentIndex + 1) % repeatModes.length;
+    setRepeatMode(repeatModes[nextIndex]);
+  };
+
+  const handleAddToPlaylist = (playlistId) => {
+    // Here you would typically make an API call to add the song to the playlist
+    console.log(`Adding ${currentTrack?.name} to playlist ${playlistId}`);
+    setShowPlaylistMenu(false);
   };
 
   const formatTime = (seconds) => {
@@ -183,18 +214,27 @@ const VinylPlayer = ({ isOpen, onClose }) => {
                 >
                   {/* Control Buttons */}
                   <div className="flex items-center space-x-8">
-                    <button className="text-gray-400 hover:text-white transition-colors">
-                      <ShuffleIcon className="w-6 h-6" />
+                    <button 
+                      className={`${repeatMode === 'off' ? 'text-gray-400' : 'text-neon-blue'} hover:text-white transition-colors`}
+                      onClick={handleRepeatClick}
+                      title={repeatMode === 'one' ? 'Repeat One' : 'Repeat All'}
+                    >
+                      <RepeatIcon className="w-6 h-6" />
+                      {repeatMode === 'one' && (
+                        <span className="absolute -mt-2 ml-1 text-xs">1</span>
+                      )}
                     </button>
                     <button 
                       onClick={previousTrack}
                       className="text-gray-400 hover:text-white transition-colors"
+                      title="Previous"
                     >
                       <SkipPrevIcon className="w-8 h-8" />
                     </button>
                     <button
                       onClick={handlePlayPause}
                       className="w-20 h-20 bg-neon-blue text-dark-bg rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-neon-blue/25"
+                      title={isPlaying ? 'Pause' : 'Play'}
                     >
                       {isPlaying ? (
                         <PauseIcon className="w-10 h-10" />
@@ -205,12 +245,55 @@ const VinylPlayer = ({ isOpen, onClose }) => {
                     <button 
                       onClick={nextTrack}
                       className="text-gray-400 hover:text-white transition-colors"
+                      title="Next"
                     >
                       <SkipNextIcon className="w-8 h-8" />
                     </button>
-                    <button className="text-gray-400 hover:text-white transition-colors">
-                      <RepeatIcon className="w-6 h-6" />
+                    <button 
+                      onClick={handleLikeClick}
+                      className={`${currentTrack && isLiked(currentTrack.id) ? 'text-neon-blue' : 'text-gray-400'} hover:text-white transition-colors`}
+                      title={currentTrack && isLiked(currentTrack.id) ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                    >
+                      {currentTrack && isLiked(currentTrack.id) ? (
+                        <LikedIcon className="w-6 h-6" />
+                      ) : (
+                        <HeartIcon className="w-6 h-6" />
+                      )}
                     </button>
+                    <div className="relative">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowPlaylistMenu(!showPlaylistMenu);
+                        }}
+                        className="text-gray-400 hover:text-white transition-colors"
+                        title="More options"
+                      >
+                        <MoreIcon className="w-6 h-6" />
+                      </button>
+                      {showPlaylistMenu && (
+                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-dark-gray rounded-lg shadow-xl z-50 overflow-hidden">
+                          <div className="py-1">
+                            <div className="px-4 py-2 text-sm text-gray-300 border-b border-gray-700">Add to playlist</div>
+                            {playlists.map(playlist => (
+                              <button
+                                key={playlist.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddToPlaylist(playlist.id);
+                                }}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-light-gray/30 hover:text-white"
+                              >
+                                {playlist.name}
+                              </button>
+                            ))}
+                            <div className="px-4 py-2 text-sm text-neon-blue hover:bg-light-gray/30 cursor-pointer border-t border-gray-700">
+                              + New Playlist
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Progress Bar */}

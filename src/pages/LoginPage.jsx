@@ -107,7 +107,8 @@ const LoginPage = () => {
 
       // Update app auth state
       login(response.user);
-      navigate('/');
+      const target = location.state?.from || '/';
+      navigate(target);
     } catch (error) {
       console.error('Login error:', error);
       

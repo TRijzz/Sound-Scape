@@ -20,6 +20,8 @@ import ResetPassword from './pages/auth/ResetPassword';
 import EmailVerification from './pages/auth/EmailVerification';
 import EmailVerified from './pages/auth/EmailVerified';
 import VerificationSuccess from './pages/auth/VerificationSuccess';
+import LikedSongs from './pages/LikedSongs';
+import LibraryPage from './pages/LibraryPage';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -58,6 +60,8 @@ function App() {
                     <Route path="/email-verified" element={<EmailVerified />} />
                     <Route path="/verification-success" element={<VerificationSuccess />} />
                     <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/liked" element={<LikedSongs />} />
+                    <Route path="/library" element={<LibraryPage />} />
                   </Routes>
                 </motion.div>
               </main>

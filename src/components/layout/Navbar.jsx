@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SearchIcon, UserIcon, MoreIcon } from '../ui/Icons';
 import { useMusic } from '../../contexts/MusicContext';
@@ -12,14 +12,39 @@ const Navbar = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, logout } = useMusic();
   const { suggestions, isLoading, searchSuggestions, clearSuggestions } = useSearchSuggestions();
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
 
+  // Keep input in sync with URL query when on /search
+  useEffect(() => {
+    if (location.pathname.startsWith('/search')) {
+      const params = new URLSearchParams(location.search);
+      const q = params.get('q') || '';
+      setSearchQuery(q);
+    }
+  }, [location.pathname, location.search]);
+
+  // Live update search results by updating URL as user types on /search
+  useEffect(() => {
+    if (!location.pathname.startsWith('/search')) return;
+    const timeoutId = setTimeout(() => {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`, { replace: true });
+    }, 250);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, location.pathname]);
+
   // Debounced search suggestions
   useEffect(() => {
     const timeoutId = setTimeout(() => {
+      const allowSuggestions = location.pathname === '/' || location.pathname === '/home';
+      if (!allowSuggestions) {
+        clearSuggestions();
+        setShowSuggestions(false);
+        return;
+      }
       if (searchQuery.trim().length >= 2) {
         searchSuggestions(searchQuery, 5);
         setShowSuggestions(true);
@@ -30,7 +55,7 @@ const Navbar = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchSuggestions, clearSuggestions]);
+  }, [searchQuery, searchSuggestions, clearSuggestions, location.pathname]);
 
   // Close suggestions and dropdown when clicking outside
   useEffect(() => {
@@ -76,9 +101,17 @@ const Navbar = () => {
 
   const handleInputChange = (e) => {
     setSearchQuery(e.target.value);
+    if (location.pathname.startsWith('/search')) {
+      setShowSuggestions(false);
+    }
   };
 
   const handleInputFocus = () => {
+    const allowSuggestions = location.pathname === '/' || location.pathname === '/home';
+    if (!allowSuggestions) {
+      setShowSuggestions(false);
+      return;
+    }
     if (searchQuery.trim().length >= 2) {
       setShowSuggestions(true);
     }
@@ -111,7 +144,7 @@ const Navbar = () => {
             <SearchSuggestions
               suggestions={suggestions}
               isLoading={isLoading}
-              isVisible={showSuggestions}
+              isVisible={showSuggestions && (location.pathname === '/' || location.pathname === '/home')}
               onSuggestionClick={handleSuggestionClick}
               onClose={() => setShowSuggestions(false)}
             />

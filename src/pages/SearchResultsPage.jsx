@@ -6,9 +6,10 @@ import AlbumCard from '../components/ui/AlbumCard';
 import ArtistCard from '../components/ui/ArtistCard';
 import { useSearch } from '../hooks/useMusicData';
 import { useMusic } from '../contexts/MusicContext';
+import { SearchIcon, HeartIcon, PlayIcon, MusicNoteIcon } from '../components/ui/Icons';
 
 const SearchResultsPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('songs');
   const query = searchParams.get('q') || '';
   const { playTrack } = useMusic();
@@ -27,6 +28,17 @@ const SearchResultsPage = () => {
     await playTrack(track);
   };
 
+  const trending = ['Taylor Swift', 'Rock', 'Ed Sheeran', 'Nepali Pop', 'Jazz', 'Classical'];
+  const quickCategories = [
+    { label: 'Top Songs', icon: PlayIcon },
+    { label: 'Popular Artists', icon: HeartIcon },
+    { label: 'New Albums', icon: MusicNoteIcon }
+  ];
+
+  const handleQuickSearch = (term) => {
+    setSearchParams({ q: term });
+  };
+
   const tabs = [
     { id: 'songs', label: 'Songs', count: searchResults.songs.length },
     { id: 'artists', label: 'Artists', count: searchResults.artists.length },
@@ -35,9 +47,27 @@ const SearchResultsPage = () => {
 
   const renderContent = () => {
     if (searchLoading) {
+      if (activeTab === 'songs') {
+        return (
+          <div className="space-y-2">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center space-x-3 p-3 rounded-lg bg-light-gray/30 animate-pulse">
+                <div className="w-12 h-12 rounded bg-gray-700" />
+                <div className="flex-1">
+                  <div className="h-3 bg-gray-700 rounded w-1/3 mb-2" />
+                  <div className="h-3 bg-gray-700 rounded w-1/4" />
+                </div>
+                <div className="h-3 bg-gray-700 rounded w-12" />
+              </div>
+            ))}
+          </div>
+        );
+      }
       return (
-        <div className="text-center py-12">
-          <div className="text-gray-400">Searching...</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="aspect-square rounded-xl bg-light-gray/30 animate-pulse" />
+          ))}
         </div>
       );
     }
@@ -93,6 +123,74 @@ const SearchResultsPage = () => {
         return null;
     }
   };
+
+  if (!query.trim()) {
+    return (
+      <div className="p-6">
+        <motion.div
+          className="mb-8 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-neon-blue/20 border border-neon-blue/30 mb-4">
+            <SearchIcon className="w-6 h-6 text-neon-blue" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Search</h1>
+          <p className="text-gray-400">Start typing in the search bar to find songs, artists, and albums</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mb-8"
+        >
+          <h2 className="text-lg font-semibold text-white mb-3">Trending searches</h2>
+          <div className="flex flex-wrap gap-2">
+            {trending.map((t) => (
+              <button
+                key={t}
+                onClick={() => handleQuickSearch(t)}
+                className="px-3 py-2 text-sm rounded-full bg-light-gray/40 text-gray-300 hover:bg-neon-blue/20 hover:text-white border border-gray-700 hover:border-neon-blue/30 transition-all"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <h2 className="text-lg font-semibold text-white mb-3">Browse</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {quickCategories.map(({ label, icon: Icon }, index) => (
+              <motion.button
+                key={label}
+                whileHover={{ scale: 1.02 }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+                className="flex items-center space-x-3 p-5 rounded-xl bg-gradient-to-r from-neon-blue/20 to-purple-500/20 border border-gray-700 text-left"
+                onClick={() => setActiveTab(label.includes('Songs') ? 'songs' : label.includes('Artists') ? 'artists' : 'albums')}
+              >
+                <div className="w-10 h-10 rounded-lg bg-black/30 border border-gray-700 flex items-center justify-center">
+                  <Icon className="w-6 h-6 text-neon-blue" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">{label}</p>
+                  <p className="text-gray-400 text-sm">Explore curated {label.toLowerCase()}</p>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -160,9 +258,20 @@ const SearchResultsPage = () => {
           <h3 className="text-lg font-medium text-gray-400 mb-2">
             No results found for "{query}"
           </h3>
-          <p className="text-sm text-gray-500">
-            Try searching for something else
+          <p className="text-sm text-gray-500 mb-4">
+            Try a different keyword or pick one below
           </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {trending.map((t) => (
+              <button
+                key={t}
+                onClick={() => handleQuickSearch(t)}
+                className="px-3 py-2 text-sm rounded-full bg-light-gray/40 text-gray-300 hover:bg-neon-blue/20 hover:text-white border border-gray-700 hover:border-neon-blue/30 transition-all"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </motion.div>
       )}
     </div>

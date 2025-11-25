@@ -1,8 +1,17 @@
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const envPath = path.resolve(__dirname, '../../.env');
+dotenv.config({ path: envPath });
 
 // Check if required environment variables are set
 if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
   console.error('SMTP_USER and SMTP_PASS must be set in the environment variables');
+  console.error('Checked .env at:', envPath);
   process.exit(1);
 }
 

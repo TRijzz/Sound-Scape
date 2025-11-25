@@ -14,6 +14,8 @@ const initialState = {
   currentIndex: 0,
   user: null,
   isAuthenticated: false,
+  repeatMode: 'off', // 'off', 'all', 'one'
+  likedSongs: new Set(),
 };
 
 // Reducer for music state
@@ -34,7 +36,24 @@ function musicReducer(state, action) {
     case 'SET_CURRENT_INDEX':
       return { ...state, currentIndex: action.payload };
     case 'SET_USER':
-      return { ...state, user: action.payload, isAuthenticated: !!action.payload };
+      return { 
+        ...state, 
+        user: action.payload, 
+        isAuthenticated: !!action.payload,
+        // Initialize liked songs from user data if available
+        likedSongs: action.payload?.likedSongs ? new Set(action.payload.likedSongs) : new Set()
+      };
+    case 'TOGGLE_LIKE':
+      const newLikedSongs = new Set(state.likedSongs);
+      if (newLikedSongs.has(action.payload)) {
+        newLikedSongs.delete(action.payload);
+      } else {
+        newLikedSongs.add(action.payload);
+      }
+      // Here you would typically make an API call to update the backend
+      return { ...state, likedSongs: newLikedSongs };
+    case 'SET_REPEAT_MODE':
+      return { ...state, repeatMode: action.payload };
     case 'PLAY_TRACK':
       return {
         ...state,
@@ -97,6 +116,16 @@ export function MusicProvider({ children }) {
 
   const setVolume = (volume) => {
     dispatch({ type: 'SET_VOLUME', payload: volume });
+  };
+
+  const toggleLike = (songId) => {
+    dispatch({ type: 'TOGGLE_LIKE', payload: songId });
+    // Here you would typically make an API call to update the backend
+    // await apiService.toggleLike(songId);
+  };
+
+  const setRepeatMode = (mode) => {
+    dispatch({ type: 'SET_REPEAT_MODE', payload: mode });
   };
 
   const setQueue = (queue) => {
@@ -167,6 +196,10 @@ export function MusicProvider({ children }) {
     previousTrack,
     setProgress,
     setVolume,
+    toggleLike,
+    setRepeatMode,
+    repeatMode: state.repeatMode,
+    isLiked: (songId) => state.likedSongs.has(songId),
     setQueue,
     login,
     logout,

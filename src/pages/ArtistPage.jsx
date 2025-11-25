@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PlayIcon, FollowIcon, FollowingIcon, MoreIcon } from '../components/ui/Icons';
 import SongCard from '../components/ui/SongCard';
@@ -9,8 +9,10 @@ import { useArtist } from '../hooks/useMusicData';
 
 const ArtistPage = () => {
   const { id } = useParams();
-  const { playTrack } = useMusic();
+  const navigate = useNavigate();
+  const { playTrack, isAuthenticated } = useMusic();
   const [isFollowing, setIsFollowing] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   
   // Use the API hook to get real artist data
   const { artist, artistAlbums, artistTopTracks, loading, error } = useArtist(id);
@@ -22,7 +24,15 @@ const ArtistPage = () => {
   };
 
   const handleFollow = () => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
     setIsFollowing(!isFollowing);
+  };
+
+  const handleSignInRedirect = () => {
+    navigate('/login', { state: { from: `/artist/${id}` } });
   };
 
   // Show loading state
@@ -182,7 +192,61 @@ const ArtistPage = () => {
             )}
           </div>
         </motion.section>
+
+        {/* About */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+        >
+          <h2 className="text-2xl font-bold text-white mb-4">About {artist.name}</h2>
+          <div className="bg-light-gray/30 rounded-xl p-6 border border-gray-700">
+            <p className="text-gray-300 leading-relaxed">
+              {artist.bio && artist.bio.trim()
+                ? artist.bio
+                : `${artist.name} is an artist associated with ${
+                    artist.genres && artist.genres.length > 0
+                      ? artist.genres.join(', ')
+                      : 'various genres'
+                  }. ${artist.followers?.total ? `${artist.followers.total.toLocaleString()} followers` : 'Followers data not available'} and a popularity score of ${
+                    typeof artist.popularity === 'number' ? artist.popularity : 'N/A'
+                  }.`}
+            </p>
+          </div>
+        </motion.section>
       </div>
+
+      {showAuthPrompt && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowAuthPrompt(false)} />
+          <motion.div
+            className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6 text-center"
+            initial={{ scale: 0.95, y: 10 }}
+            animate={{ scale: 1, y: 0 }}
+          >
+            <h3 className="text-xl font-semibold text-white mb-2">Sign in required</h3>
+            <p className="text-gray-300 mb-4">You need to sign in first to follow an artist.</p>
+            <div className="flex items-center justify-center space-x-3">
+              <button
+                onClick={() => setShowAuthPrompt(false)}
+                className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSignInRedirect}
+                className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80"
+              >
+                Sign in
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };
