@@ -4,7 +4,7 @@ import { PlayIcon, MoreIcon, LikeIcon, LikedIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
 
 const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) => {
-  const { playTrack, currentTrack, isPlaying } = useMusic();
+  const { playTrack, currentTrack, isPlaying, isLiked: isSongLiked, toggleLike } = useMusic();
   const isCurrentTrack = currentTrack?.id === song.id;
 
   const handlePlay = () => {
@@ -95,11 +95,12 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) 
       {/* Actions */}
       <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <button 
-          onClick={(e) => e.stopPropagation()}
-          className="text-gray-400 hover:text-neon-blue transition-colors"
+          onClick={(e) => { e.stopPropagation(); toggleLike(song._id || song.id); }}
+          className="transition-colors"
+          style={{ color: (isLiked || isSongLiked(song._id || song.id)) ? '#00ffff' : '#9CA3AF' }}
         >
-          {isLiked ? (
-            <LikedIcon className="w-4 h-4 text-neon-blue" />
+          {(isLiked || isSongLiked(song._id || song.id)) ? (
+            <LikedIcon className="w-4 h-4" />
           ) : (
             <LikeIcon className="w-4 h-4" />
           )}

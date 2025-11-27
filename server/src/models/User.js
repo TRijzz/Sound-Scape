@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema(
     emailVerificationCodeExpires: { type: Date, select: false },
     passwordResetTokenHash: { type: String, select: false, index: true },
     passwordResetExpires: { type: Date, select: false },
+    likedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
   },
   { timestamps: true }
 );

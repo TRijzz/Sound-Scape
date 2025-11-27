@@ -89,8 +89,13 @@ function musicReducer(state, action) {
 export function MusicProvider({ children }) {
   const [state, dispatch] = useReducer(musicReducer, initialState);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   const playTrack = (track) => {
+    if (!state.isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
     dispatch({ type: 'PLAY_TRACK', payload: track });
   };
 
@@ -119,9 +124,17 @@ export function MusicProvider({ children }) {
   };
 
   const toggleLike = (songId) => {
+    if (!state.isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+    const currentlyLiked = state.likedSongs.has(songId);
     dispatch({ type: 'TOGGLE_LIKE', payload: songId });
-    // Here you would typically make an API call to update the backend
-    // await apiService.toggleLike(songId);
+    if (currentlyLiked) {
+      apiService.unlikeSong(songId).catch(() => {});
+    } else {
+      apiService.likeSong(songId).catch(() => {});
+    }
   };
 
   const setRepeatMode = (mode) => {
@@ -200,11 +213,14 @@ export function MusicProvider({ children }) {
     setRepeatMode,
     repeatMode: state.repeatMode,
     isLiked: (songId) => state.likedSongs.has(songId),
+    likedSongsIds: Array.from(state.likedSongs),
     setQueue,
     login,
     logout,
     checkAuth,
     isLoading,
+    showAuthPrompt,
+    setShowAuthPrompt,
   };
 
   return (

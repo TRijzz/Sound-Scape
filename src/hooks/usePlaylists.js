@@ -1,90 +1,65 @@
 import { useState, useEffect } from 'react';
-
-const PLAYLIST_STORAGE_KEY = 'music_station_playlists';
+import apiService from '../services/api';
 
 export const usePlaylists = () => {
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load playlists from localStorage on mount
   useEffect(() => {
-    const savedPlaylists = localStorage.getItem(PLAYLIST_STORAGE_KEY);
-    if (savedPlaylists) {
+    const load = async () => {
+      setLoading(true);
       try {
-        setPlaylists(JSON.parse(savedPlaylists));
-      } catch (error) {
-        console.error('Failed to load playlists from localStorage:', error);
+        const data = await apiService.getMyPlaylists();
+        setPlaylists(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to fetch playlists:', err);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+    load();
   }, []);
 
-  // Save playlists to localStorage whenever playlists change
-  useEffect(() => {
-    localStorage.setItem(PLAYLIST_STORAGE_KEY, JSON.stringify(playlists));
-  }, [playlists]);
-
-  const createPlaylist = (playlistData) => {
-    const newPlaylist = {
-      id: Date.now().toString(),
+  const createPlaylist = async (playlistData) => {
+    const created = await apiService.createPlaylist({
       name: playlistData.name,
       description: playlistData.description || '',
-      songs: playlistData.songs || [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    setPlaylists(prev => [...prev, newPlaylist]);
-    return newPlaylist;
+    });
+    setPlaylists(prev => [...prev, created]);
+    return created;
   };
 
-  const updatePlaylist = (playlistId, updates) => {
-    setPlaylists(prev => 
-      prev.map(playlist => 
-        playlist.id === playlistId 
-          ? { ...playlist, ...updates, updatedAt: new Date().toISOString() }
-          : playlist
-      )
-    );
+  const updatePlaylist = async (playlistId, updates) => {
+    const updated = await apiService.updatePlaylist(playlistId, updates);
+    setPlaylists(prev => prev.map(p => (p._id === updated._id ? updated : p)));
+    return updated;
   };
 
-  const deletePlaylist = (playlistId) => {
-    setPlaylists(prev => prev.filter(playlist => playlist.id !== playlistId));
+  const deletePlaylist = async (playlistId) => {
+    await apiService.deletePlaylist(playlistId);
+    setPlaylists(prev => prev.filter(p => p._id !== playlistId));
   };
 
-  const addSongsToPlaylist = (playlistId, songs) => {
-    setPlaylists(prev => 
-      prev.map(playlist => {
-        if (playlist.id === playlistId) {
-          const existingSongIds = new Set(playlist.songs.map(song => song._id || song.id));
-          const newSongs = songs.filter(song => !existingSongIds.has(song._id || song.id));
-          return {
-            ...playlist,
-            songs: [...playlist.songs, ...newSongs],
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return playlist;
-      })
-    );
+  const addSongsToPlaylist = async (playlistId, songs) => {
+    let latest = null;
+    for (const song of songs) {
+      const id = song._id || song.id;
+      latest = await apiService.addSongToPlaylist(playlistId, id);
+    }
+    if (latest) {
+      setPlaylists(prev => prev.map(p => (p._id === latest._id ? latest : p)));
+    }
+    return latest;
   };
 
-  const removeSongFromPlaylist = (playlistId, songId) => {
-    setPlaylists(prev => 
-      prev.map(playlist => {
-        if (playlist.id === playlistId) {
-          return {
-            ...playlist,
-            songs: playlist.songs.filter(song => (song._id || song.id) !== songId),
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return playlist;
-      })
-    );
+  const removeSongFromPlaylist = async (playlistId, songId) => {
+    const updated = await apiService.removeSongFromPlaylist(playlistId, songId);
+    setPlaylists(prev => prev.map(p => (p._id === updated._id ? updated : p)));
+    return updated;
   };
 
   const getPlaylistById = (playlistId) => {
-    return playlists.find(playlist => playlist.id === playlistId);
+    return playlists.find(p => p._id === playlistId);
   };
 
   return {
@@ -110,24 +85,24 @@ export const usePlaylistActions = () => {
     getPlaylistById
   } = usePlaylists();
 
-  const handleCreatePlaylist = (playlistData) => {
-    return createPlaylist(playlistData);
+  const handleCreatePlaylist = async (playlistData) => {
+    return await createPlaylist(playlistData);
   };
 
-  const handleAddToPlaylist = (playlistId, songs) => {
-    addSongsToPlaylist(playlistId, songs);
+  const handleAddToPlaylist = async (playlistId, songs) => {
+    return await addSongsToPlaylist(playlistId, songs);
   };
 
-  const handleRemoveFromPlaylist = (playlistId, songId) => {
-    removeSongFromPlaylist(playlistId, songId);
+  const handleRemoveFromPlaylist = async (playlistId, songId) => {
+    return await removeSongFromPlaylist(playlistId, songId);
   };
 
-  const handleDeletePlaylist = (playlistId) => {
-    deletePlaylist(playlistId);
+  const handleDeletePlaylist = async (playlistId) => {
+    return await deletePlaylist(playlistId);
   };
 
-  const handleEditPlaylist = (playlistId, updates) => {
-    updatePlaylist(playlistId, updates);
+  const handleEditPlaylist = async (playlistId, updates) => {
+    return await updatePlaylist(playlistId, updates);
   };
 
   return {

@@ -39,7 +39,7 @@ const Navbar = () => {
   // Debounced search suggestions
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      const allowSuggestions = location.pathname === '/' || location.pathname === '/home';
+      const allowSuggestions = !location.pathname.startsWith('/search');
       if (!allowSuggestions) {
         clearSuggestions();
         setShowSuggestions(false);
@@ -107,7 +107,7 @@ const Navbar = () => {
   };
 
   const handleInputFocus = () => {
-    const allowSuggestions = location.pathname === '/' || location.pathname === '/home';
+    const allowSuggestions = !location.pathname.startsWith('/search');
     if (!allowSuggestions) {
       setShowSuggestions(false);
       return;
@@ -119,7 +119,7 @@ const Navbar = () => {
 
   return (
     <motion.nav 
-      className="bg-dark-gray/80 backdrop-blur-md border-b border-gray-800 px-4 lg:px-6 py-4"
+      className="bg-dark-gray/80 backdrop-blur-md border-b border-gray-800 px-4 lg:px-6 py-4 relative z-50"
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -144,7 +144,7 @@ const Navbar = () => {
             <SearchSuggestions
               suggestions={suggestions}
               isLoading={isLoading}
-              isVisible={showSuggestions && (location.pathname === '/' || location.pathname === '/home')}
+              isVisible={showSuggestions && !location.pathname.startsWith('/search')}
               onSuggestionClick={handleSuggestionClick}
               onClose={() => setShowSuggestions(false)}
             />

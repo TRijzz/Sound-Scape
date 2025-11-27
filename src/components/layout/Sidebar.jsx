@@ -9,10 +9,16 @@ import {
   MusicNoteIcon,
   PlusIcon 
 } from '../ui/Icons';
+import { usePlaylistActions } from '../../hooks/usePlaylists';
 
 function Sidebar() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [playlistName, setPlaylistName] = useState('');
+  const { playlists, handleCreatePlaylist, handleEditPlaylist, handleDeletePlaylist } = usePlaylistActions();
+  const [editTarget, setEditTarget] = useState(null);
+  const [showItemMenuId, setShowItemMenuId] = useState(null);
 
   const menuItems = [
     { path: '/', icon: HomeIcon, label: 'Home' },
@@ -21,11 +27,22 @@ function Sidebar() {
     { path: '/library', icon: MusicNoteIcon, label: 'Your Library' },
   ];
 
-  const playlists = [
-    { id: 1, name: 'My Playlist #1', image: '/api/placeholder/40/40' },
-    { id: 2, name: 'My Playlist #2', image: '/api/placeholder/40/40' },
-    { id: 3, name: 'My Playlist #3', image: '/api/placeholder/40/40' },
-  ];
+  const handleCreate = () => {
+    const name = playlistName.trim() || 'My Playlist';
+    const pl = handleCreatePlaylist({ name });
+    setShowCreate(false);
+    setPlaylistName('');
+  };
+
+  const handleRename = async () => {
+    if (!editTarget) return;
+    const name = playlistName.trim();
+    if (!name) return;
+    await handleEditPlaylist(editTarget._id || editTarget.id, { name });
+    setShowCreate(false);
+    setPlaylistName('');
+    setEditTarget(null);
+  };
 
   return (
     <>
@@ -94,24 +111,49 @@ function Sidebar() {
               <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
                 Playlists
               </h3>
-              <button className="text-gray-400 hover:text-neon-blue transition-colors">
+              <button onClick={() => setShowCreate(true)} className="text-gray-400 hover:text-neon-blue transition-colors">
                 <PlusIcon className="w-4 h-4" />
               </button>
             </div>
             
             <ul className="mt-2 space-y-1">
-              {playlists.map((playlist) => (
-                <li key={playlist.id}>
+              {playlists.length === 0 ? (
+                <li className="px-4 py-2 text-gray-500 text-sm">No playlists yet</li>
+              ) : playlists.map((playlist) => (
+                <li key={playlist._id || playlist.id} className="relative">
                   <Link
-                    to={`/playlist/${playlist.id}`}
+                    to={`/playlist/${playlist._id || playlist.id}`}
                     className="flex items-center space-x-3 px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-light-gray transition-all duration-200"
                   >
-                    {/* Music tone icon instead of generic image */}
                     <div className="w-8 h-8 rounded bg-gradient-to-br from-neon-blue/30 to-purple-500/30 flex items-center justify-center">
                       <MusicNoteIcon className="w-4 h-4 text-white" />
                     </div>
                     <span className="text-sm truncate">{playlist.name}</span>
+                    <button 
+                      onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setShowItemMenuId(showItemMenuId === (playlist._id || playlist.id) ? null : (playlist._id || playlist.id)); }}
+                      className="ml-auto text-gray-400 hover:text-white"
+                      title="Options"
+                      aria-label="Options"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                    </button>
                   </Link>
+                  {showItemMenuId === (playlist._id || playlist.id) && (
+                    <div className="absolute right-2 top-full mt-1 bg-dark-gray border border-gray-700 rounded-lg shadow-lg z-50 w-40">
+                      <button 
+                        onClick={(e)=>{ e.stopPropagation(); setEditTarget(playlist); setPlaylistName(playlist.name || ''); setShowCreate(true); setShowItemMenuId(null); }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800"
+                      >
+                        Rename
+                      </button>
+                      <button 
+                        onClick={async (e)=>{ e.stopPropagation(); await handleDeletePlaylist(playlist._id || playlist.id); setShowItemMenuId(null); }}
+                        className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -129,6 +171,29 @@ function Sidebar() {
           </Link>
         </div>
       </motion.div>
+      {showCreate && (
+        <motion.div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowCreate(false)} />
+          <motion.div className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}>
+            <h3 className="text-xl font-semibold text-white mb-3">{editTarget ? 'Rename playlist' : 'New playlist'}</h3>
+            <input
+              type="text"
+              value={playlistName}
+              onChange={(e)=>setPlaylistName(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-neon-blue"
+              placeholder="Playlist name"
+            />
+            <div className="mt-4 flex justify-end space-x-3">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray">Cancel</button>
+              {editTarget ? (
+                <button onClick={handleRename} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80">Save</button>
+              ) : (
+                <button onClick={handleCreate} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80">Create</button>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </>
   );
 }

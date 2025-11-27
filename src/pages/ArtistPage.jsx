@@ -63,7 +63,7 @@ const ArtistPage = () => {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-28">
       {/* Artist Banner */}
       <motion.div
         className="relative h-80 bg-gradient-to-b from-neon-blue/20 to-dark-bg"
@@ -71,7 +71,7 @@ const ArtistPage = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-dark-bg via-dark-bg/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark-bg via-dark-bg/50 to-transparent pointer-events-none" />
         
         <div className="relative z-10 flex items-end h-full p-6">
           <div className="flex items-end space-x-6">

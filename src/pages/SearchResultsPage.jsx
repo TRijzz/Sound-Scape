@@ -6,13 +6,16 @@ import AlbumCard from '../components/ui/AlbumCard';
 import ArtistCard from '../components/ui/ArtistCard';
 import { useSearch } from '../hooks/useMusicData';
 import { useMusic } from '../contexts/MusicContext';
+import { useNavigate } from 'react-router-dom';
 import { SearchIcon, HeartIcon, PlayIcon, MusicNoteIcon } from '../components/ui/Icons';
 
 const SearchResultsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('songs');
   const query = searchParams.get('q') || '';
-  const { playTrack } = useMusic();
+  const { playTrack, isAuthenticated } = useMusic();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   
   // Use the search hook to get real API data
   const { searchResults, searchLoading, searchError, search } = useSearch();
@@ -25,6 +28,10 @@ const SearchResultsPage = () => {
   }, [query, search]);
 
   const handleTrackSelect = async (track) => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
     await playTrack(track);
   };
 
@@ -272,6 +279,38 @@ const SearchResultsPage = () => {
               </button>
             ))}
           </div>
+        </motion.div>
+      )}
+
+      {showAuthPrompt && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowAuthPrompt(false)} />
+          <motion.div
+            className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6 text-center"
+            initial={{ scale: 0.95, y: 10 }}
+            animate={{ scale: 1, y: 0 }}
+          >
+            <h3 className="text-xl font-semibold text-white mb-2">Sign in required</h3>
+            <p className="text-gray-300 mb-4">You need to sign in first to play songs.</p>
+            <div className="flex items-center justify-center space-x-3">
+              <button
+                onClick={() => setShowAuthPrompt(false)}
+                className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => navigate(`/login`, { state: { from: `/search?q=${encodeURIComponent(query)}` } })}
+                className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80"
+              >
+                Sign in
+              </button>
+            </div>
+          </motion.div>
         </motion.div>
       )}
     </div>

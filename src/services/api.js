@@ -215,6 +215,62 @@ class ApiService {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
 
+  // Likes (Liked Songs)
+  async getLikedSongs() {
+    return this.fetchData('/users/me/likes');
+  }
+
+  async likeSong(songId) {
+    return this.fetchData('/users/me/likes', {
+      method: 'POST',
+      body: JSON.stringify({ songId })
+    });
+  }
+
+  async unlikeSong(songId) {
+    return this.fetchData('/users/me/likes', {
+      method: 'DELETE',
+      body: JSON.stringify({ songId })
+    });
+  }
+
+  // Playlists
+  async getMyPlaylists() {
+    return this.fetchData('/playlists/me');
+  }
+
+  async createPlaylist(payload) {
+    return this.fetchData('/playlists', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updatePlaylist(playlistId, updates) {
+    return this.fetchData(`/playlists/${playlistId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deletePlaylist(playlistId) {
+    return this.fetchData(`/playlists/${playlistId}`, { method: 'DELETE' });
+  }
+
+  async addSongToPlaylist(playlistId, songId) {
+    return this.fetchData(`/playlists/${playlistId}/songs`, {
+      method: 'POST',
+      body: JSON.stringify({ songId })
+    });
+  }
+
+  async removeSongFromPlaylist(playlistId, songId) {
+    return this.fetchData(`/playlists/${playlistId}/songs`, {
+      method: 'DELETE',
+      body: JSON.stringify({ songId })
+    });
+  }
+
   // Auth: Signup/Register
   async signup({ username, email, password, name }) {
     return this.fetchData(`/auth/register`, {

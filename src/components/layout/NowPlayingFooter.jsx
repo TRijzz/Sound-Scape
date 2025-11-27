@@ -15,6 +15,7 @@ import {
   MuteIcon
 } from '../ui/Icons';
 import VinylOverlay from '../ui/VinylOverlay';
+import { usePlaylistActions } from '../../hooks/usePlaylists';
 import { useMusic } from '../../contexts/MusicContext';
 
 const NowPlayingFooter = () => {
@@ -31,9 +32,19 @@ const NowPlayingFooter = () => {
     previousTrack,
     setProgress,
     setVolume,
+    toggleLike,
+    isLiked,
+    repeatMode,
+    setRepeatMode,
+    isAuthenticated,
+    setShowAuthPrompt,
   } = useMusic();
 
   const [showVinylPlayer, setShowVinylPlayer] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
+  const { playlists, handleAddToPlaylist, handleCreatePlaylist } = usePlaylistActions();
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -75,6 +86,37 @@ const NowPlayingFooter = () => {
     }
   };
 
+  const handleToggleShuffle = () => {
+    setIsShuffle(prev => !prev);
+  };
+
+  const cycleRepeat = () => {
+    const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    setRepeatMode(next);
+  };
+
+  const handleToggleLike = () => {
+    if (!currentTrack) return;
+    const id = currentTrack._id || currentTrack.id;
+    if (id) toggleLike(id);
+  };
+
+  const handleAddCurrentTrackToPlaylist = (playlistId) => {
+    if (!currentTrack) return;
+    if (!isAuthenticated) { setShowAuthPrompt(true); return; }
+    handleAddToPlaylist(playlistId, [currentTrack]);
+    setShowAddToPlaylist(false);
+    setShowMore(false);
+  };
+
+  const handleCreateDefaultPlaylistAndAdd = () => {
+    if (!isAuthenticated) { setShowAuthPrompt(true); return; }
+    const pl = handleCreatePlaylist({ name: 'My Playlist', songs: [] });
+    Promise.resolve(pl).then((created)=>{
+      handleAddCurrentTrackToPlaylist(created._id || created.id);
+    });
+  };
+
   if (!currentTrack) {
     return null;
   }
@@ -103,8 +145,16 @@ const NowPlayingFooter = () => {
                 {currentTrack.artists?.map(artist => artist.name).join(', ')}
               </p>
             </div>
-            <button className="text-gray-400 hover:text-neon-blue transition-colors">
-              <LikeIcon className="w-4 h-4" />
+            <button 
+              onClick={handleToggleLike}
+              className="transition-colors"
+              style={{ color: isLiked(currentTrack?._id || currentTrack?.id) ? '#00ffff' : '#9CA3AF' }}
+            >
+              {isLiked(currentTrack?._id || currentTrack?.id) ? (
+                <LikedIcon className="w-4 h-4" />
+              ) : (
+                <LikeIcon className="w-4 h-4" />
+              )}
             </button>
           </div>
 
@@ -112,7 +162,11 @@ const NowPlayingFooter = () => {
           <div className="flex flex-col items-center space-y-2 w-1/2">
             {/* Control Buttons */}
             <div className="flex items-center space-x-4">
-              <button className="text-gray-400 hover:text-white transition-colors">
+              <button 
+                onClick={(e)=>{ e.stopPropagation(); handleToggleShuffle(); }}
+                className="transition-colors"
+                style={{ color: isShuffle ? '#00ffff' : '#9CA3AF' }}
+              >
                 <ShuffleIcon className="w-4 h-4" />
               </button>
               <button 
@@ -146,8 +200,16 @@ const NowPlayingFooter = () => {
               >
                 <SkipNextIcon className="w-5 h-5" />
               </button>
-              <button className="text-gray-400 hover:text-white transition-colors">
+              <button 
+                onClick={(e)=>{ e.stopPropagation(); cycleRepeat(); }}
+                className="relative transition-colors"
+                style={{ color: repeatMode !== 'off' ? '#00ffff' : '#9CA3AF' }}
+                title={repeatMode === 'one' ? 'Repeat one' : repeatMode === 'all' ? 'Repeat all' : 'Repeat off'}
+              >
                 <RepeatIcon className="w-4 h-4" />
+                {repeatMode === 'one' && (
+                  <span className="absolute -right-2 -top-1 text-[10px] font-bold" style={{ color: '#00ffff' }}>1</span>
+                )}
               </button>
             </div>
 
@@ -172,10 +234,22 @@ const NowPlayingFooter = () => {
           </div>
 
           {/* Volume Control */}
-          <div className="flex items-center w-1/4 justify-end space-x-5">
-            <button className="text-gray-400 hover:text-white transition-colors" title="More options" aria-label="More options">
+          <div className="flex items-center w-1/4 justify-end space-x-5 relative">
+            <button 
+              onClick={()=>setShowMore(prev=>!prev)}
+              className="text-gray-400 hover:text-white transition-colors" title="More options" aria-label="More options">
               <MoreIcon className="w-4 h-4" />
             </button>
+            {showMore && (
+              <div className="absolute bottom-10 right-0 bg-dark-gray border border-gray-700 rounded-lg shadow-lg w-56 z-50">
+                <button 
+                  onClick={()=>{ setShowAddToPlaylist(true); }}
+                  className="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-gray-800"
+                >
+                  Add to playlist
+                </button>
+              </div>
+            )}
             <button 
               onClick={() => setShowVinylPlayer(true)}
               className="text-gray-400 hover:text-neon-blue transition-colors"
@@ -232,6 +306,30 @@ const NowPlayingFooter = () => {
           border: 2px solid #0A0A0A;
         }
       `}</style>
+
+      {showAddToPlaylist && (
+        <motion.div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={()=>setShowAddToPlaylist(false)} />
+          <motion.div className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}>
+            <h3 className="text-xl font-semibold text-white mb-3">Add to playlist</h3>
+            {playlists.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {playlists.map(pl => (
+                  <button key={pl._id || pl.id} onClick={()=>handleAddCurrentTrackToPlaylist(pl._id || pl.id)} className="w-full text-left px-4 py-2 rounded-lg bg-light-gray/30 text-gray-300 hover:bg-light-gray/50">
+                    {pl.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400 mb-3">No playlists yet.</p>
+            )}
+            <div className="mt-4 flex justify-end space-x-3">
+              <button onClick={()=>setShowAddToPlaylist(false)} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray">Cancel</button>
+              <button onClick={handleCreateDefaultPlaylistAndAdd} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80">Create playlist</button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       {/* Vinyl Overlay */}
       <VinylOverlay 

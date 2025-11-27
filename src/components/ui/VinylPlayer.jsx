@@ -60,7 +60,10 @@ const VinylPlayer = ({ isOpen, onClose }) => {
   const handleLikeClick = (e) => {
     e.stopPropagation();
     if (currentTrack) {
-      toggleLike(currentTrack.id);
+      const id = currentTrack._id || currentTrack.id;
+      if (id) {
+        toggleLike(id);
+      }
     }
   };
 
@@ -251,10 +254,10 @@ const VinylPlayer = ({ isOpen, onClose }) => {
                     </button>
                     <button 
                       onClick={handleLikeClick}
-                      className={`${currentTrack && isLiked(currentTrack.id) ? 'text-neon-blue' : 'text-gray-400'} hover:text-white transition-colors`}
-                      title={currentTrack && isLiked(currentTrack.id) ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                      className={`${currentTrack && isLiked(currentTrack._id || currentTrack.id) ? 'text-neon-blue' : 'text-gray-400'} hover:text-white transition-colors`}
+                      title={currentTrack && isLiked(currentTrack._id || currentTrack.id) ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
                     >
-                      {currentTrack && isLiked(currentTrack.id) ? (
+                      {currentTrack && isLiked(currentTrack._id || currentTrack.id) ? (
                         <LikedIcon className="w-6 h-6" />
                       ) : (
                         <HeartIcon className="w-6 h-6" />

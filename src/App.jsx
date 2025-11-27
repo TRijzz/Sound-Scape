@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 // Layout Components
@@ -25,6 +25,37 @@ import LibraryPage from './pages/LibraryPage';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
+import { useMusic } from './contexts/MusicContext';
+
+function AuthPromptOverlay() {
+  const { showAuthPrompt, setShowAuthPrompt } = useMusic();
+  const navigate = useNavigate();
+  const location = useLocation();
+  React.useEffect(() => {
+    if (location.pathname.startsWith('/login') || location.pathname.startsWith('/signup')) {
+      if (showAuthPrompt) setShowAuthPrompt(false);
+    }
+  }, [location.pathname, showAuthPrompt, setShowAuthPrompt]);
+  const handleLogin = () => {
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    setShowAuthPrompt(false);
+    navigate('/login', { state: { from: returnTo } });
+  };
+  if (!showAuthPrompt) return null;
+  return (
+    <motion.div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={() => setShowAuthPrompt(false)} />
+      <motion.div className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6 text-center" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}>
+        <h3 className="text-xl font-semibold text-white mb-2">Sign in required</h3>
+        <p className="text-gray-300 mb-4">You need to sign in first to play songs.</p>
+        <div className="flex items-center justify-center space-x-3">
+          <button onClick={() => setShowAuthPrompt(false)} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray">Cancel</button>
+          <button onClick={handleLogin} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80">Sign in</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 function App() {
   return (
@@ -70,6 +101,7 @@ function App() {
           
           {/* Now Playing Footer */}
           <NowPlayingFooter />
+          <AuthPromptOverlay />
         </div>
       </Router>
     </MusicProvider>
