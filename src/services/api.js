@@ -13,7 +13,35 @@ class ApiService {
   getAuthHeader() {
     return this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {};
   }
-  // Generic fetch method with error handling
+  async refreshAccessToken() {
+    try {
+      const stored = localStorage.getItem('authTokens');
+      if (!stored) throw new Error('No tokens');
+      const { refreshToken } = JSON.parse(stored);
+      if (!refreshToken) throw new Error('No refresh token');
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      });
+      const raw = await res.text();
+      const data = raw ? JSON.parse(raw) : null;
+      if (!res.ok) {
+        throw new Error((data && data.message) || 'Failed to refresh');
+      }
+      const { accessToken, refreshToken: newRefresh } = data || {};
+      if (!accessToken) throw new Error('No access token');
+      this.authToken = accessToken;
+      const merged = { accessToken, refreshToken: newRefresh || refreshToken };
+      localStorage.setItem('authTokens', JSON.stringify(merged));
+      return accessToken;
+    } catch (e) {
+      localStorage.removeItem('authTokens');
+      this.authToken = null;
+      throw e;
+    }
+  }
+
   async fetchData(endpoint, options = {}) {
     try {
       const headers = {
@@ -39,10 +67,37 @@ class ApiService {
 
       if (!response.ok) {
         const message = (data && data.message) || `HTTP error ${response.status}`;
-        const err = new Error(message);
-        err.status = response.status;
-        err.details = data;
-        throw err;
+        if (response.status === 401 && (message.toLowerCase().includes('invalid') || message.toLowerCase().includes('expired'))) {
+          try {
+            await this.refreshAccessToken();
+            const retryHeaders = {
+              'Content-Type': 'application/json',
+              ...this.getAuthHeader(),
+              ...(options.headers || {})
+            };
+            const retryRes = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers: retryHeaders });
+            const retryRaw = await retryRes.text();
+            const retryData = retryRaw ? JSON.parse(retryRaw) : null;
+            if (!retryRes.ok) {
+              const retryMsg = (retryData && retryData.message) || `HTTP error ${retryRes.status}`;
+              const retryErr = new Error(retryMsg);
+              retryErr.status = retryRes.status;
+              retryErr.details = retryData;
+              throw retryErr;
+            }
+            return retryData;
+          } catch (refreshErr) {
+            const err = new Error(message);
+            err.status = response.status;
+            err.details = data;
+            throw err;
+          }
+        } else {
+          const err = new Error(message);
+          err.status = response.status;
+          err.details = data;
+          throw err;
+        }
       }
 
       return data;
@@ -255,6 +310,10 @@ class ApiService {
 
   async deletePlaylist(playlistId) {
     return this.fetchData(`/playlists/${playlistId}`, { method: 'DELETE' });
+  }
+
+  async getPlaylist(playlistId) {
+    return this.fetchData(`/playlists/${playlistId}`);
   }
 
   async addSongToPlaylist(playlistId, songId) {

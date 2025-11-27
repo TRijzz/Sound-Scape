@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
+import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api';
 
 export const usePlaylists = () => {
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { isAuthenticated, user } = useMusic();
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
+        if (!isAuthenticated) {
+          setPlaylists([]);
+          return;
+        }
         const data = await apiService.getMyPlaylists();
         setPlaylists(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -18,7 +24,7 @@ export const usePlaylists = () => {
       }
     };
     load();
-  }, []);
+  }, [isAuthenticated, user?._id]);
 
   const createPlaylist = async (playlistData) => {
     const created = await apiService.createPlaylist({

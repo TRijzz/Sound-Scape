@@ -22,6 +22,7 @@ import EmailVerified from './pages/auth/EmailVerified';
 import VerificationSuccess from './pages/auth/VerificationSuccess';
 import LikedSongs from './pages/LikedSongs';
 import LibraryPage from './pages/LibraryPage';
+import PlaylistPage from './pages/PlaylistPage';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -93,6 +94,7 @@ function App() {
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/liked" element={<LikedSongs />} />
                     <Route path="/library" element={<LibraryPage />} />
+                    <Route path="/playlist/:id" element={<PlaylistPage />} />
                   </Routes>
                 </motion.div>
               </main>

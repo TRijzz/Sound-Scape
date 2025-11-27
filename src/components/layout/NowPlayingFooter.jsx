@@ -122,6 +122,7 @@ const NowPlayingFooter = () => {
   }
 
   return (
+    <>
     <motion.div
       className="fixed bottom-0 left-0 right-0 bg-dark-gray/95 backdrop-blur-md border-t border-gray-800 z-50"
       initial={{ y: 80, opacity: 0 }}
@@ -307,7 +308,14 @@ const NowPlayingFooter = () => {
         }
       `}</style>
 
-      {showAddToPlaylist && (
+      {/* Vinyl Overlay */}
+      <VinylOverlay 
+        isOpen={showVinylPlayer} 
+        onClose={() => setShowVinylPlayer(false)} 
+      />
+    </motion.div>
+
+    {showAddToPlaylist && (
         <motion.div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={()=>setShowAddToPlaylist(false)} />
           <motion.div className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}>
@@ -330,13 +338,7 @@ const NowPlayingFooter = () => {
           </motion.div>
         </motion.div>
       )}
-
-      {/* Vinyl Overlay */}
-      <VinylOverlay 
-        isOpen={showVinylPlayer} 
-        onClose={() => setShowVinylPlayer(false)} 
-      />
-    </motion.div>
+    </>
   );
 };
 

@@ -11,6 +11,7 @@ import artistRoutes from './src/routes/artist.routes.js';
 import songRoutes from './src/routes/song.routes.js';
 import albumRoutes from './src/routes/album.routes.js';
 import playlistRoutes from './src/routes/playlist.routes.js';
+import categoryRoutes from './src/routes/category.routes.js';
 import syncRoutes from './src/routes/sync.routes.js';
 import spotifyRoutes from './src/routes/spotify.routes.js';
 import { scheduleDataRefresh } from './src/scripts/scheduler.js';
@@ -47,6 +48,7 @@ app.use('/api/artists', artistRoutes);
 app.use('/api/songs', songRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/playlists', playlistRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/spotify', spotifyRoutes);
 
