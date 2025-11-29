@@ -23,7 +23,9 @@ export const useAudioPlayer = () => {
       const audio = audioRef.current;
       
       const handleLoadedMetadata = () => {
-        setDuration(Math.floor(audio.duration));
+        const meta = Math.floor(audio.duration);
+        const fallback = Math.floor(((currentTrack?.duration_ms) || 0) / 1000);
+        setDuration(meta > 0 ? meta : fallback);
         setIsLoading(false);
         setError(null);
       };
@@ -48,7 +50,7 @@ export const useAudioPlayer = () => {
         setIsPlaying(false);
       };
 
-      const handleError = (e) => {
+      const handleError = async (e) => {
         console.error('Audio error:', e);
         console.log('Current audio src:', audioRef.current?.src);
         setError('Failed to load audio - trying fallback...');
@@ -61,6 +63,11 @@ export const useAudioPlayer = () => {
           console.log('Trying fallback URL:', fallbackUrl);
           audioRef.current.src = fallbackUrl;
           audioRef.current.load();
+          try {
+            await audioRef.current.play();
+          } catch (err) {
+            console.error('Failed to play fallback audio:', err);
+          }
         }
       };
 
@@ -106,6 +113,19 @@ export const useAudioPlayer = () => {
     }
   }, [volume, isMuted]);
 
+  useEffect(() => {
+    let intervalId;
+    if (isPlaying && audioRef.current) {
+      intervalId = setInterval(() => {
+        const t = Math.floor(audioRef.current.currentTime || 0);
+        setProgress(t);
+      }, 500);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isPlaying]);
+
   // Play track function
   const playTrack = useCallback(async (track) => {
     if (!audioRef.current) return;
@@ -123,6 +143,10 @@ export const useAudioPlayer = () => {
       // Set new track
       setCurrentTrack(track);
       setProgress(0);
+      const fallbackDur = Math.floor(((track?.duration_ms) || 0) / 1000);
+      if (fallbackDur > 0) {
+        setDuration(fallbackDur);
+      }
 
       // For demo purposes, we'll use a sample audio URL
       // In a real app, you'd get the actual audio URL from your API
@@ -236,15 +260,26 @@ const getAudioUrl = (track) => {
   console.log('Track audio_url:', track.audio_url);
   
   // Priority order for audio sources - check for real audio URLs first
+  const localFirst = (url) => {
+    if (typeof url === 'string' && url.startsWith('/')) {
+      try {
+        return new URL(url, window.location.origin).toString();
+      } catch {
+        return url;
+      }
+    }
+    return null;
+  };
   const audioSources = [
-    track.preview_url,        // Spotify preview URL (most common)
-    track.audio_url,          // Direct audio URL (from your database)
-    track.stream_url,         // Streaming URL
-    track.sample_url,         // Sample URL
-    track.preview_mp3,        // MP3 preview
-    track.preview_wav,        // WAV preview
-    track.cover_art_url,      // Sometimes cover art URLs are audio
-    track.external_urls?.spotify, // Spotify external URL
+    localFirst(track.audio_url), // Prefer local app-served files
+    track.preview_url,           // Spotify preview URL
+    track.audio_url,             // Direct audio URL
+    track.stream_url,            // Streaming URL
+    track.sample_url,            // Sample URL
+    track.preview_mp3,           // MP3 preview
+    track.preview_wav,           // WAV preview
+    track.cover_art_url,         // Sometimes cover art URLs are audio
+    track.external_urls?.spotify,// Spotify external URL
   ].filter(Boolean);
 
   console.log('Available audio sources:', audioSources);

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
 import apiService from '../services/api';
+import useAudioPlayer from '../hooks/useAudioPlayer';
 
 const MusicContext = createContext();
 
@@ -90,37 +91,63 @@ export function MusicProvider({ children }) {
   const [state, dispatch] = useReducer(musicReducer, initialState);
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const player = useAudioPlayer();
 
   const playTrack = (track) => {
     if (!state.isAuthenticated) {
-      setShowAuthPrompt(true);
-      return;
+      const name = String(track?.name || '').toLowerCase().trim();
+      const isShapeOfYou = name.includes('shape of you');
+      const hasLocal = String(track?.audio_url || '').startsWith('/songs/');
+      if (!(isShapeOfYou || hasLocal)) {
+        setShowAuthPrompt(true);
+        return;
+      }
     }
-    dispatch({ type: 'PLAY_TRACK', payload: track });
+    try {
+      const name = String(track?.name || '').toLowerCase().trim();
+      const isShapeOfYou = name.includes('shape of you');
+      const enriched = isShapeOfYou 
+        ? { ...track, audio_url: '/songs/shape-of-you.mp3', preview_url: null }
+        : track;
+      player.playTrack(enriched);
+      dispatch({ type: 'SET_CURRENT_TRACK', payload: enriched });
+      dispatch({ type: 'SET_PLAYING', payload: true });
+    } catch {
+      player.playTrack(track);
+      dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
+      dispatch({ type: 'SET_PLAYING', payload: true });
+    }
   };
 
   const pauseTrack = () => {
-    dispatch({ type: 'PAUSE_TRACK' });
+    player.pauseTrack();
+    dispatch({ type: 'SET_PLAYING', payload: false });
   };
 
   const resumeTrack = () => {
-    dispatch({ type: 'RESUME_TRACK' });
+    player.resumeTrack();
+    dispatch({ type: 'SET_PLAYING', payload: true });
   };
 
   const nextTrack = () => {
     dispatch({ type: 'NEXT_TRACK' });
+    player.nextTrack && player.nextTrack();
   };
 
   const previousTrack = () => {
     dispatch({ type: 'PREVIOUS_TRACK' });
+    player.previousTrack && player.previousTrack();
   };
 
   const setProgress = (progress) => {
     dispatch({ type: 'SET_PROGRESS', payload: progress });
+    player.seekTo(progress);
   };
 
   const setVolume = (volume) => {
     dispatch({ type: 'SET_VOLUME', payload: volume });
+    const normalized = Math.max(0, Math.min(1, (volume || 0) / 100));
+    player.setVolumeLevel(normalized);
   };
 
   const toggleLike = (songId) => {
@@ -199,6 +226,17 @@ export function MusicProvider({ children }) {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    dispatch({ type: 'SET_CURRENT_TRACK', payload: player.currentTrack });
+    dispatch({ type: 'SET_PLAYING', payload: player.isPlaying });
+    dispatch({ type: 'SET_PROGRESS', payload: player.progress });
+    dispatch({ type: 'SET_DURATION', payload: player.duration });
+    const volPercent = Math.round((player.volume || 0) * 100);
+    if (!Number.isNaN(volPercent)) {
+      dispatch({ type: 'SET_VOLUME', payload: volPercent });
+    }
+  }, [player.currentTrack, player.isPlaying, player.progress, player.duration, player.volume]);
 
   const value = {
     ...state,

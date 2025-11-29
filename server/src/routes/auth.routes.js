@@ -2,7 +2,7 @@ import { Router } from 'express';
 import passport from 'passport';
 import rateLimit from 'express-rate-limit';
 import { body } from 'express-validator';
-import { register, signup, login, refresh, googleCallback } from '../controllers/auth.controller.js';
+import { register, signup, login, refresh, googleCallback, verifyAdminAccess } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.js';
 import { requestEmailVerification, verifyEmail, forgotPassword, resetPassword, resendVerification, verifyEmailCode } from '../controllers/auth.controller.js';
 
@@ -57,5 +57,8 @@ router.post('/email/request-verification', requestEmailVerification);
 router.get('/email/verify', verifyEmail);
 router.post('/password/forgot', forgotPassword);
 router.post('/password/reset', resetPassword);
+
+// Admin access verification (requires login)
+router.post('/admin/verify', requireAuth, verifyAdminAccess);
 
 export default router;

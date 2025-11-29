@@ -128,6 +128,24 @@ class ApiService {
     return this.fetchData(`/artists/${id}`);
   }
 
+  async createArtist(payload) {
+    return this.fetchData(`/artists`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateArtist(id, updates) {
+    return this.fetchData(`/artists/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteArtist(id) {
+    return this.fetchData(`/artists/${id}`, { method: 'DELETE' });
+  }
+
   async getArtistAlbums(artistId, page = 1, limit = 20) {
     return this.fetchData(`/artists/${artistId}/albums?page=${page}&limit=${limit}`);
   }
@@ -169,6 +187,24 @@ class ApiService {
     return this.fetchData(`/songs/${songId}/play`, { method: 'POST' });
   }
 
+  async createSong(payload) {
+    return this.fetchData(`/songs`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateSong(id, updates) {
+    return this.fetchData(`/songs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteSong(id) {
+    return this.fetchData(`/songs/${id}`, { method: 'DELETE' });
+  }
+
   // Albums API
   async getPopularAlbums(limit = 20) {
     return this.fetchData(`/albums/popular?limit=${limit}`);
@@ -194,6 +230,24 @@ class ApiService {
 
   async getAlbumTracks(albumId, page = 1, limit = 50) {
     return this.fetchData(`/albums/${albumId}/tracks?page=${page}&limit=${limit}`);
+  }
+
+  async createAlbum(payload) {
+    return this.fetchData(`/albums`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateAlbum(id, updates) {
+    return this.fetchData(`/albums/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteAlbum(id) {
+    return this.fetchData(`/albums/${id}`, { method: 'DELETE' });
   }
 
   // Search API
@@ -325,6 +379,48 @@ class ApiService {
 
   async removeSongFromPlaylist(playlistId, songId) {
     return this.fetchData(`/playlists/${playlistId}/songs`, {
+      method: 'DELETE',
+      body: JSON.stringify({ songId })
+    });
+  }
+
+  async getCategories(search = '') {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    return this.fetchData(`/categories?${params}`);
+  }
+
+  async getMyCategories() {
+    return this.fetchData(`/categories/me`);
+  }
+
+  async createCategory(payload) {
+    return this.fetchData(`/categories`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateCategory(id, updates) {
+    return this.fetchData(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteCategory(id) {
+    return this.fetchData(`/categories/${id}`, { method: 'DELETE' });
+  }
+
+  async addSongToCategory(id, songId) {
+    return this.fetchData(`/categories/${id}/songs`, {
+      method: 'POST',
+      body: JSON.stringify({ songId })
+    });
+  }
+
+  async removeSongFromCategory(id, songId) {
+    return this.fetchData(`/categories/${id}/songs`, {
       method: 'DELETE',
       body: JSON.stringify({ songId })
     });
@@ -467,6 +563,14 @@ class ApiService {
     }
     
     return response;
+  }
+
+  // Admin: Verify access code
+  async verifyAdminAccess(code) {
+    return this.fetchData(`/auth/admin/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    });
   }
 }
 

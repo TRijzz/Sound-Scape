@@ -23,6 +23,10 @@ import VerificationSuccess from './pages/auth/VerificationSuccess';
 import LikedSongs from './pages/LikedSongs';
 import LibraryPage from './pages/LibraryPage';
 import PlaylistPage from './pages/PlaylistPage';
+import AdminPage from './pages/AdminPage';
+import AdminArtists from './pages/admin/AdminArtists';
+import AdminAlbums from './pages/admin/AdminAlbums';
+import AdminSongs from './pages/admin/AdminSongs';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -95,6 +99,10 @@ function App() {
                     <Route path="/liked" element={<LikedSongs />} />
                     <Route path="/library" element={<LibraryPage />} />
                     <Route path="/playlist/:id" element={<PlaylistPage />} />
+                    <Route path="/admin" element={<AdminPage />} />
+                    <Route path="/admin/artists" element={<AdminArtists />} />
+                    <Route path="/admin/albums" element={<AdminAlbums />} />
+                    <Route path="/admin/songs" element={<AdminSongs />} />
                   </Routes>
                 </motion.div>
               </main>
