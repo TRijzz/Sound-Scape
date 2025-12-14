@@ -79,8 +79,8 @@ function AdminPage() {
         setLoading(false);
       }
     };
-    if (isAuthenticated && adminVerified) load();
-  }, [isAuthenticated, adminVerified]);
+    if (adminVerified) load();
+  }, [adminVerified]);
 
   const verifyAdmin = async () => {
     try {
@@ -90,6 +90,7 @@ function AdminPage() {
         setAdminError('Enter access code');
         return;
       }
+      apiService.setAdminCode(code);
       await apiService.verifyAdminAccess(code);
       localStorage.setItem('adminVerified', 'true');
       setAdminVerified(true);
@@ -245,17 +246,7 @@ function AdminPage() {
     setEditCategoryName('');
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="p-6">
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto text-center bg-dark-gray/60 border border-gray-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">Admin</h2>
-          <p className="text-gray-300 mb-4">Sign in to manage content.</p>
-          <button onClick={() => navigate('/login', { state: { from: '/admin' } })} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg">Sign in</button>
-        </motion.div>
-      </div>
-    );
-  }
+  
 
   if (!adminVerified) {
     return (

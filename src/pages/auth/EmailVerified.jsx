@@ -18,7 +18,7 @@ const EmailVerified = () => {
       if (user) {
         login(user, tokens);
       }
-      navigate('/');
+      navigate('/onboarding');
     }, 3000);
 
     return () => clearTimeout(timer);
@@ -28,7 +28,7 @@ const EmailVerified = () => {
     if (user) {
       login(user, tokens);
     }
-    navigate('/');
+    navigate('/onboarding');
   };
 
   return (

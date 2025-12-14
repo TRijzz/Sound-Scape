@@ -63,8 +63,10 @@ const NowPlayingFooter = () => {
   };
 
   const handleProgressChange = (e) => {
-    const newProgress = parseInt(e.target.value);
-    setProgress(newProgress);
+    const newProgress = parseInt(e.target.value, 10);
+    if (!isNaN(newProgress) && newProgress >= 0) {
+      setProgress(newProgress);
+    }
   };
 
   // Enable mute toggle

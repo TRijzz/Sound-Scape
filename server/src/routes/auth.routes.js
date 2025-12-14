@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import passport from 'passport';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { body } from 'express-validator';
 import { register, signup, login, refresh, googleCallback, verifyAdminAccess } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.js';
@@ -8,11 +8,17 @@ import { requestEmailVerification, verifyEmail, forgotPassword, resetPassword, r
 
 const router = Router();
 
+const isProd = process.env.NODE_ENV === 'production';
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: isProd ? 15 * 60 * 1000 : 60 * 1000,
+  max: isProd ? 10 : 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${ipKeyGenerator(req)}:${req.body?.email || ''}`,
+  message: {
+    message: 'Too many login attempts. Please wait and try again.'
+  },
 });
 
 // Register (alias for /register and /signup)
@@ -59,6 +65,6 @@ router.post('/password/forgot', forgotPassword);
 router.post('/password/reset', resetPassword);
 
 // Admin access verification (requires login)
-router.post('/admin/verify', requireAuth, verifyAdminAccess);
+router.post('/admin/verify', verifyAdminAccess);
 
 export default router;

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PlayIcon, FollowIcon, FollowingIcon, MoreIcon } from '../components/ui/Icons';
 import SongCard from '../components/ui/SongCard';
 import AlbumCard from '../components/ui/AlbumCard';
 import { useMusic } from '../contexts/MusicContext';
 import { useArtist } from '../hooks/useMusicData';
+import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 
 const ArtistPage = () => {
   const { id } = useParams();
@@ -75,15 +76,15 @@ const ArtistPage = () => {
         
         <div className="relative z-10 flex items-end h-full p-6">
           <div className="flex items-end space-x-6">
-            {/* Artist Image */}
-            <motion.img
-              src={artist.images && artist.images.length > 0 ? artist.images[0].url : '/src/assets/album_art_placeholder.svg'}
-              alt={artist.name}
-              className="w-48 h-48 rounded-full object-cover shadow-2xl"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            />
+          {/* Artist Image */}
+          <motion.img
+            src={artist.images && artist.images.length > 0 ? artist.images[0].url : albumArtPlaceholder}
+            alt={artist.name}
+            className="w-48 h-48 rounded-full object-cover shadow-2xl"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          />
             
             {/* Artist Info */}
             <div className="flex-1">
@@ -98,19 +99,34 @@ const ArtistPage = () => {
                 <p className="text-gray-400 mb-4">
                   {artist.followers?.total ? artist.followers.total.toLocaleString() : '0'} followers
                 </p>
-                <div className="flex items-center space-x-2 mb-6">
-                  {artist.genres && artist.genres.length > 0 ? artist.genres.map((genre, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-light-gray/50 text-gray-300 rounded-full text-sm"
-                    >
-                      {genre}
-                    </span>
-                  )) : (
-                    <span className="px-3 py-1 bg-light-gray/50 text-gray-300 rounded-full text-sm">
-                      Music
-                    </span>
-                  )}
+                <div className="flex items-center space-x-2 mb-6 relative z-20">
+                  {(() => {
+                    const list = Array.isArray(artist.genres) && artist.genres.length ? artist.genres : (() => {
+                      const counts = {};
+                      (artistTopTracks || []).forEach(t => {
+                        const g = String(t.genre || '').trim();
+                        if (g) counts[g] = (counts[g] || 0) + 1;
+                      });
+                      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([g]) => g);
+                      return sorted.length ? [sorted[0]] : [];
+                    })();
+                    return list.length > 0 ? list.map((genre, index) => (
+                      <Link
+                        key={index}
+                        to={`/genre/${encodeURIComponent(genre)}`}
+                        className="px-3 py-1 bg-light-gray/50 text-gray-300 rounded-full text-sm hover:bg-light-gray hover:text-white transition-colors"
+                      >
+                        {genre}
+                      </Link>
+                    )) : (
+                      <Link
+                        to={`/genre/${encodeURIComponent('Music')}`}
+                        className="px-3 py-1 bg-light-gray/50 text-gray-300 rounded-full text-sm hover:bg-light-gray hover:text-white transition-colors"
+                      >
+                        Music
+                      </Link>
+                    );
+                  })()}
                 </div>
                 
                 {/* Action Buttons */}

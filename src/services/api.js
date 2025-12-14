@@ -1,13 +1,18 @@
 // API service for connecting to the MongoDB-based backend
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = '/api';
 
 class ApiService {
   constructor() {
     this.authToken = null;
+    this.adminCode = null;
   }
 
   setAuthToken(token) {
     this.authToken = token;
+  }
+
+  setAdminCode(code) {
+    this.adminCode = code || null;
   }
 
   getAuthHeader() {
@@ -47,6 +52,7 @@ class ApiService {
       const headers = {
         'Content-Type': 'application/json',
         ...this.getAuthHeader(),
+        ...(this.adminCode ? { 'x-admin-code': this.adminCode } : {}),
         ...(options.headers || {})
       };
 
@@ -154,12 +160,19 @@ class ApiService {
     return this.fetchData(`/artists/${artistId}/top-tracks?limit=${limit}`);
   }
 
+  async populateArtistGenres({ dryRun = false, limit = 0 } = {}) {
+    return this.fetchData(`/artists/populate-genres`, {
+      method: 'POST',
+      body: JSON.stringify({ dryRun, limit })
+    });
+  }
+
   // Songs API
   async getPopularSongs(limit = 20) {
     return this.fetchData(`/songs/popular?limit=${limit}`);
   }
 
-  async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity') {
+  async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity', mood = '', language = '', tags = '', category = '') {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -171,8 +184,16 @@ class ApiService {
     if (year) params.append('year', year);
     if (artist) params.append('artist', artist);
     if (album) params.append('album', album);
+    if (mood) params.append('mood', mood);
+    if (language) params.append('language', language);
+    if (tags) params.append('tags', Array.isArray(tags) ? tags.join(',') : tags);
+    if (category) params.append('category', category);
     
     return this.fetchData(`/songs?${params}`);
+  }
+
+  async getSongsByGenre(genre, limit = 20) {
+    return this.fetchData(`/songs/genre?genre=${encodeURIComponent(genre)}&limit=${limit}`);
   }
 
   async searchSongs(query, limit = 20) {
@@ -551,6 +572,13 @@ class ApiService {
     }
   }
 
+  async updateUser(id, updates) {
+    return this.fetchData(`/users/id/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
   // Auth: Login
   async login({ email, password }) {
     const response = await this.fetchData(`/auth/login`, {
@@ -571,6 +599,164 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ code })
     });
+  }
+
+  async populateSongCategories({ dryRun = false, limit = 1000 } = {}) {
+    return this.fetchData(`/songs/populate-categories`, {
+      method: 'POST',
+      body: JSON.stringify({ dryRun, limit })
+    });
+  }
+
+  async getSongsByCategory(category, limit = 20) {
+    const params = new URLSearchParams({ limit: String(limit), category });
+    return this.fetchData(`/songs?${params}`);
+  }
+
+  async getGenres(limit = 50) {
+    try {
+      const res = await this.fetchData(`/genres?limit=${limit}`);
+      const fromApi = Array.isArray(res) ? res : (res?.genres || []);
+      if (Array.isArray(fromApi) && fromApi.length > 0) {
+        const raw = fromApi.map(g => (typeof g === 'string' ? g : g?.name)).filter(Boolean);
+        let canonical = this.canonicalizeGenreList(raw);
+        if (canonical.length < 12) {
+          const defaults = this.canonicalizeGenreList([
+            'Pop','Rock','Hip Hop','Jazz','Classical','Country','Indie','Electronic','R&B','Metal','Blues','Reggae','Folk','K-Pop','Latin','Nepali','Nepali Pop','EDM','Dance','House','Techno','Trap','Alternative','Alternative Rock','Indie Rock','Soul','Funk','Gospel','Punk','Bollywood'
+          ]);
+          const seen = new Set(canonical.map(x => x.toLowerCase()));
+          for (const d of defaults) {
+            const k = d.toLowerCase();
+            if (!seen.has(k)) {
+              seen.add(k);
+              canonical.push(d);
+            }
+          }
+        }
+        return canonical.slice(0, limit);
+      }
+    } catch (e) {
+      // Continue to fallback resolution
+    }
+
+    try {
+      const artistsRes = await this.fetchData(`/artists?limit=${Math.min(limit * 5, 500)}`);
+      const artists = artistsRes?.artists || artistsRes || [];
+      const artistGenres = [];
+      (Array.isArray(artists) ? artists : []).forEach(a => {
+        if (Array.isArray(a?.genres)) artistGenres.push(...a.genres);
+        if (a?.genre) artistGenres.push(a.genre);
+      });
+
+      const songsRes = await this.getSongs(1, Math.min(limit * 5, 500));
+      const songs = songsRes?.songs || songsRes || [];
+      const songGenres = (Array.isArray(songs) ? songs : []).map(s => s?.genre).filter(Boolean);
+
+      const all = [...artistGenres, ...songGenres].map(g => String(g || '').trim());
+      const seen = new Set();
+      const dedup = [];
+      for (const g of all) {
+        const key = g.toLowerCase();
+        if (!key) continue;
+        if (!seen.has(key)) {
+          seen.add(key);
+          dedup.push(g);
+        }
+      }
+      let canonical = this.canonicalizeGenreList(dedup);
+      if (canonical.length < 12) {
+        const defaults = this.canonicalizeGenreList([
+          'Pop','Rock','Hip Hop','Jazz','Classical','Country','Indie','Electronic','R&B','Metal','Blues','Reggae','Folk','K-Pop','Latin','Nepali','Nepali Pop','EDM','Dance','House','Techno','Trap','Alternative','Alternative Rock','Indie Rock','Soul','Funk','Gospel','Punk','Bollywood'
+        ]);
+        const seen = new Set(canonical.map(x => x.toLowerCase()));
+        for (const d of defaults) {
+          const k = d.toLowerCase();
+          if (!seen.has(k)) {
+            seen.add(k);
+            canonical.push(d);
+          }
+        }
+      }
+      return canonical.slice(0, limit);
+    } catch {
+      // Last resort: default genres
+      return this.canonicalizeGenreList([
+        'Pop','Rock','Hip Hop','Jazz','Classical','Country','Indie','Electronic','R&B','Metal','Blues','Reggae','Folk','K-Pop','Latin','Nepali','Nepali Pop','EDM','Dance','House','Techno','Trap','Alternative','Alternative Rock','Indie Rock','Soul','Funk','Gospel','Punk','Bollywood'
+      ]);
+    }
+  }
+
+  canonicalizeGenreList(list) {
+    const normalize = (s) => String(s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/\+/g, 'and')
+      .replace(/[\s_]+/g, '-')
+      .trim();
+    const titleCase = (s) => String(s || '')
+      .split(/[\s-]+/)
+      .map(w => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '')
+      .join(' ')
+      .replace(/\bAnd\b/g, 'and')
+      .replace(/\bRnb\b/g, 'R&B')
+      .replace(/\bEdm\b/g, 'EDM')
+      .replace(/\bK\b Pop/g, 'K-Pop');
+
+    const map = {
+      'hip-hop': 'Hip Hop',
+      'hiphop': 'Hip Hop',
+      'hip-hop-rap': 'Hip Hop',
+      'rap': 'Hip Hop',
+      'rai': 'Nepali',
+      'nepali': 'Nepali',
+      'rnb': 'R&B',
+      'r-and-b': 'R&B',
+      'r-b': 'R&B',
+      'electronic': 'Electronic',
+      'edm': 'EDM',
+      'dance': 'Dance',
+      'house': 'House',
+      'techno': 'Techno',
+      'trap': 'Trap',
+      'pop': 'Pop',
+      'rock': 'Rock',
+      'alternative': 'Alternative',
+      'alternative-rock': 'Alternative Rock',
+      'indie': 'Indie',
+      'indie-rock': 'Indie Rock',
+      'metal': 'Metal',
+      'jazz': 'Jazz',
+      'classical': 'Classical',
+      'country': 'Country',
+      'blues': 'Blues',
+      'reggae': 'Reggae',
+      'folk': 'Folk',
+      'k-pop': 'K-Pop',
+      'kpop': 'K-Pop',
+      'latin': 'Latin',
+      'soul': 'Soul',
+      'funk': 'Funk',
+      'gospel': 'Gospel',
+      'punk': 'Punk',
+      'bollywood': 'Bollywood',
+      'nepali-pop': 'Nepali Pop',
+    };
+
+    const seen = new Set();
+    const out = [];
+    for (const g of (Array.isArray(list) ? list : [])) {
+      const key = normalize(g);
+      const canonical = map[key] || titleCase(g);
+      const uniqKey = canonical.toLowerCase();
+      if (!uniqKey) continue;
+      if (!seen.has(uniqKey)) {
+        seen.add(uniqKey);
+        out.push(canonical);
+      }
+    }
+    return out;
   }
 }
 

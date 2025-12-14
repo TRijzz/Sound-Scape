@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 
 const songSchema = new mongoose.Schema(
   {
-    // Spotify fields
-    spotify_id: { type: String, unique: true, index: true },
+    // Spotify fields - sparse unique index allows multiple null values
+    spotify_id: { type: String, unique: true, sparse: true, index: true },
     name: { type: String, required: true, index: true },
     
     // Legacy field for backward compatibility
@@ -14,7 +14,7 @@ const songSchema = new mongoose.Schema(
     album: { type: mongoose.Schema.Types.ObjectId, ref: 'Album' },
     
     // Track details
-    duration_ms: { type: Number, required: true },
+    duration_ms: { type: Number, default: 0 },
     track_number: { type: Number },
     disc_number: { type: Number, default: 1 },
     explicit: { type: Boolean, default: false },
@@ -53,6 +53,12 @@ const songSchema = new mongoose.Schema(
     audio_url: { type: String },
     lyrics: { type: String },
     play_count: { type: Number, default: 0 },
+    // Categorization
+    category: { type: String, index: true },
+    genre: { type: String, index: true },
+    mood: { type: String, index: true },
+    language: { type: String, index: true },
+    tags: [{ type: String, index: true }],
     
     // Sync metadata
     last_synced: { type: Date, default: Date.now },

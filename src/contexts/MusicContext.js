@@ -93,40 +93,43 @@ export function MusicProvider({ children }) {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const player = useAudioPlayer();
 
-  const playTrack = (track) => {
-    if (!state.isAuthenticated) {
-      const name = String(track?.name || '').toLowerCase().trim();
-      const isShapeOfYou = name.includes('shape of you');
-      const hasLocal = String(track?.audio_url || '').startsWith('/songs/');
-      if (!(isShapeOfYou || hasLocal)) {
-        setShowAuthPrompt(true);
-        return;
-      }
-    }
+  const playTrack = async (track) => {
+    if (!track) return;
+    
+    // Remove authentication check for now - allow all songs to play
+    // Users can still be prompted for auth if needed for other features
+    
     try {
-      const name = String(track?.name || '').toLowerCase().trim();
-      const isShapeOfYou = name.includes('shape of you');
-      const enriched = isShapeOfYou 
-        ? { ...track, audio_url: '/songs/shape-of-you.mp3', preview_url: null }
-        : track;
-      player.playTrack(enriched);
-      dispatch({ type: 'SET_CURRENT_TRACK', payload: enriched });
-      dispatch({ type: 'SET_PLAYING', payload: true });
-    } catch {
-      player.playTrack(track);
+      // Set track in context first
       dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
       dispatch({ type: 'SET_PLAYING', payload: true });
+      
+      // Play track using audio player
+      await player.playTrack(track);
+    } catch (error) {
+      console.error('Error playing track:', error);
+      // Still set the track even if play fails
+      dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
+      dispatch({ type: 'SET_PLAYING', payload: false });
     }
   };
 
-  const pauseTrack = () => {
-    player.pauseTrack();
-    dispatch({ type: 'SET_PLAYING', payload: false });
+  const pauseTrack = async () => {
+    try {
+      player.pauseTrack();
+      dispatch({ type: 'SET_PLAYING', payload: false });
+    } catch (error) {
+      console.error('Error pausing track:', error);
+    }
   };
 
-  const resumeTrack = () => {
-    player.resumeTrack();
-    dispatch({ type: 'SET_PLAYING', payload: true });
+  const resumeTrack = async () => {
+    try {
+      await player.resumeTrack();
+      dispatch({ type: 'SET_PLAYING', payload: true });
+    } catch (error) {
+      console.error('Error resuming track:', error);
+    }
   };
 
   const nextTrack = () => {
@@ -227,15 +230,38 @@ export function MusicProvider({ children }) {
     checkAuth();
   }, []);
 
+  // Sync player state with context state
   useEffect(() => {
-    dispatch({ type: 'SET_CURRENT_TRACK', payload: player.currentTrack });
-    dispatch({ type: 'SET_PLAYING', payload: player.isPlaying });
-    dispatch({ type: 'SET_PROGRESS', payload: player.progress });
-    dispatch({ type: 'SET_DURATION', payload: player.duration });
+    // Sync current track
+    if (player.currentTrack) {
+      const currentId = player.currentTrack._id || player.currentTrack.id;
+      const stateId = state.currentTrack?._id || state.currentTrack?.id;
+      if (currentId !== stateId) {
+        dispatch({ type: 'SET_CURRENT_TRACK', payload: player.currentTrack });
+      }
+    }
+    
+    // Sync playing state
+    if (player.isPlaying !== state.isPlaying) {
+      dispatch({ type: 'SET_PLAYING', payload: player.isPlaying });
+    }
+    
+    // Sync progress (with threshold to avoid too many updates)
+    if (Math.abs((player.progress || 0) - (state.progress || 0)) > 0.5) {
+      dispatch({ type: 'SET_PROGRESS', payload: player.progress || 0 });
+    }
+    
+    // Sync duration
+    if (player.duration !== state.duration) {
+      dispatch({ type: 'SET_DURATION', payload: player.duration || 0 });
+    }
+    
+    // Sync volume
     const volPercent = Math.round((player.volume || 0) * 100);
-    if (!Number.isNaN(volPercent)) {
+    if (!Number.isNaN(volPercent) && Math.abs(volPercent - (state.volume || 0)) > 1) {
       dispatch({ type: 'SET_VOLUME', payload: volPercent });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.currentTrack, player.isPlaying, player.progress, player.duration, player.volume]);
 
   const value = {

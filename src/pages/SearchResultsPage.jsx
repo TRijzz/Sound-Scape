@@ -8,6 +8,7 @@ import { useSearch } from '../hooks/useMusicData';
 import { useMusic } from '../contexts/MusicContext';
 import { useNavigate } from 'react-router-dom';
 import { SearchIcon, HeartIcon, PlayIcon, MusicNoteIcon } from '../components/ui/Icons';
+import apiService from '../services/api';
 
 const SearchResultsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -16,6 +17,14 @@ const SearchResultsPage = () => {
   const query = searchParams.get('q') || '';
   const { playTrack, isAuthenticated } = useMusic();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [genre, setGenre] = useState('');
+  const [genreSongs, setGenreSongs] = useState([]);
+  const [genreLoading, setGenreLoading] = useState(false);
+  const [genreError, setGenreError] = useState(null);
+  const [genreApplied, setGenreApplied] = useState(false);
+  const [genreOptions, setGenreOptions] = useState([]);
+  const [genreOptionsLoading, setGenreOptionsLoading] = useState(false);
+  const [genreOptionsError, setGenreOptionsError] = useState(null);
   
   // Use the search hook to get real API data
   const { searchResults, searchLoading, searchError, search } = useSearch();
@@ -26,6 +35,107 @@ const SearchResultsPage = () => {
       search(query, 20);
     }
   }, [query, search]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadGenres = async () => {
+      setGenreOptionsLoading(true);
+      setGenreOptionsError(null);
+      try {
+        const genres = await apiService.getGenres(50);
+        const list = (Array.isArray(genres) ? genres : []).map(g => String(g).trim()).filter(Boolean);
+        if (mounted) setGenreOptions(list.length ? list : []);
+      } catch (e) {
+        if (mounted) {
+          setGenreOptionsError(e.message || 'Failed to load genres');
+          setGenreOptions([]);
+        }
+      } finally {
+        if (mounted) setGenreOptionsLoading(false);
+      }
+    };
+    loadGenres();
+    return () => { mounted = false; };
+  }, []);
+
+  const applyGenreFilter = async () => {
+    if (!genre.trim()) {
+      setGenreSongs([]);
+      setGenreApplied(false);
+      return;
+    }
+    try {
+      setGenreLoading(true);
+      setGenreError(null);
+      const selected = genre.trim();
+      let songs = [];
+      const limit = 24;
+      const normalize = (g) => String(g || '')
+        .toLowerCase()
+        .replace(/[\s_]+/g, '-')
+        .trim();
+      const selectedNorm = normalize(selected);
+
+      // Try specific genre endpoint first (exact case)
+      try {
+        const byExact = await apiService.getSongsByGenre(selected, limit);
+        songs = Array.isArray(byExact) ? byExact : (byExact?.songs || []);
+      } catch {}
+
+      // Fallback: try lowercase variant
+      if (!songs || songs.length === 0) {
+        try {
+          const byLower = await apiService.getSongsByGenre(selected.toLowerCase(), limit);
+          songs = Array.isArray(byLower) ? byLower : (byLower?.songs || []);
+        } catch {}
+      }
+
+      // Fallback: generic songs API with genre filter (exact)
+      if (!songs || songs.length === 0) {
+        try {
+          const resExact = await apiService.getSongs(1, limit, '', selected, '', '', '', '-popularity');
+          songs = resExact?.songs || resExact || [];
+        } catch {}
+      }
+
+      // Fallback: generic songs API with genre filter (lowercase)
+      if (!songs || songs.length === 0) {
+        try {
+          const resLower = await apiService.getSongs(1, limit, '', selected.toLowerCase(), '', '', '', '-popularity');
+          songs = resLower?.songs || resLower || [];
+        } catch {}
+      }
+
+      // Strict filter: keep only songs whose genre matches selection
+      songs = (Array.isArray(songs) ? songs : []).filter(s => {
+        const sg = s?.genre;
+        const sgs = s?.genres;
+        if (sg) return normalize(sg) === selectedNorm;
+        if (Array.isArray(sgs)) return sgs.map(normalize).includes(selectedNorm);
+        return false;
+      });
+
+      const dedup = [];
+      const seen = new Set();
+      (Array.isArray(songs) ? songs : []).forEach(s => {
+        const id = s?._id || s?.id;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          dedup.push(s);
+        }
+      });
+
+      setGenreSongs(dedup);
+      setActiveTab('songs');
+      setGenreApplied(true);
+    } catch (err) {
+      setGenreError(err.message || 'Failed to load songs');
+      setGenreSongs([]);
+      setGenreApplied(true);
+    } finally {
+      setGenreLoading(false);
+    }
+  };
 
   const handleTrackSelect = async (track) => {
     const name = String(track?.name || '').toLowerCase();
@@ -52,13 +162,13 @@ const SearchResultsPage = () => {
   };
 
   const tabs = [
-    { id: 'songs', label: 'Songs', count: searchResults.songs.length },
+    { id: 'songs', label: 'Songs', count: genreApplied ? genreSongs.length : searchResults.songs.length },
     { id: 'artists', label: 'Artists', count: searchResults.artists.length },
     { id: 'albums', label: 'Albums', count: searchResults.albums.length }
   ];
 
   const renderContent = () => {
-    if (searchLoading) {
+    if (searchLoading || (genreApplied && genreLoading && activeTab === 'songs')) {
       if (activeTab === 'songs') {
         return (
           <div className="space-y-2">
@@ -94,19 +204,29 @@ const SearchResultsPage = () => {
 
     switch (activeTab) {
       case 'songs':
-        return (
-          <div className="space-y-2">
-            {searchResults.songs.map((song, index) => (
-              <SongCard
-                key={song._id || song.id}
-                song={song}
-                index={index}
-                showAlbum={true}
-                onClick={() => handleTrackSelect(song)}
-              />
-            ))}
-          </div>
-        );
+        {
+          const songsToRender = genreApplied ? genreSongs : searchResults.songs;
+          if (!songsToRender || songsToRender.length === 0) {
+            return (
+              <div className="text-center py-8 text-gray-400">
+                {genreApplied ? 'No songs found for selected genre' : 'No songs found'}
+              </div>
+            );
+          }
+          return (
+            <div className="space-y-2">
+              {songsToRender.map((song, index) => (
+                <SongCard
+                  key={song._id || song.id}
+                  song={song}
+                  index={index}
+                  showAlbum={true}
+                  onClick={() => handleTrackSelect(song)}
+                />
+              ))}
+            </div>
+          );
+        }
       case 'artists':
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
@@ -172,6 +292,56 @@ const SearchResultsPage = () => {
           </div>
         </motion.div>
 
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="mb-8"
+        >
+          <h2 className="text-lg font-semibold text-white mb-3">Filter songs by genre</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <select
+              className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700"
+              value={genre}
+              onChange={e => setGenre(e.target.value)}
+            >
+              <option value="">Select genre</option>
+              {genreOptions.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <button
+              onClick={applyGenreFilter}
+              className="px-3 py-2 rounded-lg bg-neon-blue text-dark-bg"
+            >
+              Apply
+            </button>
+            {genreLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>}
+            {genreOptionsLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading genres...</div>}
+          </div>
+          {genreError && <div className="text-sm text-red-400">{genreError}</div>}
+          {genreOptionsError && <div className="text-sm text-red-400">{genreOptionsError}</div>}
+          {genreApplied && !genreLoading && (
+            <div className="mt-4 bg-light-gray/50 rounded-xl p-4">
+              {genreSongs.length > 0 ? (
+                <div className="space-y-2">
+                  {genreSongs.map((song, index) => (
+                    <SongCard
+                      key={song._id || song.id}
+                      song={song}
+                      index={index}
+                      showAlbum={true}
+                      onClick={() => handleTrackSelect(song)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">No songs found for selected genre</div>
+              )}
+            </div>
+          )}
+        </motion.section>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -220,6 +390,37 @@ const SearchResultsPage = () => {
           Found {searchResults.songs.length + searchResults.artists.length + searchResults.albums.length} results
         </p>
       </motion.div>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.05 }}
+        className="mb-6"
+      >
+        <h2 className="text-lg font-semibold text-white mb-3">Filter songs by genre</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <select
+            className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700"
+            value={genre}
+            onChange={e => setGenre(e.target.value)}
+          >
+            <option value="">Select genre</option>
+            {genreOptions.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+          <button
+            onClick={applyGenreFilter}
+            className="px-3 py-2 rounded-lg bg-neon-blue text-dark-bg"
+          >
+            Apply
+          </button>
+          {genreLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>}
+          {genreOptionsLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading genres...</div>}
+        </div>
+        {genreError && <div className="text-sm text-red-400">{genreError}</div>}
+        {genreOptionsError && <div className="text-sm text-red-400">{genreOptionsError}</div>}
+      </motion.section>
 
       {/* Tabs */}
       <motion.div

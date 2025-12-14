@@ -5,7 +5,13 @@ import { useMusic } from '../../contexts/MusicContext';
 
 const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) => {
   const { playTrack, currentTrack, isPlaying, isLiked: isSongLiked, toggleLike } = useMusic();
-  const isCurrentTrack = currentTrack?.id === song.id;
+  // Check if this is the current track by comparing both _id and id
+  const isCurrentTrack = currentTrack && (
+    (currentTrack._id && song._id && currentTrack._id === song._id) ||
+    (currentTrack.id && song.id && currentTrack.id === song.id) ||
+    (currentTrack._id === song.id) ||
+    (currentTrack.id === song._id)
+  );
 
   const handlePlay = () => {
     if (onClick) {

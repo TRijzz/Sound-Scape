@@ -44,6 +44,7 @@ export const useAudioPlayer = () => {
       const handlePlay = () => {
         setIsPlaying(true);
         setError(null);
+        setIsLoading(false);
       };
 
       const handlePause = () => {
@@ -128,44 +129,64 @@ export const useAudioPlayer = () => {
 
   // Play track function
   const playTrack = useCallback(async (track) => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !track) {
+      console.warn('Cannot play track: audio element or track is missing');
+      return;
+    }
 
     try {
       setError(null);
       setIsLoading(true);
 
-      // If it's the same track, just resume
-      if (currentTrack && currentTrack._id === track._id) {
+      // Check if it's the same track - if so, just resume if paused
+      const isSameTrack = currentTrack && (
+        (currentTrack._id && track._id && currentTrack._id === track._id) ||
+        (currentTrack.id && track.id && currentTrack.id === track.id) ||
+        (currentTrack.name === track.name && currentTrack.artists?.[0]?.name === track.artists?.[0]?.name)
+      );
+
+      if (isSameTrack && audioRef.current.paused) {
+        // Same track, just resume
         await audioRef.current.play();
+        setIsPlaying(true);
+        setIsLoading(false);
         return;
       }
 
-      // Set new track
+      // New track - set it up
       setCurrentTrack(track);
       setProgress(0);
-      const fallbackDur = Math.floor(((track?.duration_ms) || 0) / 1000);
+      
+      // Set duration from track data if available
+      const fallbackDur = Math.floor(((track?.duration_ms) || track?.duration || 0) / 1000);
       if (fallbackDur > 0) {
         setDuration(fallbackDur);
       }
 
-      // For demo purposes, we'll use a sample audio URL
-      // In a real app, you'd get the actual audio URL from your API
       const audioUrl = getAudioUrl(track);
       
       if (!audioUrl) {
         throw new Error('No audio URL available for this track');
       }
 
+      // Pause current audio if playing
+      if (!audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+
       // Set audio source
       audioRef.current.src = audioUrl;
+      audioRef.current.currentTime = 0;
       audioRef.current.load();
 
       // Play the audio
       await audioRef.current.play();
+      setIsPlaying(true);
+      setIsLoading(false);
       
     } catch (err) {
       console.error('Failed to play track:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to play track');
       setIsLoading(false);
       setIsPlaying(false);
     }
@@ -175,6 +196,7 @@ export const useAudioPlayer = () => {
   const pauseTrack = useCallback(() => {
     if (audioRef.current && !audioRef.current.paused) {
       audioRef.current.pause();
+      setIsPlaying(false);
     }
   }, []);
 
@@ -182,10 +204,15 @@ export const useAudioPlayer = () => {
   const resumeTrack = useCallback(async () => {
     if (audioRef.current && audioRef.current.paused) {
       try {
+        setIsLoading(true);
         await audioRef.current.play();
+        setIsPlaying(true);
+        setIsLoading(false);
       } catch (err) {
         console.error('Failed to resume track:', err);
-        setError(err.message);
+        setError(err.message || 'Failed to resume track');
+        setIsPlaying(false);
+        setIsLoading(false);
       }
     }
   }, []);
@@ -253,71 +280,55 @@ export const useAudioPlayer = () => {
 };
 
 // Helper function to get audio URL
-// This function now uses the actual track URLs from search results
+// This function uses the actual track URLs from the database
 const getAudioUrl = (track) => {
-  console.log('Getting audio URL for track:', track);
-  console.log('Track preview_url:', track.preview_url);
-  console.log('Track audio_url:', track.audio_url);
-  
-  // Priority order for audio sources - check for real audio URLs first
-  const localFirst = (url) => {
-    if (typeof url === 'string' && url.startsWith('/')) {
-      try {
-        return new URL(url, window.location.origin).toString();
-      } catch {
-        return url;
-      }
-    }
+  if (!track) {
+    console.warn('No track provided to getAudioUrl');
     return null;
-  };
-  const audioSources = [
-    localFirst(track.audio_url), // Prefer local app-served files
-    track.preview_url,           // Spotify preview URL
-    track.audio_url,             // Direct audio URL
-    track.stream_url,            // Streaming URL
-    track.sample_url,            // Sample URL
-    track.preview_mp3,           // MP3 preview
-    track.preview_wav,           // WAV preview
-    track.cover_art_url,         // Sometimes cover art URLs are audio
-    track.external_urls?.spotify,// Spotify external URL
-  ].filter(Boolean);
-
-  console.log('Available audio sources:', audioSources);
-
-  // If we have real audio URLs, use them
-  if (audioSources.length > 0) {
-    console.log('✅ Using real audio URL:', audioSources[0]);
-    return audioSources[0];
   }
 
-  // Since no real audio URLs are available, we need to use demo audio
-  // This is expected behavior when the database doesn't have preview URLs
-  console.log('❌ No real audio URL found for track:', track.name);
-  console.log('This is normal - your database songs don\'t have preview URLs yet.');
-  console.log('Using demo audio as fallback - this is working as intended!');
-  
-  // Use working demo URLs from a reliable CDN
-  const demoUrls = [
-    'https://actions.google.com/sounds/v1/alarms/beep_short.ogg',
-    'https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg',
-    'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg',
-    'https://actions.google.com/sounds/v1/cartoon/pop.ogg',
-    'https://actions.google.com/sounds/v1/cartoon/slide_whistle.ogg',
-    'https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg',
-    'https://actions.google.com/sounds/v1/impacts/crash.ogg',
-    'https://actions.google.com/sounds/v1/impacts/soft_thud.ogg'
-  ];
+  // Helper to convert relative URLs to absolute
+  const toAbsoluteUrl = (url) => {
+    if (!url || typeof url !== 'string') return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    if (url.startsWith('/')) {
+      return new URL(url, window.location.origin).toString();
+    }
+    return url;
+  };
 
-  // Use track ID to pick a consistent demo URL
-  if (track && track._id) {
-    const index = track._id.charCodeAt(0) % demoUrls.length;
-    const selectedUrl = demoUrls[index];
-    console.log(`🎵 Using demo audio: ${selectedUrl}`);
+  // Priority order for audio sources
+  const audioSources = [
+    track.audio_url,                    // Direct audio URL (highest priority)
+    track.preview_url,                  // Spotify preview URL
+    track.stream_url,                   // Streaming URL
+    track.sample_url,                   // Sample URL
+    track.preview_mp3,                  // MP3 preview
+    track.preview_wav,                  // WAV preview
+  ]
+    .map(toAbsoluteUrl)
+    .filter(Boolean);
+
+  // If we have real audio URLs, use the first one
+  if (audioSources.length > 0) {
+    const selectedUrl = audioSources[0];
+    console.log('✅ Using audio URL:', selectedUrl, 'for track:', track.name);
     return selectedUrl;
   }
 
-  console.log(`🎵 Using default demo audio: ${demoUrls[0]}`);
-  return demoUrls[0];
+  // Fallback: Check for local files in /songs/ directory
+  if (track.name) {
+    const sanitizedName = track.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const localUrl = `/songs/${sanitizedName}.mp3`;
+    console.log('⚠️ No audio URL found, trying local file:', localUrl);
+    return localUrl;
+  }
+
+  // Last resort: Use a demo audio file
+  console.warn('❌ No audio URL found for track:', track.name, '- using fallback');
+  return '/songs/shape-of-you.mp3'; // Fallback to existing demo file
 };
 
 export default useAudioPlayer;

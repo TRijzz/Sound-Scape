@@ -12,6 +12,7 @@ import HomePage from './pages/HomePage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ArtistPage from './pages/ArtistPage';
 import AlbumPage from './pages/AlbumPage';
+import GenrePage from './pages/GenrePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import SettingsPage from './pages/SettingsPage';
@@ -19,6 +20,7 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 import EmailVerification from './pages/auth/EmailVerification';
 import EmailVerified from './pages/auth/EmailVerified';
+import Onboarding from './pages/auth/Onboarding';
 import VerificationSuccess from './pages/auth/VerificationSuccess';
 import LikedSongs from './pages/LikedSongs';
 import LibraryPage from './pages/LibraryPage';
@@ -27,6 +29,8 @@ import AdminPage from './pages/AdminPage';
 import AdminArtists from './pages/admin/AdminArtists';
 import AdminAlbums from './pages/admin/AdminAlbums';
 import AdminSongs from './pages/admin/AdminSongs';
+import AdminGuard from './pages/admin/AdminGuard';
+import NotFound from './pages/NotFound';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -88,21 +92,24 @@ function App() {
                     <Route path="/search" element={<SearchResultsPage />} />
                     <Route path="/artist/:id" element={<ArtistPage />} />
                     <Route path="/album/:id" element={<AlbumPage />} />
+                    <Route path="/genre/:name" element={<GenrePage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/signup" element={<SignupPage />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/verify-email" element={<EmailVerification />} />
                     <Route path="/email-verified" element={<EmailVerified />} />
+                    <Route path="/onboarding" element={<Onboarding />} />
                     <Route path="/verification-success" element={<VerificationSuccess />} />
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/liked" element={<LikedSongs />} />
                     <Route path="/library" element={<LibraryPage />} />
                     <Route path="/playlist/:id" element={<PlaylistPage />} />
-                    <Route path="/admin" element={<AdminPage />} />
-                    <Route path="/admin/artists" element={<AdminArtists />} />
-                    <Route path="/admin/albums" element={<AdminAlbums />} />
-                    <Route path="/admin/songs" element={<AdminSongs />} />
+                    <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
+                    <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
+                    <Route path="/admin/albums" element={<AdminGuard><AdminAlbums /></AdminGuard>} />
+                    <Route path="/admin/songs" element={<AdminGuard><AdminSongs /></AdminGuard>} />
+                    <Route path="*" element={<NotFound />} />
                   </Routes>
                 </motion.div>
               </main>

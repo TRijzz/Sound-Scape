@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 
 const artistSchema = new mongoose.Schema(
   {
-    // Spotify fields
-    spotify_id: { type: String, unique: true, index: true },
+    // Spotify fields - sparse unique index allows multiple null values
+    spotify_id: { type: String, unique: true, sparse: true, index: true },
     name: { type: String, required: true, index: true },
     
     // Images

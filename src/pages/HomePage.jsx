@@ -6,9 +6,14 @@ import ArtistCard from '../components/ui/ArtistCard';
 import { useMusic } from '../contexts/MusicContext';
 import { usePopularArtists, usePopularSongs, usePopularAlbums } from '../hooks/useMusicData';
 import { PlayIcon, SearchIcon, HeartIcon } from '../components/ui/Icons';
+import apiService from '../services/api';
 
 const HomePage = () => {
   const { playTrack } = useMusic();
+  const [popSongs, setPopSongs] = React.useState([]);
+  const [chillVibes, setChillVibes] = React.useState([]);
+  const [topRock, setTopRock] = React.useState([]);
+  const [sectionsLoading, setSectionsLoading] = React.useState(false);
   
   // Use API hooks to fetch real data
   const { artists: topArtists, loading: artistsLoading, error: artistsError } = usePopularArtists(6);
@@ -43,6 +48,27 @@ const HomePage = () => {
       tracks: 25
     }
   ];
+
+  React.useEffect(() => {
+    const loadSections = async () => {
+      try {
+        setSectionsLoading(true);
+        const [pop, chill, rock] = await Promise.all([
+          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Pop Songs'),
+          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', 'chill', '', '', 'Chill Vibes'),
+          apiService.getSongs(1, 10, '', 'rock', '', '', '', '-popularity', '', '', '', 'Top Rock'),
+        ]);
+        setPopSongs(pop?.songs || pop || []);
+        setChillVibes(chill?.songs || chill || []);
+        setTopRock(rock?.songs || rock || []);
+      } catch (err) {
+        console.error('Failed to load category sections:', err);
+      } finally {
+        setSectionsLoading(false);
+      }
+    };
+    loadSections();
+  }, []);
 
   return (
     <div className="p-6 space-y-8">
@@ -111,6 +137,44 @@ const HomePage = () => {
               </motion.div>
             );
           })}
+        </div>
+      </motion.section>
+
+      {/* Browse by Category */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.15 }}
+      >
+        <h2 className="text-xl font-bold text-white mb-4">Browse by category</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-light-gray/40 rounded-xl p-4">
+            <h3 className="text-lg font-semibold mb-3">Pop Songs</h3>
+            <div className="space-y-2">
+              {(sectionsLoading ? [] : popSongs).slice(0, 6).map((song, index) => (
+                <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
+              ))}
+              {sectionsLoading && <div className="text-gray-400">Loading...</div>}
+            </div>
+          </div>
+          <div className="bg-light-gray/40 rounded-xl p-4">
+            <h3 className="text-lg font-semibold mb-3">Chill Vibes</h3>
+            <div className="space-y-2">
+              {(sectionsLoading ? [] : chillVibes).slice(0, 6).map((song, index) => (
+                <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
+              ))}
+              {sectionsLoading && <div className="text-gray-400">Loading...</div>}
+            </div>
+          </div>
+          <div className="bg-light-gray/40 rounded-xl p-4">
+            <h3 className="text-lg font-semibold mb-3">Top Rock</h3>
+            <div className="space-y-2">
+              {(sectionsLoading ? [] : topRock).slice(0, 6).map((song, index) => (
+                <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
+              ))}
+              {sectionsLoading && <div className="text-gray-400">Loading...</div>}
+            </div>
+          </div>
         </div>
       </motion.section>
 

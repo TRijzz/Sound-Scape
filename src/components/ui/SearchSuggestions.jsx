@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SearchIcon } from './Icons';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
 const SearchSuggestions = ({ 
   suggestions, 
@@ -42,7 +43,7 @@ const SearchSuggestions = ({
                   >
                     <div className="w-8 h-8 rounded-full bg-light-gray overflow-hidden">
                       <img
-                        src={artist.images?.[0]?.url || '/src/assets/album_art_placeholder.svg'}
+                        src={artist.images?.[0]?.url || albumArtPlaceholder}
                         alt={artist.name}
                         className="w-full h-full object-cover"
                       />
@@ -73,7 +74,7 @@ const SearchSuggestions = ({
                   >
                     <div className="w-8 h-8 rounded bg-light-gray overflow-hidden">
                       <img
-                        src={song.album?.images?.[0]?.url || '/src/assets/album_art_placeholder.svg'}
+                        src={song.album?.images?.[0]?.url || albumArtPlaceholder}
                         alt={song.name}
                         className="w-full h-full object-cover"
                       />
@@ -106,7 +107,7 @@ const SearchSuggestions = ({
                   >
                     <div className="w-8 h-8 rounded bg-light-gray overflow-hidden">
                       <img
-                        src={album.images?.[0]?.url || '/src/assets/album_art_placeholder.svg'}
+                        src={album.images?.[0]?.url || albumArtPlaceholder}
                         alt={album.name}
                         className="w-full h-full object-cover"
                       />

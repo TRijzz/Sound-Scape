@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PlayIcon, MoreIcon, LikeIcon, LikedIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
 const AlbumCard = ({ album, index, isLiked = false }) => {
   const { playTrack } = useMusic();
@@ -29,7 +30,7 @@ const AlbumCard = ({ album, index, isLiked = false }) => {
           {/* Album Cover */}
           <div className="relative overflow-hidden rounded-xl bg-light-gray">
             <img
-              src={album.images?.[0]?.url || '/api/placeholder/200/200'}
+              src={album.images?.[0]?.url || albumArtPlaceholder}
               alt={album.name}
               className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
             />

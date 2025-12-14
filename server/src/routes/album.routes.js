@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middlewares/auth.js';
+import { requireAdminOrAuth } from '../middlewares/admin.js';
 import {
   createAlbum,
   getAlbums,
@@ -25,8 +25,8 @@ router.get('/:id', getAlbum);
 router.get('/:id/tracks', getAlbumTracks);
 
 // Protected routes (require authentication)
-router.post('/', requireAuth, createAlbum);
-router.put('/:id', requireAuth, updateAlbum);
-router.delete('/:id', requireAuth, deleteAlbum);
+router.post('/', requireAdminOrAuth, createAlbum);
+router.put('/:id', requireAdminOrAuth, updateAlbum);
+router.delete('/:id', requireAdminOrAuth, deleteAlbum);
 
 export default router;

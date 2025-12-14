@@ -4,6 +4,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import passport from 'passport';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
 import { connectDB } from './src/config/db.js';
 import authRoutes from './src/routes/auth.routes.js';
 import userRoutes from './src/routes/user.routes.js';
@@ -19,8 +22,10 @@ import './src/config/passport.js';
 
 const app = express();
 dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'] }));
 app.use(helmet());
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
@@ -33,6 +38,30 @@ connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`API listening on port ${PORT}`);
     scheduleDataRefresh();
+    const autoEnv = String(process.env.AUTO_OPEN || '').toLowerCase();
+    const shouldOpen = autoEnv === 'true';
+    if (shouldOpen) {
+      const url = `http://localhost:${PORT}/`;
+      const platform = process.platform;
+      const cmds = platform === 'win32'
+        ? [
+            `cmd /c start "" "${url}"`,
+            `powershell -NoProfile -Command Start-Process '${url}'`,
+            `rundll32 url.dll,FileProtocolHandler "${url}"`
+          ]
+        : platform === 'darwin'
+          ? [`open "${url}"`]
+          : [`xdg-open "${url}"`];
+      let i = 0;
+      const run = () => {
+        try {
+          exec(cmds[i], (err) => { if (err && i + 1 < cmds.length) { i++; run(); } });
+        } catch (e) {
+          if (i + 1 < cmds.length) { i++; run(); }
+        }
+      };
+      setTimeout(run, 300);
+    }
   });
 });
 
@@ -40,6 +69,67 @@ connectDB().then(() => {
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Backend is running on Render!" });
 });
+
+// Placeholder image (SVG) for missing artwork
+app.get(/^\/api\/placeholder\/(\d+)\/(\d+)$/, (req, res) => {
+  const m = req.path.match(/^\/api\/placeholder\/(\d+)\/(\d+)$/);
+  const w = Math.max(1, Math.min(1024, parseInt(m?.[1] || '100', 10)));
+  const h = Math.max(1, Math.min(1024, parseInt(m?.[2] || '100', 10)));
+
+  const bg = '#1f2937';
+  const fg = '#6b7280';
+  const stroke = Math.max(2, Math.floor(Math.min(w, h) / 50));
+  const r = Math.floor(Math.min(w, h) / 4);
+  const fontSize = Math.max(10, Math.floor(Math.min(w, h) / 8));
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="${bg}"/>
+    </linearGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#g)" />
+  <rect x="${w*0.15}" y="${h*0.15}" width="${w*0.7}" height="${h*0.7}" rx="${Math.min(w,h)*0.05}" fill="none" stroke="${fg}" stroke-width="${stroke}" />
+  <circle cx="${w/2}" cy="${h/2}" r="${r}" fill="none" stroke="${fg}" stroke-width="${stroke}" />
+  <circle cx="${w/2}" cy="${h/2}" r="${Math.max(2, Math.floor(r/6))}" fill="${fg}" />
+  <text x="50%" y="${h-10}" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="${fontSize}" fill="${fg}" opacity="0.8">No Image</text>
+</svg>`;
+
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(svg);
+});
+app.get('/api/placeholder/:width/:height', (req, res) => {
+  const w = Math.max(1, Math.min(1024, parseInt(req.params.width, 10) || 100));
+  const h = Math.max(1, Math.min(1024, parseInt(req.params.height, 10) || 100));
+
+  const bg = '#1f2937'; // dark gray
+  const fg = '#6b7280'; // medium gray
+  const stroke = Math.max(2, Math.floor(Math.min(w, h) / 50));
+  const r = Math.floor(Math.min(w, h) / 4);
+  const fontSize = Math.max(10, Math.floor(Math.min(w, h) / 8));
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="${bg}"/>
+    </linearGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#g)" />
+  <rect x="${w*0.15}" y="${h*0.15}" width="${w*0.7}" height="${h*0.7}" rx="${Math.min(w,h)*0.05}" fill="none" stroke="${fg}" stroke-width="${stroke}" />
+  <circle cx="${w/2}" cy="${h/2}" r="${r}" fill="none" stroke="${fg}" stroke-width="${stroke}" />
+  <circle cx="${w/2}" cy="${h/2}" r="${Math.max(2, Math.floor(r/6))}" fill="${fg}" />
+  <text x="50%" y="${h-10}" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="${fontSize}" fill="${fg}" opacity="0.8">No Image</text>
+</svg>`;
+
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(svg);
+});
+
+// Support wildcard size as single param to handle `/api/placeholder/40/40`
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -51,6 +141,16 @@ app.use('/api/playlists', playlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/spotify', spotifyRoutes);
+
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.resolve(__dirname, '../build');
+  app.use(express.static(buildPath));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(buildPath, 'index.html'));
+  });
+}
 
 // 404 / Error
 app.use((req, res) => {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middlewares/auth.js';
+import { requireAdminOrAuth } from '../middlewares/admin.js';
 import { 
   createArtist, 
   getArtists, 
@@ -9,6 +9,7 @@ import {
   getArtistTopTracks,
   getPopularArtists,
   getArtistsByGenre,
+  populateArtistGenres,
   updateArtist, 
   deleteArtist 
 } from '../controllers/artist.controller.js';
@@ -25,8 +26,9 @@ router.get('/:id/albums', getArtistAlbums);
 router.get('/:id/top-tracks', getArtistTopTracks);
 
 // Protected routes (require authentication)
-router.post('/', requireAuth, createArtist);
-router.put('/:id', requireAuth, updateArtist);
-router.delete('/:id', requireAuth, deleteArtist);
+router.post('/', requireAdminOrAuth, createArtist);
+router.post('/populate-genres', requireAdminOrAuth, populateArtistGenres);
+router.put('/:id', requireAdminOrAuth, updateArtist);
+router.delete('/:id', requireAdminOrAuth, deleteArtist);
 
 export default router;

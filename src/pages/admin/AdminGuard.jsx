@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { useMusic } from '../../contexts/MusicContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import apiService from '../../services/api';
 
 export default function AdminGuard({ children }) {
-  const { isAuthenticated } = useMusic();
   const navigate = useNavigate();
+  const location = useLocation();
   const [adminVerified, setAdminVerified] = useState(() => {
-    try { return localStorage.getItem('adminVerified') === 'true'; } catch { return false; }
+    try {
+      return localStorage.getItem('adminVerified') === 'true';
+    } catch {
+      return false;
+    }
   });
   const [adminCode, setAdminCode] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +21,7 @@ export default function AdminGuard({ children }) {
       setError('');
       const code = adminCode.trim();
       if (!code) { setError('Enter access code'); return; }
+      apiService.setAdminCode(code);
       await apiService.verifyAdminAccess(code);
       localStorage.setItem('adminVerified', 'true');
       setAdminVerified(true);
@@ -26,19 +30,15 @@ export default function AdminGuard({ children }) {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="p-6">
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto text-center bg-dark-gray/60 border border-gray-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">Admin</h2>
-          <p className="text-gray-300 mb-4">Sign in to manage content.</p>
-          <button onClick={() => navigate('/login', { state: { from: '/admin' } })} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg">Sign in</button>
-        </motion.div>
-      </div>
-    );
-  }
+  // If accessing a subpage like /admin/artists without verification, redirect to /admin
+  // This hook must be called before any conditional returns
+  useEffect(() => {
+    if (!adminVerified && location.pathname !== '/admin' && location.pathname.startsWith('/admin')) {
+      navigate('/admin', { replace: true });
+    }
+  }, [adminVerified, location.pathname, navigate]);
 
-  if (!adminVerified) {
+  if (!adminVerified && location.pathname === '/admin') {
     return (
       <div className="p-6">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto bg-dark-gray/60 border border-gray-800 rounded-xl p-6">

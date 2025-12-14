@@ -8,7 +8,8 @@
     "start": "node -r dotenv/config index.js",
     "dev": "nodemon -r dotenv/config index.js",
     "sync": "node -r dotenv/config src/scripts/spotify-sync.js",
-    "example": "node -r dotenv/config example-usage.js"
+    "example": "node -r dotenv/config example-usage.js",
+    "fix-indexes": "node -r dotenv/config src/scripts/fix-indexes.js"
   },
   "keywords": [],
   "author": "",

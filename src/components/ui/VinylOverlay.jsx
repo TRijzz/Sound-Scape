@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import vinylSvg from '../../assets/vinyl.svg';
 import { ReactComponent as Tonearm } from '../../assets/tonearm.svg';
 import { useMusic } from '../../contexts/MusicContext';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 import { 
   PlayIcon, 
   PauseIcon, 
@@ -200,7 +201,7 @@ function OverlayPlayBar({ onOuterClick }) {
           {currentTrack && (
             <>
               <img
-                src={currentTrack.album?.images?.[0]?.url || '/src/assets/album_art_placeholder.svg'}
+                src={currentTrack.album?.images?.[0]?.url || albumArtPlaceholder}
                 alt={currentTrack.name || 'Current track'}
                 className="w-10 h-10 rounded object-cover flex-shrink-0"
               />

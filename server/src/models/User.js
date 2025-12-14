@@ -18,6 +18,11 @@ const userSchema = new mongoose.Schema(
     passwordResetTokenHash: { type: String, select: false, index: true },
     passwordResetExpires: { type: Date, select: false },
     likedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
+    onboarded: { type: Boolean, default: false },
+    preferred_genres: [{ type: String }],
+    preferred_moods: [{ type: String }],
+    preferred_languages: [{ type: String }],
+    preferred_tags: [{ type: String }],
   },
   { timestamps: true }
 );
