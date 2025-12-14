@@ -12,9 +12,6 @@ export default function AdminSongs() {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [genre, setGenre] = useState('');
-  const [mood, setMood] = useState('');
-  const [language, setLanguage] = useState('');
-  const [tags, setTags] = useState('');
   
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
@@ -75,15 +72,12 @@ export default function AdminSongs() {
         name: name.trim(),
         ...(category.trim() ? { category: category.trim() } : {}),
         ...(genre.trim() ? { genre: genre.trim() } : {}),
-        ...(mood.trim() ? { mood: mood.trim() } : {}),
-        ...(language.trim() ? { language: language.trim() } : {}),
-        ...(tags.trim() ? { tags: tags.split(',').map(t=>t.trim()).filter(Boolean) } : {}),
       };
       console.log('Creating song with payload:', payload);
       const created = await apiService.createSong(payload);
       console.log('Song created successfully:', created);
       setName('');
-      setCategory(''); setGenre(''); setMood(''); setLanguage(''); setTags('');
+      setCategory(''); setGenre('');
       showToast('Song created successfully!', 'success', 3000);
       // Reload all songs to ensure sync with database
       await load();
@@ -254,22 +248,11 @@ export default function AdminSongs() {
             className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 flex-1"
           />
           <input 
-            value={mood}
-            onChange={e=>setMood(e.target.value)}
-            placeholder="Mood (e.g., chill)"
-            className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 flex-1"
-          />
-          <input 
-            value={language}
-            onChange={e=>setLanguage(e.target.value)}
-            placeholder="Language (e.g., English)"
-            className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 flex-1"
-          />
-          <input 
-            value={tags}
-            onChange={e=>setTags(e.target.value)}
-            placeholder="Tags (comma-separated)"
-            className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 flex-1"
+            style={{ display: 'none' }}
+            value=""
+            onChange={()=>{}}
+            placeholder=""
+            className="hidden"
           />
           
           <button onClick={createSong} disabled={!canCreate} className="px-3 py-2 rounded-lg bg-neon-blue text-dark-bg disabled:opacity-50">
