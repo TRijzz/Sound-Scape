@@ -6,13 +6,7 @@ import apiService from '../../services/api';
 export default function AdminGuard({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [adminVerified, setAdminVerified] = useState(() => {
-    try {
-      return localStorage.getItem('adminVerified') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [adminVerified, setAdminVerified] = useState(false);
   const [adminCode, setAdminCode] = useState('');
   const [error, setError] = useState('');
 
@@ -23,22 +17,13 @@ export default function AdminGuard({ children }) {
       if (!code) { setError('Enter access code'); return; }
       apiService.setAdminCode(code);
       await apiService.verifyAdminAccess(code);
-      localStorage.setItem('adminVerified', 'true');
       setAdminVerified(true);
     } catch (err) {
       setError(err?.message || 'Verification failed');
     }
   };
 
-  // If accessing a subpage like /admin/artists without verification, redirect to /admin
-  // This hook must be called before any conditional returns
-  useEffect(() => {
-    if (!adminVerified && location.pathname !== '/admin' && location.pathname.startsWith('/admin')) {
-      navigate('/admin', { replace: true });
-    }
-  }, [adminVerified, location.pathname, navigate]);
-
-  if (!adminVerified && location.pathname === '/admin') {
+  if (!adminVerified && location.pathname.startsWith('/admin')) {
     return (
       <div className="p-6">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto bg-dark-gray/60 border border-gray-800 rounded-xl p-6">

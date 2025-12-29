@@ -55,12 +55,59 @@ const HomePage = () => {
         setSectionsLoading(true);
         const [pop, chill, rock] = await Promise.all([
           apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Pop Songs'),
-          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', 'chill', '', '', 'Chill Vibes'),
-          apiService.getSongs(1, 10, '', 'rock', '', '', '', '-popularity', '', '', '', 'Top Rock'),
+          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Chill Vibes'),
+          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Top Rock'),
         ]);
-        setPopSongs(pop?.songs || pop || []);
-        setChillVibes(chill?.songs || chill || []);
-        setTopRock(rock?.songs || rock || []);
+        const popList = pop?.songs || pop || [];
+        const chillList = chill?.songs || chill || [];
+        const rockList = rock?.songs || rock || [];
+        let finalPop = popList;
+        let finalChill = chillList;
+        let finalRock = rockList;
+        if (!Array.isArray(finalPop) || finalPop.length === 0) {
+          const byGenre = await apiService.getSongsByGenre('Pop', 10).catch(()=>[]);
+          finalPop = (byGenre?.songs || byGenre || []);
+        }
+        if (!Array.isArray(finalChill) || finalChill.length === 0) {
+          const bySearch = await apiService.searchSongs('chill', 10).catch(()=>[]);
+          finalChill = (bySearch?.songs || bySearch || []);
+          if ((!Array.isArray(finalChill) || finalChill.length === 0)) {
+            const popular = await apiService.getPopularSongs(20).catch(()=>[]);
+            const fromPopular = (popular?.songs || popular || []).filter(s => {
+              const name = String(s?.name || '').toLowerCase();
+              const tags = (Array.isArray(s?.tags) ? s.tags : []).map(t=>String(t).toLowerCase());
+              return name.includes('chill') || tags.includes('chill');
+            });
+            finalChill = fromPopular;
+          }
+        }
+        if (!Array.isArray(finalRock) || finalRock.length === 0) {
+          const byGenreRock = await apiService.getSongsByGenre('Rock', 10).catch(()=>[]);
+          finalRock = (byGenreRock?.songs || byGenreRock || []);
+          if ((!Array.isArray(finalRock) || finalRock.length === 0)) {
+            const popular = await apiService.getPopularSongs(20).catch(()=>[]);
+            const fromPopular = (popular?.songs || popular || []).filter(s => {
+              const name = String(s?.name || '').toLowerCase();
+              const g = Array.isArray(s?.genres) ? s.genres : [s?.genre];
+              const genres = (g || []).map(x=>String(x || '').toLowerCase());
+              return name.includes('rock') || genres.includes('rock');
+            });
+            finalRock = fromPopular;
+          }
+        }
+        const dedupById = (list) => {
+          const seen = new Set();
+          const out = [];
+          for (const s of (Array.isArray(list) ? list : [])) {
+            const id = s._id || s.id || s.songId;
+            if (!id) continue;
+            if (!seen.has(id)) { seen.add(id); out.push(s); }
+          }
+          return out;
+        };
+        setPopSongs(dedupById(finalPop));
+        setChillVibes(dedupById(finalChill));
+        setTopRock(dedupById(finalRock));
       } catch (err) {
         console.error('Failed to load category sections:', err);
       } finally {

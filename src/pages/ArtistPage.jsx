@@ -78,12 +78,29 @@ const ArtistPage = () => {
           <div className="flex items-end space-x-6">
           {/* Artist Image */}
           <motion.img
-            src={artist.images && artist.images.length > 0 ? artist.images[0].url : albumArtPlaceholder}
+            src={
+              (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
+                ? artist.images[0].url
+                : artist.image_url
+                ? artist.image_url
+                : albumArtPlaceholder
+            }
             alt={artist.name}
             className="w-48 h-48 rounded-full object-cover shadow-2xl"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
+            onError={(e) => {
+              if (e.target.src !== albumArtPlaceholder) {
+                console.warn('Failed to load artist image for:', artist.name, 'URL:', e.target.src);
+                e.target.src = albumArtPlaceholder;
+              }
+            }}
+            onLoad={() => {
+              if (process.env.NODE_ENV === 'development') {
+                console.log('Successfully loaded artist page image for:', artist.name);
+              }
+            }}
           />
             
             {/* Artist Info */}

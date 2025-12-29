@@ -78,8 +78,18 @@ export const getArtists = async (req, res) => {
 
     const total = await Artist.countDocuments(query);
 
+    // Normalize images for all artists
+    const normalizedArtists = artists.map(artist => ({
+      ...artist,
+      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
+        ? artist.images 
+        : artist.image_url 
+          ? [{ url: artist.image_url }] 
+          : []
+    }));
+
     res.json({
-      artists,
+      artists: normalizedArtists,
       pagination: {
         page: parseInt(page),
         limit: actualLimit,
@@ -98,7 +108,17 @@ export const getArtist = async (req, res) => {
     if (!artist) {
       return res.status(404).json({ message: 'Artist not found' });
     }
-    res.json(artist);
+    
+    // Normalize images
+    const normalizedArtist = {
+      ...artist,
+      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
+        ? artist.images 
+        : artist.image_url 
+          ? [{ url: artist.image_url }] 
+          : []
+    };
+    res.json(normalizedArtist);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch artist', error: error.message });
   }
@@ -191,7 +211,17 @@ export const getPopularArtists = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
     
-    res.json(artists);
+    // Ensure images field is always included and properly formatted
+    const normalizedArtists = artists.map(artist => ({
+      ...artist,
+      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
+        ? artist.images 
+        : artist.image_url 
+          ? [{ url: artist.image_url }] 
+          : []
+    }));
+    
+    res.json(normalizedArtists);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch popular artists', error: error.message });
   }
@@ -212,7 +242,17 @@ export const getArtistsByGenre = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
     
-    res.json(artists);
+    // Normalize images
+    const normalizedArtists = artists.map(artist => ({
+      ...artist,
+      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
+        ? artist.images 
+        : artist.image_url 
+          ? [{ url: artist.image_url }] 
+          : []
+    }));
+    
+    res.json(normalizedArtists);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch artists by genre', error: error.message });
   }
@@ -230,7 +270,17 @@ export const updateArtist = async (req, res) => {
       return res.status(404).json({ message: 'Artist not found' });
     }
     
-    res.json(artist);
+    // Normalize images
+    const normalizedArtist = {
+      ...artist,
+      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
+        ? artist.images 
+        : artist.image_url 
+          ? [{ url: artist.image_url }] 
+          : []
+    };
+    
+    res.json(normalizedArtist);
   } catch (error) {
     res.status(400).json({ message: 'Failed to update artist', error: error.message });
   }

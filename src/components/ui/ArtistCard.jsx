@@ -36,9 +36,26 @@ const ArtistCard = ({ artist, index, isFollowing = false }) => {
           {/* Artist Image */}
           <div className="relative overflow-hidden rounded-full bg-light-gray">
             <img
-              src={artist.images?.[0]?.url || '/api/placeholder/200/200'}
+              src={
+                (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
+                  ? artist.images[0].url
+                  : artist.image_url
+                  ? artist.image_url
+                  : '/api/placeholder/200/200'
+              }
               alt={artist.name}
               className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
+              onError={(e) => {
+                if (e.target.src !== '/api/placeholder/200/200') {
+                  console.warn('Failed to load artist image for:', artist.name, 'URL:', e.target.src);
+                  e.target.src = '/api/placeholder/200/200';
+                }
+              }}
+              onLoad={() => {
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('Successfully loaded image for:', artist.name);
+                }
+              }}
             />
             
             {/* Play Button Overlay */}

@@ -17,6 +17,7 @@ import {
 import VinylOverlay from '../ui/VinylOverlay';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import { useMusic } from '../../contexts/MusicContext';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
 const NowPlayingFooter = () => {
   const {
@@ -136,7 +137,7 @@ const NowPlayingFooter = () => {
           {/* Track Info */}
           <div className="flex items-center space-x-4 w-1/4">
             <img
-              src={currentTrack.album?.images?.[0]?.url || '/api/placeholder/56/56'}
+              src={currentTrack.album?.images?.[0]?.url || albumArtPlaceholder}
               alt={currentTrack.name}
               className="w-14 h-14 rounded object-cover"
             />

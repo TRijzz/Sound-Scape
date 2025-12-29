@@ -150,11 +150,37 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(buildPath, 'index.html'));
   });
+} else {
+  // In development, redirect non-API GET requests to the frontend dev server
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      const frontendUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}${req.path}${req.query ? '?' + new URLSearchParams(req.query).toString() : ''}`;
+      return res.redirect(redirectUrl);
+    }
+    next();
+  });
 }
 
-// 404 / Error
+// 404 / Error - only catch API routes
 app.use((req, res) => {
-  res.status(404).json({ message: 'Not Found' });
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ message: 'Not Found' });
+  } else if (process.env.NODE_ENV === 'production') {
+    // In production, if we reach here, the static file serving should have handled it
+    // But just in case, send the index.html
+    const buildPath = path.resolve(__dirname, '../build');
+    res.sendFile(path.join(buildPath, 'index.html'), (err) => {
+      if (err) {
+        res.status(404).json({ message: 'Not Found' });
+      }
+    });
+  } else {
+    // This shouldn't be reached in development due to redirect above
+    res.status(404).json({ 
+      message: 'Not Found. This is the backend server. Please access the frontend at http://localhost:3000' 
+    });
+  }
 });
 app.use((err, req, res, next) => {
   console.error(err);

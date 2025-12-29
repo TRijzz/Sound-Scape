@@ -102,6 +102,8 @@ function App() {
                     <Route path="/onboarding" element={<Onboarding />} />
                     <Route path="/verification-success" element={<VerificationSuccess />} />
                     <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/profile" element={<SettingsPage defaultTab="profile" />} />
+                    <Route path="/account" element={<SettingsPage defaultTab="account" />} />
                     <Route path="/liked" element={<LikedSongs />} />
                     <Route path="/library" element={<LibraryPage />} />
                     <Route path="/playlist/:id" element={<PlaylistPage />} />

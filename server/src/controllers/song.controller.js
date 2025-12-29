@@ -105,11 +105,20 @@ export const getSongs = async (req, res) => {
     
     // Add search filter - use regex if text search index doesn't exist
     if (search) {
+      // For text search, MongoDB handles special characters differently
+      // For regex, we need to escape but preserve asterisks as they might be in song names
+      const regexSearch = search.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+      // Don't escape asterisks - they might be part of the actual song name
+      
       try {
+        // Try text search first
         query.$text = { $search: search };
       } catch {
         // Fallback to regex if text index doesn't exist
-        query.name = { $regex: search, $options: 'i' };
+        query.$or = [
+          { name: { $regex: regexSearch, $options: 'i' } },
+          { title: { $regex: regexSearch, $options: 'i' } }
+        ];
       }
     }
     
@@ -289,14 +298,49 @@ export const searchSongs = async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
     
-    const songs = await Song.find({ 
-      $text: { $search: q }
-    })
-      .populate('artists', 'name spotify_id images')
-      .populate('album', 'name images')
-      .sort({ score: { $meta: 'textScore' }, popularity: -1 })
-      .limit(parseInt(limit))
-      .lean();
+    // For regex, escape special characters but preserve asterisks (they might be in song names)
+    const regexQuery = q.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    
+    let songs;
+    try {
+      // Try text search first (requires text index)
+      songs = await Song.find({ 
+        $text: { $search: q }
+      })
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images')
+        .sort({ score: { $meta: 'textScore' }, popularity: -1 })
+        .limit(parseInt(limit))
+        .lean();
+    } catch (textError) {
+      // Fallback to regex search if text index doesn't exist or fails
+      songs = await Song.find({ 
+        $or: [
+          { name: { $regex: regexQuery, $options: 'i' } },
+          { title: { $regex: regexQuery, $options: 'i' } }
+        ]
+      })
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images')
+        .sort({ popularity: -1 })
+        .limit(parseInt(limit))
+        .lean();
+    }
+    
+    // If no results with text search, try regex as fallback
+    if (!songs || songs.length === 0) {
+      songs = await Song.find({ 
+        $or: [
+          { name: { $regex: regexQuery, $options: 'i' } },
+          { title: { $regex: regexQuery, $options: 'i' } }
+        ]
+      })
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images')
+        .sort({ popularity: -1 })
+        .limit(parseInt(limit))
+        .lean();
+    }
     
     res.json(songs);
   } catch (error) {

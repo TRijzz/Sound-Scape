@@ -174,15 +174,17 @@ export const useArtist = (artistId) => {
   const [artist, setArtist] = useState(null);
   const [artistAlbums, setArtistAlbums] = useState([]);
   const [artistTopTracks, setArtistTopTracks] = useState([]);
-  const musicData = useMusicData();
-  const { loading, error } = musicData;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   
   useEffect(() => {
     if (!artistId) return;
 
     const loadArtistData = async () => {
       try {
-        // Direct API calls instead of using fetchData to avoid the undefined issue
+        setLoading(true);
+        setError(null);
+        // Direct API calls to control loading lifecycle
         const artistData = await apiService.getArtist(artistId);
         const albumsData = await apiService.getArtistAlbums(artistId, 1, 20);
         const tracksData = await apiService.getArtistTopTracks(artistId, 10);
@@ -192,6 +194,9 @@ export const useArtist = (artistId) => {
         setArtistTopTracks(tracksData.tracks || tracksData || []);
       } catch (err) {
         console.error('Failed to load artist data:', err);
+        setError(err?.message || 'Failed to load artist');
+      } finally {
+        setLoading(false);
       }
     };
 

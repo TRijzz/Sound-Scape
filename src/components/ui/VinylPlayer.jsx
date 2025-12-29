@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import vinylSvg from '../../assets/vinyl.svg';
+import divideVinyl from '../../assets/Divide_Vinyl.svg';
+import godDidVinyl from '../../assets/GOD_DID_VINYL.svg';
 import { ReactComponent as Tonearm } from '../../assets/tonearm.svg';
 import { PlayIcon, PauseIcon, SkipNextIcon, SkipPrevIcon, VolumeIcon, RepeatIcon, ShuffleIcon, HeartIcon, LikedIcon, MoreIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
@@ -37,6 +39,29 @@ const VinylPlayer = ({ isOpen, onClose }) => {
   const isSpinning = playerState === 'playing';
   const isTonearmPlaying = playerState === 'swinging' || playerState === 'playing';
   const isTonearmPausing = playerState === 'paused' || playerState === 'stopped';
+
+  const getVinylSrc = () => {
+    if (!currentTrack) return vinylSvg;
+    
+    const albumName = currentTrack.album?.name?.toLowerCase() || '';
+    const artistNames = currentTrack.artists?.map(a => a.name.toLowerCase()).join(' ') || '';
+    const songName = currentTrack.name?.toLowerCase() || '';
+    
+    // Check for Divide (Album or Song fallback)
+    if (
+      ((albumName.includes('divide') || albumName.includes('÷')) && artistNames.includes('ed sheeran')) ||
+      (songName.includes('shape of you') && artistNames.includes('ed sheeran'))
+    ) {
+      return divideVinyl;
+    }
+    
+    // Check for GOD DID
+    if (albumName.includes('god did') && (artistNames.includes('dj khaled') || albumName === 'god did')) {
+      return godDidVinyl;
+    }
+    
+    return vinylSvg;
+  };
 
   const handlePlayPause = () => {
     if (!isPlaying) {
@@ -167,7 +192,7 @@ const VinylPlayer = ({ isOpen, onClose }) => {
                   transition={{ duration: 0.6, delay: 0.2 }}
                 >
                   <img
-                    src={vinylSvg}
+                    src={getVinylSrc()}
                     alt="Vinyl record"
                     className={`w-[400px] h-[400px] ${isSpinning ? 'spinning' : ''}`}
                     style={{ animationPlayState: isSpinning ? 'running' : 'paused' }}

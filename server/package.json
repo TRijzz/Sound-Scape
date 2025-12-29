@@ -9,7 +9,10 @@
     "dev": "nodemon -r dotenv/config index.js",
     "sync": "node -r dotenv/config src/scripts/spotify-sync.js",
     "example": "node -r dotenv/config example-usage.js",
-    "fix-indexes": "node -r dotenv/config src/scripts/fix-indexes.js"
+    "fix-indexes": "node -r dotenv/config src/scripts/fix-indexes.js",
+    "fix-db": "node -r dotenv/config src/scripts/fix-database.js",
+    "check-db": "node -r dotenv/config src/scripts/check-database.js",
+    "fix-images": "node -r dotenv/config src/scripts/fix-artist-images.js"
   },
   "keywords": [],
   "author": "",

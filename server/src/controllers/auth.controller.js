@@ -76,7 +76,10 @@ export const register = async (req, res) => {
     user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     await user.save();
 
-    const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
+    // In development, always use localhost:3000 for frontend
+    const appBaseUrl = process.env.NODE_ENV === 'production' 
+      ? (process.env.APP_BASE_URL || 'http://localhost:3000')
+      : 'http://localhost:3000';
     if (process.env.NODE_ENV !== 'production') {
       console.log('[DEV] Email verification code:', code);
       console.log('[DEV] Verify on frontend:', `${appBaseUrl}/verify-email`);
@@ -216,7 +219,16 @@ export const requestEmailVerification = async (req, res) => {
     await user.save();
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const appBaseUrl = req.get('origin') || process.env.APP_BASE_URL || 'http://localhost:3000';
+    // In development, ALWAYS use localhost:3000 for frontend (ignore APP_BASE_URL if it points to backend)
+    let appBaseUrl;
+    if (process.env.NODE_ENV === 'production') {
+      appBaseUrl = req.get('origin') || process.env.APP_BASE_URL || baseUrl;
+    } else {
+      // Development: FORCE localhost:3000 for frontend, ignore any APP_BASE_URL that might point to backend
+      appBaseUrl = 'http://localhost:3000';
+    }
+    // Remove trailing slash if present
+    appBaseUrl = appBaseUrl.replace(/\/$/, '');
     const verifyUrlBackend = `${baseUrl}/api/auth/email/verify?token=${encodeURIComponent(token)}`;
     const verifyUrlFrontend = `${appBaseUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
@@ -288,11 +300,22 @@ export const forgotPassword = async (req, res) => {
     await user.save();
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const appBaseUrl = req.get('origin') || process.env.APP_BASE_URL || 'http://localhost:3000';
+    // In development, ALWAYS use localhost:3000 for frontend (ignore APP_BASE_URL if it points to backend)
+    let appBaseUrl;
+    if (process.env.NODE_ENV === 'production') {
+      appBaseUrl = req.get('origin') || process.env.APP_BASE_URL || baseUrl;
+    } else {
+      // Development: FORCE localhost:3000 for frontend, ignore any APP_BASE_URL that might point to backend
+      appBaseUrl = 'http://localhost:3000';
+    }
+    // Remove trailing slash if present
+    appBaseUrl = appBaseUrl.replace(/\/$/, '');
     const resetUrlBackend = `${baseUrl}/api/auth/password/reset`;
     const resetUrlFrontend = `${appBaseUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
     if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEV] NODE_ENV:', process.env.NODE_ENV);
+      console.log('[DEV] APP_BASE_URL env:', process.env.APP_BASE_URL);
       console.log('[DEV] Password reset link (frontend):', resetUrlFrontend);
       console.log('[DEV] Password reset link (backend POST):', resetUrlBackend);
     }
@@ -328,7 +351,7 @@ export const resetPassword = async (req, res) => {
     const user = await User.findOne({
       passwordResetTokenHash: hash,
       passwordResetExpires: { $gt: new Date() },
-    }).select('+password');
+    }).select('+password +passwordResetTokenHash +passwordResetExpires');
 
     if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
 

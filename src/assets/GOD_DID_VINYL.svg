@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <defs>
+    <!-- Green Gradient for the vinyl -->
+    <linearGradient id="vinylGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1b5e20" />
+      <stop offset="100%" stop-color="#76ff03" />
+    </linearGradient>
+    
+    <radialGradient id="highlight" cx="30%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#000" stop-opacity="0" />
+    </radialGradient>
+
+    <clipPath id="centerClip">
+      <circle cx="150" cy="150" r="30" />
+    </clipPath>
+  </defs>
+
+  <circle cx="150" cy="150" r="100" fill="url(#vinylGradient)" stroke="#555" stroke-width="0.5" />
+  
+  <circle cx="150" cy="150" r="90" fill="none" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="80" fill="none" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="70" fill="none" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="60" fill="none" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="50" fill="none" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="40" fill="none" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" />
+
+  <!-- Album Art Center -->
+  <image href="https://upload.wikimedia.org/wikipedia/en/a/a0/DJ_Khaled_Grateful.png" 
+         x="120" y="120" width="60" height="60" 
+         clip-path="url(#centerClip)" preserveAspectRatio="xMidYMid slice" />
+
+  <circle cx="150" cy="150" r="5" fill="#000" />
+  <circle cx="150" cy="150" r="100" fill="url(#highlight)" pointer-events="none" />
+</svg>

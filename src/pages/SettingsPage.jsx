@@ -2,11 +2,17 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { UserIcon, LockIcon, PaletteIcon, LogOutIcon } from '../components/ui/Icons';
 import { useMusic } from '../contexts/MusicContext';
+import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 
-const SettingsPage = () => {
+const SettingsPage = ({ defaultTab = 'profile' }) => {
   const { user, logout } = useMusic();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  
+  // Update active tab when defaultTab prop changes (e.g., from route change)
+  React.useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: UserIcon },
@@ -52,7 +58,7 @@ const SettingsPage = () => {
           <div className="flex items-center space-x-6 mb-6">
             <div className="relative">
               <img
-                src={profileData.avatar || '/api/placeholder/80/80'}
+                src={profileData.avatar || albumArtPlaceholder}
                 alt="Profile"
                 className="w-20 h-20 rounded-full object-cover"
               />
