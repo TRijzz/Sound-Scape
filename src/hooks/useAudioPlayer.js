@@ -320,6 +320,11 @@ const getAudioUrl = (track) => {
 
   // Fallback: Check for local files in /songs/ directory
   if (track.name) {
+    // Special handling for God Did to match user's file
+    if (track.name.toLowerCase().includes('god did') && track.artists?.some(a => a.name.toLowerCase().includes('dj khaled'))) {
+       return '/songs/god-did.mp3';
+    }
+
     const sanitizedName = track.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const localUrl = `/songs/${sanitizedName}.mp3`;
     console.log('⚠️ No audio URL found, trying local file:', localUrl);

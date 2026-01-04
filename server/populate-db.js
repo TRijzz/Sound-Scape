@@ -29,7 +29,8 @@ async function populateDatabase() {
       'Taylor Swift', 
       'Drake',
       'Billie Eilish',
-      'The Weeknd'
+      'The Weeknd',
+      'DJ Khaled'
     ];
 
     for (const query of popularQueries) {

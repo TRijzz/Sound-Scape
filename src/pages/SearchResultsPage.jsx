@@ -141,7 +141,8 @@ const SearchResultsPage = () => {
     const name = String(track?.name || '').toLowerCase();
     const artists = (track?.artists || []).map(a => String(a?.name || '').toLowerCase());
     const hasLocal = String(track?.audio_url || '').startsWith('/songs/');
-    const isShape = name.includes('shape of you') || (name.includes('shape') && artists.includes('ed sheeran'));
+    const isShape = name.includes('shape of you') || (name.includes('shape') && artists.includes('ed sheeran')) || 
+                   name.includes('god did');
 
     if (!isAuthenticated && !(hasLocal || isShape)) {
       setShowAuthPrompt(true);
