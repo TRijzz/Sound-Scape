@@ -247,7 +247,7 @@ export function MusicProvider({ children }) {
     }
     
     // Sync progress (with threshold to avoid too many updates)
-    if (Math.abs((player.progress || 0) - (state.progress || 0)) > 0.5) {
+    if (Math.abs((player.progress || 0) - (state.progress || 0)) > 0.01) {
       dispatch({ type: 'SET_PROGRESS', payload: player.progress || 0 });
     }
     

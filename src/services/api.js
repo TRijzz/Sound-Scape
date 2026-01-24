@@ -47,6 +47,10 @@ class ApiService {
     }
   }
 
+  getLyrics(songId) {
+    return this.fetchData(`/lyrics/${songId}`);
+  }
+
   async fetchData(endpoint, options = {}) {
     try {
       const headers = {
@@ -615,7 +619,8 @@ class ApiService {
 
   async getGenres(limit = 50) {
     try {
-      const res = await this.fetchData(`/genres?limit=${limit}`);
+      // Try fetching from artists/genres endpoint first
+      const res = await this.fetchData(`/artists/genres?limit=${limit}`);
       const fromApi = Array.isArray(res) ? res : (res?.genres || []);
       if (Array.isArray(fromApi) && fromApi.length > 0) {
         const raw = fromApi.map(g => (typeof g === 'string' ? g : g?.name)).filter(Boolean);

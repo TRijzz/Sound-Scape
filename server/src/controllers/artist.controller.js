@@ -185,6 +185,7 @@ export const getArtistTopTracks = async (req, res) => {
 
     const tracks = await Song.find({ artists: req.params.id })
       .populate('album', 'name images')
+      .populate('artists', 'name spotify_id images')
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
       .lean();
@@ -224,6 +225,29 @@ export const getPopularArtists = async (req, res) => {
     res.json(normalizedArtists);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch popular artists', error: error.message });
+  }
+};
+
+export const getGenres = async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    
+    // Aggregate genres from artists
+    const artistGenres = await Artist.aggregate([
+      { $unwind: "$genres" },
+      { $group: { _id: "$genres", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: parseInt(limit) }
+    ]);
+    
+    // Transform to simple array
+    const genres = artistGenres.map(g => g._id);
+    
+    // If not enough, maybe add some defaults or from songs?
+    // For now just return what we have
+    res.json({ genres });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch genres', error: error.message });
   }
 };
 

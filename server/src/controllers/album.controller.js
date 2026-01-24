@@ -148,7 +148,8 @@ export const getAlbumTracks = async (req, res) => {
     }
 
     const tracks = await Song.find({ album: req.params.id })
-      .populate('artists', 'name spotify_id')
+      .populate('artists', 'name spotify_id images')
+      .populate('album', 'name images release_date')
       .sort({ disc_number: 1, track_number: 1 })
       .skip(skip)
       .limit(parseInt(limit))

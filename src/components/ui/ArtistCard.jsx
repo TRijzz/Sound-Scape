@@ -1,11 +1,44 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PlayIcon, MoreIcon, FollowIcon, FollowingIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
+import apiService from '../../services/api';
 
 const ArtistCard = ({ artist, index, isFollowing = false }) => {
   const { playTrack } = useMusic();
+  const [imageSrc, setImageSrc] = useState(() => {
+    const primary =
+      (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
+        ? artist.images[0].url
+        : artist.image_url
+        ? artist.image_url
+        : null;
+    return primary || albumArtPlaceholder;
+  });
+
+  useEffect(() => {
+    const needsFetch = !(
+      artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url
+    ) && !artist.image_url && (artist._id || artist.id);
+    if (!needsFetch) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const full = await apiService.getArtist(artist._id || artist.id);
+        const url = (full?.images && Array.isArray(full.images) && full.images[0]?.url) ? full.images[0].url : null;
+        if (!cancelled && url) {
+          setImageSrc(url);
+        }
+      } catch {
+        if (!cancelled) {
+          setImageSrc(albumArtPlaceholder);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [artist]);
 
   const handlePlay = (e) => {
     e.preventDefault();
@@ -36,19 +69,14 @@ const ArtistCard = ({ artist, index, isFollowing = false }) => {
           {/* Artist Image */}
           <div className="relative overflow-hidden rounded-full bg-light-gray">
             <img
-              src={
-                (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
-                  ? artist.images[0].url
-                  : artist.image_url
-                  ? artist.image_url
-                  : '/api/placeholder/200/200'
-              }
+              src={imageSrc}
               alt={artist.name}
               className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
               onError={(e) => {
-                if (e.target.src !== '/api/placeholder/200/200') {
+                if (e.target.src !== albumArtPlaceholder) {
                   console.warn('Failed to load artist image for:', artist.name, 'URL:', e.target.src);
-                  e.target.src = '/api/placeholder/200/200';
+                  e.target.src = albumArtPlaceholder;
+                  setImageSrc(albumArtPlaceholder);
                 }
               }}
               onLoad={() => {

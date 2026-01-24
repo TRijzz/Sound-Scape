@@ -84,7 +84,7 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) 
 
       {/* Album Name (if not showing album art) */}
       {!showAlbum && (
-        <div className="w-1/4 min-w-0">
+        <div className="hidden md:block w-1/4 min-w-0">
           <p className="text-xs text-gray-400 truncate">
             {song.album?.name}
           </p>

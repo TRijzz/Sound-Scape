@@ -11,7 +11,8 @@ import {
   getArtistsByGenre,
   populateArtistGenres,
   updateArtist, 
-  deleteArtist 
+  deleteArtist,
+  getGenres
 } from '../controllers/artist.controller.js';
 
 const router = Router();
@@ -19,6 +20,7 @@ const router = Router();
 // Public routes
 router.get('/', getArtists);
 router.get('/popular', getPopularArtists);
+router.get('/genres', getGenres);
 router.get('/genre', getArtistsByGenre);
 router.get('/spotify/:spotifyId', getArtistBySpotifyId);
 router.get('/:id', getArtist);

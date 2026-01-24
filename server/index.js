@@ -17,6 +17,8 @@ import playlistRoutes from './src/routes/playlist.routes.js';
 import categoryRoutes from './src/routes/category.routes.js';
 import syncRoutes from './src/routes/sync.routes.js';
 import spotifyRoutes from './src/routes/spotify.routes.js';
+import lyricRoutes from './src/routes/lyric.routes.js';
+// Lyric routes imported
 import { scheduleDataRefresh } from './src/scripts/scheduler.js';
 import './src/config/passport.js';
 
@@ -141,6 +143,7 @@ app.use('/api/playlists', playlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/spotify', spotifyRoutes);
+app.use('/api/lyrics', lyricRoutes);
 
 if (process.env.NODE_ENV === 'production') {
   const buildPath = path.resolve(__dirname, '../build');

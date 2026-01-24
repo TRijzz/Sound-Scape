@@ -59,7 +59,15 @@ export const deleteUser = async (req, res) => {
 };
 
 export const getLikedSongs = async (req, res) => {
-  const likes = await LikedSong.find({ user: req.user.id }).populate('song').lean();
+  const likes = await LikedSong.find({ user: req.user.id })
+    .populate({
+      path: 'song',
+      populate: [
+        { path: 'album', select: 'name images' },
+        { path: 'artists', select: 'name spotify_id images' }
+      ]
+    })
+    .lean();
   const songs = likes.map(l => l.song).filter(Boolean);
   res.json(songs);
 };

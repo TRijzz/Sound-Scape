@@ -148,3 +148,19 @@ export const MuteIcon = ({ className }) => (
     <path d="M19 5L5 19" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+export const LyricsIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h7M7 16h10" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H9l-4 3v-3H5a2 2 0 01-2-2V7a2 2 0 012-2z" />
+  </svg>
+);
+
+export const MicIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.4 4.6a4 4 0 00-5.6 0l-4.3 4.3 5.6 5.6 4.3-4.3a4 4 0 000-5.6z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.8 15.2l-3.6 3.6a2 2 0 11-2.8-2.8l3.6-3.6" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.5 9.5L8.8 15.2" />
+    <circle cx="18" cy="18" r="2" fill="currentColor" />
+  </svg>
+);

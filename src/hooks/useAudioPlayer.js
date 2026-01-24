@@ -31,7 +31,7 @@ export const useAudioPlayer = () => {
       };
 
       const handleTimeUpdate = () => {
-        setProgress(Math.floor(audio.currentTime));
+        setProgress(audio.currentTime);
       };
 
       const handleEnded = () => {
@@ -115,15 +115,25 @@ export const useAudioPlayer = () => {
   }, [volume, isMuted]);
 
   useEffect(() => {
-    let intervalId;
-    if (isPlaying && audioRef.current) {
-      intervalId = setInterval(() => {
-        const t = Math.floor(audioRef.current.currentTime || 0);
-        setProgress(t);
-      }, 500);
+    let animationFrameId;
+    
+    const updateProgress = () => {
+      if (audioRef.current) {
+        setProgress(audioRef.current.currentTime || 0);
+      }
+      if (isPlaying) {
+        animationFrameId = requestAnimationFrame(updateProgress);
+      }
+    };
+
+    if (isPlaying) {
+      updateProgress();
+    } else {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
     }
+
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, [isPlaying]);
 

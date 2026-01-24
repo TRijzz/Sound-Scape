@@ -7,12 +7,28 @@ export const createPlaylist = async (req, res) => {
 };
 
 export const getMyPlaylists = async (req, res) => {
-  const items = await Playlist.find({ user: req.user.id }).populate('songs').lean();
+  const items = await Playlist.find({ user: req.user.id })
+    .populate({
+      path: 'songs',
+      populate: [
+        { path: 'album', select: 'name images' },
+        { path: 'artists', select: 'name spotify_id images' }
+      ]
+    })
+    .lean();
   res.json(items);
 };
 
 export const getPlaylist = async (req, res) => {
-  const item = await Playlist.findById(req.params.id).populate('songs').lean();
+  const item = await Playlist.findById(req.params.id)
+    .populate({
+      path: 'songs',
+      populate: [
+        { path: 'album', select: 'name images' },
+        { path: 'artists', select: 'name spotify_id images' }
+      ]
+    })
+    .lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);
 };
@@ -23,7 +39,13 @@ export const updatePlaylist = async (req, res) => {
     req.body,
     { new: true }
   )
-    .populate('songs')
+    .populate({
+      path: 'songs',
+      populate: [
+        { path: 'album', select: 'name images' },
+        { path: 'artists', select: 'name spotify_id images' }
+      ]
+    })
     .lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);
@@ -41,7 +63,13 @@ export const addSongToPlaylist = async (req, res) => {
     { $addToSet: { songs: req.body.songId } },
     { new: true }
   )
-    .populate('songs')
+    .populate({
+      path: 'songs',
+      populate: [
+        { path: 'album', select: 'name images' },
+        { path: 'artists', select: 'name spotify_id images' }
+      ]
+    })
     .lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);
@@ -53,7 +81,13 @@ export const removeSongFromPlaylist = async (req, res) => {
     { $pull: { songs: req.body.songId } },
     { new: true }
   )
-    .populate('songs')
+    .populate({
+      path: 'songs',
+      populate: [
+        { path: 'album', select: 'name images' },
+        { path: 'artists', select: 'name spotify_id images' }
+      ]
+    })
     .lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);

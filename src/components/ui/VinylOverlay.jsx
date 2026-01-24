@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import vinylSvg from '../../assets/vinyl.svg';
 import divideVinyl from '../../assets/Divide_Vinyl.svg';
@@ -17,11 +17,14 @@ import {
   ShuffleIcon,
   MoreIcon,
   SpeakerIcon,
-  MuteIcon
+  MuteIcon,
+  MicIcon
 } from '../ui/Icons';
+import LyricsOverlay from './LyricsOverlay';
 
 function VinylOverlay({ isOpen, onClose }) {
   const { isPlaying, currentTrack } = useMusic();
+  const [showLyrics, setShowLyrics] = useState(false);
 
   const getVinylSrc = () => {
     if (!currentTrack) return vinylSvg;
@@ -119,8 +122,14 @@ function VinylOverlay({ isOpen, onClose }) {
               </motion.div>
             </div>
 
+            {/* Lyrics Overlay */}
+            <LyricsOverlay 
+              isOpen={showLyrics} 
+              onClose={() => setShowLyrics(false)} 
+            />
+
             {/* Overlay Play Bar */}
-            <OverlayPlayBar onOuterClick={(e) => e.stopPropagation()} />
+            <OverlayPlayBar onOuterClick={(e) => e.stopPropagation()} onOpenLyrics={() => setShowLyrics(true)} />
           </motion.div>
 
           {/* Keyframes for vinyl spin */}
@@ -160,7 +169,7 @@ function TonearmAnimator() {
 }
 
 // Inline component: simple play bar for overlay
-function OverlayPlayBar({ onOuterClick }) {
+function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
   const {
     currentTrack,
     isPlaying,
@@ -177,10 +186,9 @@ function OverlayPlayBar({ onOuterClick }) {
 
   // Add a local time formatter
   const formatTime = (seconds) => {
-      const s = Math.max(0, Math.floor(seconds || 0));
-      const mins = Math.floor(s / 60);
-      const secs = s % 60;
-      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   const lastVolumeRef = React.useRef(60);
@@ -279,6 +287,13 @@ function OverlayPlayBar({ onOuterClick }) {
 
         {/* Right: volume */}
         <div className="flex items-center space-x-3 w-1/4 justify-end">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onOpenLyrics && onOpenLyrics(); }}
+            className="text-gray-400 hover:text-[#00FFFF] transition-colors"
+            title="Show Lyrics"
+          >
+            <MicIcon className="w-4 h-4" />
+          </button>
           <button className="text-gray-400 hover:text-white transition-colors" onClick={(e)=>e.stopPropagation()}>
             <MoreIcon className="w-4 h-4" />
           </button>

@@ -12,12 +12,15 @@ import {
   MoreIcon,
   VinylIcon,
   SpeakerIcon,
-  MuteIcon
+  MuteIcon,
+  MicIcon
 } from '../ui/Icons';
 import VinylOverlay from '../ui/VinylOverlay';
+import LyricsOverlay from '../ui/LyricsOverlay';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import { useMusic } from '../../contexts/MusicContext';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
+import apiService from '../../services/api';
 
 const NowPlayingFooter = () => {
   const {
@@ -45,11 +48,15 @@ const NowPlayingFooter = () => {
   const [isShuffle, setIsShuffle] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [lyricsError, setLyricsError] = useState('');
+  const [lyricsText, setLyricsText] = useState('');
   const { playlists, handleAddToPlaylist, handleCreatePlaylist } = usePlaylistActions();
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
@@ -96,6 +103,10 @@ const NowPlayingFooter = () => {
   const cycleRepeat = () => {
     const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
     setRepeatMode(next);
+  };
+
+  const openLyrics = () => {
+    setShowLyrics(true);
   };
 
   const handleToggleLike = () => {
@@ -244,12 +255,23 @@ const NowPlayingFooter = () => {
               className="text-gray-400 hover:text-white transition-colors" title="More options" aria-label="More options">
               <MoreIcon className="w-4 h-4" />
             </button>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                openLyrics();
+              }}
+              className="text-gray-400 hover:text-[#00FFFF] transition-colors"
+              title="Show Lyrics"
+              aria-label="Show Lyrics"
+            >
+              <MicIcon className="w-4 h-4" />
+            </button>
             {showMore && (
               <div className="absolute bottom-10 right-0 bg-dark-gray border border-gray-700 rounded-lg shadow-lg w-56 z-50">
                 <button 
                   onClick={()=>{ setShowAddToPlaylist(true); }}
                   className="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-gray-800"
-                >
+                  >
                   Add to playlist
                 </button>
               </div>
@@ -315,6 +337,12 @@ const NowPlayingFooter = () => {
       <VinylOverlay 
         isOpen={showVinylPlayer} 
         onClose={() => setShowVinylPlayer(false)} 
+      />
+
+      {/* Lyrics Overlay */}
+      <LyricsOverlay 
+        isOpen={showLyrics} 
+        onClose={() => setShowLyrics(false)} 
       />
     </motion.div>
 
