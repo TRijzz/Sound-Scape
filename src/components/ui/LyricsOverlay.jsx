@@ -59,7 +59,7 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
   };
 
   // Fetch lyrics
-  useEffect(() => {
+  useEffect(() => {                 // overlay opens
     if (isOpen && currentTrack) {
       setLoading(true);
       setError(null);
@@ -67,7 +67,7 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
       
       console.log('Fetching lyrics for ID:', id, 'Name:', currentTrack.name);
 
-      apiService.getLyrics(id)
+      apiService.getLyrics(id)   // API is called
         .then(data => {
           console.log('Lyrics fetched:', data);
           let parsed = [];

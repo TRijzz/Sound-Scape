@@ -10,16 +10,34 @@ export default function AdminGuard({ children }) {
   const [adminCode, setAdminCode] = useState('');
   const [error, setError] = useState('');
 
-  const verify = async () => {
+  useEffect(() => {
+    const storedCode = localStorage.getItem('adminAccessCode');
+    if (storedCode) {
+      setAdminCode(storedCode);
+      verify(storedCode);
+    }
+  }, []);
+
+  const verify = async (codeToVerify) => {
     try {
       setError('');
-      const code = adminCode.trim();
+      // Check if codeToVerify is a valid string, otherwise use state
+      const isExplicitCode = typeof codeToVerify === 'string';
+      const code = (isExplicitCode ? codeToVerify : adminCode).trim();
+      
       if (!code) { setError('Enter access code'); return; }
+      
       apiService.setAdminCode(code);
       await apiService.verifyAdminAccess(code);
+      
+      localStorage.setItem('adminAccessCode', code);
       setAdminVerified(true);
     } catch (err) {
       setError(err?.message || 'Verification failed');
+      // Only clear storage if we were verifying a stored code
+      if (typeof codeToVerify === 'string') {
+        localStorage.removeItem('adminAccessCode'); 
+      }
     }
   };
 

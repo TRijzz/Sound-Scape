@@ -1,7 +1,10 @@
 import Song from '../models/Song.js';
 import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
+import Lyric from '../models/Lyric.js';
+import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
+import fs from 'fs';
 
 export const createSong = async (req, res) => {
   try {
@@ -14,6 +17,16 @@ export const createSong = async (req, res) => {
       name: req.body.name.trim(),
     };
     
+    // Handle file uploads
+    if (req.files) {
+      if (req.files.audio) {
+        songData.audio_url = `/songs/${req.files.audio[0].filename}`;
+      }
+      if (req.files.cover) {
+        songData.cover_art_url = `/images/${req.files.cover[0].filename}`;
+      }
+    }
+    
     // Only add optional fields if they exist
     if (req.body.duration_ms !== undefined) {
       songData.duration_ms = req.body.duration_ms;
@@ -22,32 +35,86 @@ export const createSong = async (req, res) => {
     }
     if (req.body.title) songData.title = req.body.title.trim();
     if (req.body.artists) {
-      songData.artists = Array.isArray(req.body.artists) ? req.body.artists : [req.body.artists];
+      let artists = req.body.artists;
+      if (typeof artists === 'string') {
+        if (artists.startsWith('[')) {
+          try { artists = JSON.parse(artists); } catch {}
+        } else {
+          artists = artists.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      songData.artists = Array.isArray(artists) ? artists : [artists];
     }
     if (req.body.album) songData.album = req.body.album;
     if (req.body.track_number !== undefined) songData.track_number = req.body.track_number;
     if (req.body.disc_number !== undefined) songData.disc_number = req.body.disc_number;
-    if (req.body.explicit !== undefined) songData.explicit = req.body.explicit;
+    if (req.body.explicit !== undefined) songData.explicit = req.body.explicit === 'true' || req.body.explicit === true;
     if (req.body.preview_url) songData.preview_url = req.body.preview_url;
-    if (req.body.audio_url) songData.audio_url = req.body.audio_url;
-    if (req.body.cover_art_url) songData.cover_art_url = req.body.cover_art_url;
-    if (req.body.popularity !== undefined) songData.popularity = req.body.popularity;
+    if (req.body.audio_url) songData.audio_url = req.body.audio_url; // Allow manual URL too
+    if (req.body.cover_art_url) songData.cover_art_url = req.body.cover_art_url; // Allow manual URL too
+    if (req.body.popularity !== undefined) songData.popularity = Number(req.body.popularity);
     if (req.body.lyrics) songData.lyrics = req.body.lyrics;
     if (req.body.category) songData.category = req.body.category.trim();
     if (req.body.genre) songData.genre = req.body.genre.trim();
     if (req.body.mood) songData.mood = req.body.mood.trim();
     if (req.body.language) songData.language = req.body.language.trim();
-    if (req.body.tags) {
-      songData.tags = Array.isArray(req.body.tags)
-        ? req.body.tags.map(t => String(t).trim()).filter(Boolean)
-        : String(req.body.tags).split(',').map(t => t.trim()).filter(Boolean);
+    
+    // Handle tags (could be 'tags' array, 'tags[]', or comma string)
+    let tagsInput = req.body.tags || req.body['tags[]'];
+    if (tagsInput) {
+       if (typeof tagsInput === 'string') {
+         // Try JSON first
+         if (tagsInput.startsWith('[')) {
+           try { tagsInput = JSON.parse(tagsInput); } catch {}
+         } else {
+           tagsInput = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+         }
+       }
+       if (Array.isArray(tagsInput)) {
+         songData.tags = tagsInput.map(t => String(t).trim()).filter(Boolean);
+       } else {
+         songData.tags = [String(tagsInput).trim()];
+       }
     }
-    // Only include spotify_id if it's provided and not empty/null - this prevents null from being set
+    // Only include spotify_id if it's provided and not empty/null
     if (req.body.spotify_id && typeof req.body.spotify_id === 'string' && req.body.spotify_id.trim()) {
       songData.spotify_id = req.body.spotify_id.trim();
     }
 
     const song = await Song.create(songData);
+
+    // Handle Lyrics File Upload
+    if (req.files && req.files.lyricsFile) {
+      try {
+        const lrcPath = req.files.lyricsFile[0].path;
+        const lrcLines = await parseLRC(lrcPath);
+        
+        await Lyric.findOneAndUpdate(
+          { song: song._id },
+          { 
+            lines: lrcLines,
+            synced: true,
+            source: 'file'
+          },
+          { upsert: true, new: true }
+        );
+        
+        // Also update song.lyrics with raw text content
+        const rawText = fs.readFileSync(lrcPath, 'utf8');
+        song.lyrics = rawText;
+        await song.save();
+      } catch (err) {
+        console.error('Error processing lyrics file:', err);
+      }
+    } else if (req.body.lyrics) {
+        // If lyrics provided as text, create a Lyric entry too
+        await Lyric.findOneAndUpdate(
+            { song: song._id },
+            { lyrics: req.body.lyrics, synced: false },
+            { upsert: true }
+        );
+    }
+
     // Populate relationships for response
     await song.populate('artists', 'name spotify_id images');
     await song.populate('album', 'name images release_date');
@@ -103,23 +170,13 @@ export const getSongs = async (req, res) => {
       query.album = { $in: albumsInYear.map(a => a._id) };
     }
     
-    // Add search filter - use regex if text search index doesn't exist
+    // Add search filter - use regex for partial matching (better for autocomplete)
     if (search) {
-      // For text search, MongoDB handles special characters differently
-      // For regex, we need to escape but preserve asterisks as they might be in song names
       const regexSearch = search.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-      // Don't escape asterisks - they might be part of the actual song name
-      
-      try {
-        // Try text search first
-        query.$text = { $search: search };
-      } catch {
-        // Fallback to regex if text index doesn't exist
-        query.$or = [
-          { name: { $regex: regexSearch, $options: 'i' } },
-          { title: { $regex: regexSearch, $options: 'i' } }
-        ];
-      }
+      query.$or = [
+        { name: { $regex: regexSearch, $options: 'i' } },
+        { title: { $regex: regexSearch, $options: 'i' } }
+      ];
     }
     
     // Add artist filter
@@ -350,9 +407,69 @@ export const searchSongs = async (req, res) => {
 
 export const updateSong = async (req, res) => {
   try {
+    const updateData = { ...req.body };
+
+    // Handle file uploads
+    if (req.files) {
+      if (req.files.audio) {
+        updateData.audio_url = `/songs/${req.files.audio[0].filename}`;
+      }
+      if (req.files.cover) {
+        updateData.cover_art_url = `/images/${req.files.cover[0].filename}`;
+      }
+    }
+
+    // Handle numeric/boolean fields from FormData
+    if (updateData.duration_ms) updateData.duration_ms = Number(updateData.duration_ms);
+    if (updateData.track_number) updateData.track_number = Number(updateData.track_number);
+    if (updateData.disc_number) updateData.disc_number = Number(updateData.disc_number);
+    if (updateData.popularity) updateData.popularity = Number(updateData.popularity);
+    if (updateData.explicit !== undefined) {
+      updateData.explicit = updateData.explicit === 'true' || updateData.explicit === true;
+    }
+
+    // Handle Artists (JSON string or array)
+    if (updateData.artists) {
+      if (typeof updateData.artists === 'string') {
+        if (updateData.artists.startsWith('[')) {
+          try { updateData.artists = JSON.parse(updateData.artists); } catch {}
+        } else {
+           // If it's just one ID string, wrap it. If comma separated, split it.
+           // Usually IDs don't have commas.
+           if (updateData.artists.includes(',')) {
+             updateData.artists = updateData.artists.split(',').map(s => s.trim()).filter(Boolean);
+           } else {
+             updateData.artists = [updateData.artists];
+           }
+        }
+      }
+    }
+
+    // Handle Tags
+    // Check if tags[] exists in body if tags is missing or empty
+    if (!updateData.tags && req.body['tags[]']) {
+      updateData.tags = req.body['tags[]'];
+    }
+
+    if (updateData.tags) {
+       if (typeof updateData.tags === 'string') {
+         if (updateData.tags.startsWith('[')) {
+           try { updateData.tags = JSON.parse(updateData.tags); } catch {}
+         } else {
+           updateData.tags = updateData.tags.split(',').map(t => t.trim()).filter(Boolean);
+         }
+       }
+       // Ensure it's array of strings
+       if (Array.isArray(updateData.tags)) {
+         updateData.tags = updateData.tags.map(t => String(t).trim()).filter(Boolean);
+       } else {
+         updateData.tags = [String(updateData.tags).trim()];
+       }
+    }
+
     const song = await Song.findByIdAndUpdate(
       req.params.id, 
-      req.body, 
+      updateData, 
       { new: true, runValidators: true }
     )
       .populate('artists', 'name spotify_id images')
@@ -361,6 +478,37 @@ export const updateSong = async (req, res) => {
     
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
+    }
+
+    // Handle Lyrics File Upload (Update)
+    if (req.files && req.files.lyricsFile) {
+      try {
+        const lrcPath = req.files.lyricsFile[0].path;
+        const lrcLines = await parseLRC(lrcPath);
+        
+        await Lyric.findOneAndUpdate(
+          { song: song._id },
+          { 
+            lines: lrcLines,
+            synced: true,
+            source: 'file'
+          },
+          { upsert: true, new: true }
+        );
+        
+        // Update raw text on Song model
+        const rawText = fs.readFileSync(lrcPath, 'utf8');
+        await Song.findByIdAndUpdate(song._id, { lyrics: rawText });
+      } catch (err) {
+        console.error('Error processing lyrics file update:', err);
+      }
+    } else if (req.body.lyrics) {
+         // Update text lyrics
+         await Lyric.findOneAndUpdate(
+             { song: song._id },
+             { lyrics: req.body.lyrics, synced: false },
+             { upsert: true }
+         );
     }
     
     res.json(song);
@@ -376,6 +524,9 @@ export const deleteSong = async (req, res) => {
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
     }
+
+    // Also delete associated lyrics
+    await Lyric.findOneAndDelete({ song: req.params.id });
     
     res.json({ success: true, message: 'Song deleted' });
   } catch (error) {

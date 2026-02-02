@@ -18,6 +18,7 @@ import categoryRoutes from './src/routes/category.routes.js';
 import syncRoutes from './src/routes/sync.routes.js';
 import spotifyRoutes from './src/routes/spotify.routes.js';
 import lyricRoutes from './src/routes/lyric.routes.js';
+import vinylRoutes from './src/routes/vinyl.routes.js';
 // Lyric routes imported
 import { scheduleDataRefresh } from './src/scripts/scheduler.js';
 import './src/config/passport.js';
@@ -26,6 +27,9 @@ const app = express();
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'] }));
 app.use(helmet());
@@ -39,6 +43,7 @@ const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`API listening on port ${PORT}`);
+    console.log('Server restarted and ready for file uploads!');
     scheduleDataRefresh();
     const autoEnv = String(process.env.AUTO_OPEN || '').toLowerCase();
     const shouldOpen = autoEnv === 'true';
@@ -144,6 +149,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/spotify', spotifyRoutes);
 app.use('/api/lyrics', lyricRoutes);
+app.use('/api/vinyls', vinylRoutes);
 
 if (process.env.NODE_ENV === 'production') {
   const buildPath = path.resolve(__dirname, '../build');

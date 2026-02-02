@@ -12,19 +12,63 @@ export const createAlbum = async (req, res) => {
       name: req.body.name.trim(),
     };
     
+    // Handle file upload (cover image)
+    if (req.file) {
+      albumData.images = [{
+        url: `/images/${req.file.filename}`,
+        height: 640,
+        width: 640
+      }];
+    } else if (req.body.images) {
+        // Handle images if sent as JSON/FormData fields (but not file)
+        // If it's a string, try to parse it
+        if (typeof req.body.images === 'string') {
+             try {
+                 albumData.images = JSON.parse(req.body.images);
+             } catch (e) {
+                 // assume it's a URL
+                 albumData.images = [{ url: req.body.images }];
+             }
+        } else {
+            albumData.images = req.body.images;
+        }
+    }
+    
     // Only add optional fields if they exist
     if (req.body.artists) {
-      albumData.artists = Array.isArray(req.body.artists) ? req.body.artists : [req.body.artists];
+      // If it comes from FormData, it might be a string or array of strings
+      let artists = req.body.artists;
+      if (typeof artists === 'string') {
+          // If it looks like a JSON array, parse it, otherwise split by comma or treat as single ID
+          if (artists.startsWith('[')) {
+              try { artists = JSON.parse(artists); } catch {}
+          } else {
+              artists = artists.split(',').map(s => s.trim()).filter(Boolean);
+          }
+      }
+      albumData.artists = Array.isArray(artists) ? artists : [artists];
     }
+    
     if (req.body.album_type) albumData.album_type = req.body.album_type;
-    if (req.body.total_tracks !== undefined) albumData.total_tracks = req.body.total_tracks;
+    if (req.body.total_tracks !== undefined) albumData.total_tracks = Number(req.body.total_tracks);
     if (req.body.release_date) albumData.release_date = req.body.release_date;
     if (req.body.release_date_precision) albumData.release_date_precision = req.body.release_date_precision;
-    if (req.body.images) albumData.images = req.body.images;
+    
     if (req.body.genres) {
-      albumData.genres = Array.isArray(req.body.genres) ? req.body.genres : [req.body.genres];
+       let genres = req.body.genres;
+       if (typeof genres === 'string') {
+           if (genres.startsWith('[')) {
+               try { genres = JSON.parse(genres); } catch {}
+           } else {
+               genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+           }
+       }
+       albumData.genres = Array.isArray(genres) ? genres : [genres];
     }
-    if (req.body.popularity !== undefined) albumData.popularity = req.body.popularity;
+    
+    if (req.body.popularity !== undefined) albumData.popularity = Number(req.body.popularity);
+    if (req.body.label) albumData.label = req.body.label;
+    
     // Only include spotify_id if it's provided and not empty/null - this prevents null from being set
     if (req.body.spotify_id && typeof req.body.spotify_id === 'string' && req.body.spotify_id.trim()) {
       albumData.spotify_id = req.body.spotify_id.trim();
@@ -178,9 +222,73 @@ export const getAlbumTracks = async (req, res) => {
 
 export const updateAlbum = async (req, res) => {
   try {
+    const updates = { ...req.body };
+    
+    // Handle file upload (cover image)
+    if (req.file) {
+      updates.images = [{
+        url: `/images/${req.file.filename}`,
+        height: 640,
+        width: 640
+      }];
+    } else if (req.body.images) {
+        if (typeof req.body.images === 'string') {
+             try {
+                 updates.images = JSON.parse(req.body.images);
+             } catch (e) {
+                 updates.images = [{ url: req.body.images }];
+             }
+        }
+    }
+
+    if (updates.artists) {
+        let artists = updates.artists;
+        if (typeof artists === 'string') {
+            if (artists.startsWith('[')) {
+                try { artists = JSON.parse(artists); } catch {}
+            } else {
+                artists = artists.split(',').map(s => s.trim()).filter(Boolean);
+            }
+        }
+        updates.artists = Array.isArray(artists) ? artists : [artists];
+    }
+
+    if (updates.genres) {
+        let genres = updates.genres;
+        if (typeof genres === 'string') {
+            if (genres.startsWith('[')) {
+                try { genres = JSON.parse(genres); } catch {}
+            } else {
+                genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+            }
+        }
+        updates.genres = Array.isArray(genres) ? genres : [genres];
+    }
+    
+    if (updates.total_tracks) updates.total_tracks = Number(updates.total_tracks);
+    if (updates.popularity) updates.popularity = Number(updates.popularity);
+
+    // Handle external_urls
+    if (updates.external_urls) {
+      if (typeof updates.external_urls === 'string') {
+        try { updates.external_urls = JSON.parse(updates.external_urls); } catch {}
+      }
+    } else if (updates['external_urls.spotify']) {
+      // Allow flattened update if sent that way
+      updates.external_urls = { spotify: updates['external_urls.spotify'] };
+      delete updates['external_urls.spotify'];
+    }
+
+    // Handle copyrights
+    if (updates.copyrights) {
+      if (typeof updates.copyrights === 'string') {
+        try { updates.copyrights = JSON.parse(updates.copyrights); } catch {}
+      }
+    }
+
     const album = await Album.findByIdAndUpdate(
       req.params.id, 
-      req.body, 
+      updates, 
       { new: true, runValidators: true }
     ).populate('artists', 'name spotify_id images');
     

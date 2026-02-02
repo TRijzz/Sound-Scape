@@ -29,6 +29,11 @@ import AdminPage from './pages/AdminPage';
 import AdminArtists from './pages/admin/AdminArtists';
 import AdminAlbums from './pages/admin/AdminAlbums';
 import AdminSongs from './pages/admin/AdminSongs';
+import AdminEditSong from './pages/admin/AdminEditSong';
+import AdminEditAlbum from './pages/admin/AdminEditAlbum';
+import AdminCategories from './pages/admin/AdminCategories';
+import AdminLyrics from './pages/admin/AdminLyrics';
+import AdminVinyls from './pages/admin/AdminVinyls';
 import AdminGuard from './pages/admin/AdminGuard';
 import NotFound from './pages/NotFound';
 
@@ -66,62 +71,76 @@ function AuthPromptOverlay() {
   );
 }
 
+function AppContent() {
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith('/admin');
+
+  return (
+    <div className="min-h-screen bg-dark-bg text-white font-inter">
+      <div className="flex">
+        {/* Sidebar */}
+        {!isAdmin && <Sidebar />}
+        
+        {/* Main Content */}
+        <div className={`flex-1 flex flex-col ${!isAdmin ? 'lg:ml-64' : ''}`}>
+          {/* Navbar */}
+          {!isAdmin && <Navbar />}
+          
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/search" element={<SearchResultsPage />} />
+                <Route path="/artist/:id" element={<ArtistPage />} />
+                <Route path="/album/:id" element={<AlbumPage />} />
+                <Route path="/genre/:name" element={<GenrePage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/verify-email" element={<EmailVerification />} />
+                <Route path="/email-verified" element={<EmailVerified />} />
+                <Route path="/onboarding" element={<Onboarding />} />
+                <Route path="/verification-success" element={<VerificationSuccess />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/profile" element={<SettingsPage defaultTab="profile" />} />
+                <Route path="/account" element={<SettingsPage defaultTab="account" />} />
+                <Route path="/liked" element={<LikedSongs />} />
+                <Route path="/library" element={<LibraryPage />} />
+                <Route path="/playlist/:id" element={<PlaylistPage />} />
+                <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
+                <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
+                <Route path="/admin/albums" element={<AdminGuard><AdminAlbums /></AdminGuard>} />
+                <Route path="/admin/songs" element={<AdminGuard><AdminSongs /></AdminGuard>} />
+                <Route path="/admin/songs/edit/:id" element={<AdminGuard><AdminEditSong /></AdminGuard>} />
+                <Route path="/admin/albums/edit/:id" element={<AdminGuard><AdminEditAlbum /></AdminGuard>} />
+                <Route path="/admin/categories" element={<AdminGuard><AdminCategories /></AdminGuard>} />
+                <Route path="/admin/lyrics" element={<AdminGuard><AdminLyrics /></AdminGuard>} />
+                <Route path="/admin/vinyls" element={<AdminGuard><AdminVinyls /></AdminGuard>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </motion.div>
+          </main>
+        </div>
+      </div>
+      
+      {/* Now Playing Footer */}
+      <NowPlayingFooter />
+      <AuthPromptOverlay />
+    </div>
+  );
+}
+
 function App() {
   return (
     <MusicProvider>
       <Router>
-        <div className="min-h-screen bg-dark-bg text-white font-inter">
-          <div className="flex">
-            {/* Sidebar */}
-            <Sidebar />
-            
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col lg:ml-64">
-              {/* Navbar */}
-              <Navbar />
-              
-              {/* Page Content */}
-              <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/search" element={<SearchResultsPage />} />
-                    <Route path="/artist/:id" element={<ArtistPage />} />
-                    <Route path="/album/:id" element={<AlbumPage />} />
-                    <Route path="/genre/:name" element={<GenrePage />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/signup" element={<SignupPage />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/reset-password" element={<ResetPassword />} />
-                    <Route path="/verify-email" element={<EmailVerification />} />
-                    <Route path="/email-verified" element={<EmailVerified />} />
-                    <Route path="/onboarding" element={<Onboarding />} />
-                    <Route path="/verification-success" element={<VerificationSuccess />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                    <Route path="/profile" element={<SettingsPage defaultTab="profile" />} />
-                    <Route path="/account" element={<SettingsPage defaultTab="account" />} />
-                    <Route path="/liked" element={<LikedSongs />} />
-                    <Route path="/library" element={<LibraryPage />} />
-                    <Route path="/playlist/:id" element={<PlaylistPage />} />
-                    <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
-                    <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
-                    <Route path="/admin/albums" element={<AdminGuard><AdminAlbums /></AdminGuard>} />
-                    <Route path="/admin/songs" element={<AdminGuard><AdminSongs /></AdminGuard>} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </motion.div>
-              </main>
-            </div>
-          </div>
-          
-          {/* Now Playing Footer */}
-          <NowPlayingFooter />
-          <AuthPromptOverlay />
-        </div>
+        <AppContent />
       </Router>
     </MusicProvider>
   );

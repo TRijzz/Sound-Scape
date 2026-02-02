@@ -17,6 +17,8 @@ import {
   populateSongCategories
 } from '../controllers/song.controller.js';
 
+import { upload } from '../middlewares/upload.js';
+
 const router = Router();
 
 // Public routes
@@ -31,8 +33,18 @@ router.get('/:id/lyrics', getLyrics);
 router.post('/:id/play', incrementPlayCount);
 
 // Protected routes (require authentication)
-router.post('/', requireAdminOrAuth, createSong);
-router.put('/:id', requireAdminOrAuth, updateSong);
+router.post('/', requireAdminOrAuth, upload.fields([
+  { name: 'audio', maxCount: 1 }, 
+  { name: 'cover', maxCount: 1 },
+  { name: 'lyricsFile', maxCount: 1 }
+]), createSong);
+
+router.put('/:id', requireAdminOrAuth, upload.fields([
+  { name: 'audio', maxCount: 1 }, 
+  { name: 'cover', maxCount: 1 },
+  { name: 'lyricsFile', maxCount: 1 }
+]), updateSong);
+
 router.put('/:id/lyrics', requireAdminOrAuth, updateLyrics);
 router.delete('/:id', requireAdminOrAuth, deleteSong);
 

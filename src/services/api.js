@@ -47,7 +47,7 @@ class ApiService {
     }
   }
 
-  getLyrics(songId) {
+  getLyrics(songId) {                                   // Fetches lyrics for a song by its ID from the backend.
     return this.fetchData(`/lyrics/${songId}`);
   }
 
@@ -59,6 +59,11 @@ class ApiService {
         ...(this.adminCode ? { 'x-admin-code': this.adminCode } : {}),
         ...(options.headers || {})
       };
+
+      // If body is FormData, let the browser set the Content-Type with boundary
+      if (options.body instanceof FormData) {
+        delete headers['Content-Type'];
+      }
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
@@ -85,6 +90,11 @@ class ApiService {
               ...this.getAuthHeader(),
               ...(options.headers || {})
             };
+
+            if (options.body instanceof FormData) {
+              delete retryHeaders['Content-Type'];
+            }
+
             const retryRes = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers: retryHeaders });
             const retryRaw = await retryRes.text();
             const retryData = retryRaw ? JSON.parse(retryRaw) : null;
@@ -213,16 +223,18 @@ class ApiService {
   }
 
   async createSong(payload) {
+    const isFormData = payload instanceof FormData;
     return this.fetchData(`/songs`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: isFormData ? payload : JSON.stringify(payload)
     });
   }
 
   async updateSong(id, updates) {
+    const isFormData = updates instanceof FormData;
     return this.fetchData(`/songs/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updates)
+      body: isFormData ? updates : JSON.stringify(updates)
     });
   }
 
@@ -258,16 +270,18 @@ class ApiService {
   }
 
   async createAlbum(payload) {
+    const isFormData = payload instanceof FormData;
     return this.fetchData(`/albums`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: isFormData ? payload : JSON.stringify(payload)
     });
   }
 
   async updateAlbum(id, updates) {
+    const isFormData = updates instanceof FormData;
     return this.fetchData(`/albums/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updates)
+      body: isFormData ? updates : JSON.stringify(updates)
     });
   }
 
@@ -335,6 +349,47 @@ class ApiService {
     const bestImage = images.find(img => img.width >= targetSize) || images[0];
     
     return bestImage.url;
+  }
+
+  // Lyrics: list existing
+  async getLyricsList() {
+    return this.fetchData('/lyrics');
+  }
+
+  // Lyrics: add new lyrics
+  async addLyrics(songId, content, isSynced = false) {
+    return this.fetchData(`/lyrics/${songId}`, {
+      method: 'POST',
+      body: JSON.stringify({ lyrics: content, synced: isSynced })
+    });
+  }
+
+  // Lyrics: upload LRC file
+  async uploadLyrics(songId, file) {
+    const formData = new FormData();
+    formData.append('lyrics', file);
+    
+    // We can't use fetchData because it sets Content-Type to application/json
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (this.adminCode) headers['x-admin-code'] = this.adminCode;
+
+    const res = await fetch(`${API_BASE_URL}/lyrics/${songId}/import`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Failed to upload lyrics');
+    }
+    return res.json();
+  }
+
+  async deleteLyrics(songId) {
+    return this.fetchData(`/lyrics/${songId}`, { method: 'DELETE' });
   }
 
   formatDuration(durationMs) {
@@ -609,6 +664,28 @@ class ApiService {
     return this.fetchData(`/songs/populate-categories`, {
       method: 'POST',
       body: JSON.stringify({ dryRun, limit })
+    });
+  }
+
+  async syncFromFolders() {
+    return this.fetchData(`/sync/folder-sync`, {
+      method: 'POST'
+    });
+  }
+
+  // Vinyls
+  async getVinyls() {
+    return this.fetchData(`/vinyls`);
+  }
+  async createVinyl(payload) {
+    return this.fetchData(`/vinyls`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+  async deleteVinyl(id) {
+    return this.fetchData(`/vinyls/${id}`, {
+      method: 'DELETE'
     });
   }
 

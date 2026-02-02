@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
-import { syncData, refreshData, getSyncStatus } from '../controllers/sync.controller.js';
+import { requireAdminOrAuth } from '../middlewares/admin.js';
+import { syncData, refreshData, getSyncStatus, syncFromFolders } from '../controllers/sync.controller.js';
 
 const router = Router();
 
@@ -8,5 +9,6 @@ const router = Router();
 router.post('/sync', requireAuth, syncData);
 router.post('/refresh', requireAuth, refreshData);
 router.get('/status', getSyncStatus);
+router.post('/folder-sync', requireAdminOrAuth, syncFromFolders);
 
 export default router;

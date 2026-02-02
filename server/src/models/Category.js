@@ -7,7 +7,7 @@ const categorySchema = new mongoose.Schema(
     description: { type: String },
     cover_image: { type: String },
     is_public: { type: Boolean, default: false },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     songs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
   },
   { timestamps: true }

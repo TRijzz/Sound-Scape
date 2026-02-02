@@ -12,6 +12,7 @@ const lyricSchema = new mongoose.Schema(
       time: { type: Number, required: true }, // time in milliseconds
       text: { type: String, default: '' }
     }],
+    lyrics: { type: String }, // Raw lyrics content
     synced: { type: Boolean, default: true },
     source: { type: String } // e.g., 'file', 'spotify', 'user'
   },

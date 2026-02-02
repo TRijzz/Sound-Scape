@@ -4,13 +4,19 @@ export const createCategory = async (req, res) => {
   try {
     const { name, description, cover_image, is_public } = req.body || {};
     if (!name) return res.status(400).json({ message: 'name required' });
-    const cat = await Category.create({
+    
+    const categoryData = {
       name,
       description,
       cover_image,
       is_public: !!is_public,
-      user: req.user.id,
-    });
+    };
+    
+    if (req.user) {
+      categoryData.user = req.user.id;
+    }
+    
+    const cat = await Category.create(categoryData);
     res.status(201).json(cat);
   } catch (error) {
     res.status(400).json({ message: 'Failed to create category', error: error.message });
@@ -31,7 +37,12 @@ export const getMyCategories = async (req, res) => {
 export const getCategories = async (req, res) => {
   try {
     const { search = '' } = req.query;
-    const query = { is_public: true };
+    // Admins can see all, regular users see public
+    const query = {}; 
+    if (!req.isAdmin) {
+       query.is_public = true;
+    }
+    
     if (search) query.name = new RegExp(search, 'i');
     const cats = await Category.find(query).sort('name').lean();
     res.json(cats);
@@ -46,8 +57,10 @@ export const getCategory = async (req, res) => {
       .populate('songs')
       .lean();
     if (!cat) return res.status(404).json({ message: 'Category not found' });
-    // Only allow access if public or owner
-    if (!cat.is_public && String(cat.user) !== String(req.user?.id)) {
+    
+    // Allow access if public, or if owner, or if admin
+    const isOwner = req.user && String(cat.user) === String(req.user.id);
+    if (!cat.is_public && !isOwner && !req.isAdmin) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     res.json(cat);
@@ -59,8 +72,17 @@ export const getCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
   try {
     const updates = req.body || {};
+    const query = { _id: req.params.id };
+    
+    // If not admin, restrict to owner
+    if (!req.isAdmin && req.user) {
+      query.user = req.user.id;
+    } else if (!req.isAdmin && !req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
     const cat = await Category.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
+      query,
       updates,
       { new: true, runValidators: true }
     ).populate('songs');
@@ -73,7 +95,16 @@ export const updateCategory = async (req, res) => {
 
 export const deleteCategory = async (req, res) => {
   try {
-    const cat = await Category.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const query = { _id: req.params.id };
+    
+    // If not admin, restrict to owner
+    if (!req.isAdmin && req.user) {
+      query.user = req.user.id;
+    } else if (!req.isAdmin && !req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const cat = await Category.findOneAndDelete(query);
     if (!cat) return res.status(404).json({ message: 'Category not found' });
     res.json({ success: true });
   } catch (error) {
@@ -85,8 +116,17 @@ export const addSongToCategory = async (req, res) => {
   try {
     const { songId } = req.body || {};
     if (!songId) return res.status(400).json({ message: 'songId required' });
+    
+    const query = { _id: req.params.id };
+    // If not admin, restrict to owner
+    if (!req.isAdmin && req.user) {
+      query.user = req.user.id;
+    } else if (!req.isAdmin && !req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
     const cat = await Category.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
+      query,
       { $addToSet: { songs: songId } },
       { new: true }
     ).populate('songs');
@@ -101,8 +141,17 @@ export const removeSongFromCategory = async (req, res) => {
   try {
     const { songId } = req.body || {};
     if (!songId) return res.status(400).json({ message: 'songId required' });
+    
+    const query = { _id: req.params.id };
+    // If not admin, restrict to owner
+    if (!req.isAdmin && req.user) {
+      query.user = req.user.id;
+    } else if (!req.isAdmin && !req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
     const cat = await Category.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
+      query,
       { $pull: { songs: songId } },
       { new: true }
     ).populate('songs');
@@ -112,4 +161,3 @@ export const removeSongFromCategory = async (req, res) => {
     res.status(400).json({ message: 'Failed to remove song', error: error.message });
   }
 };
-

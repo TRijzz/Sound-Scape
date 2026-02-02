@@ -9,6 +9,7 @@ export const requireAdminOrAuth = (req, res, next) => {
     const expected = process.env.ADMIN_ACCESS_CODE;
     if (adminCode) {
       if (!expected || String(adminCode) === String(expected)) {
+        req.isAdmin = true;
         return next();
       }
       return res.status(401).json({ message: 'Invalid admin access code' });

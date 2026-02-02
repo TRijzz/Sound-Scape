@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
+import { requireAdminOrAuth } from '../middlewares/admin.js';
 import {
   createCategory,
   getMyCategories,
@@ -13,14 +14,14 @@ import {
 
 const router = Router();
 
-router.post('/', requireAuth, createCategory);
+router.post('/', requireAdminOrAuth, createCategory);
 router.get('/me', requireAuth, getMyCategories);
 router.get('/', getCategories);
-router.get('/:id', requireAuth, getCategory);
-router.put('/:id', requireAuth, updateCategory);
-router.delete('/:id', requireAuth, deleteCategory);
-router.post('/:id/songs', requireAuth, addSongToCategory);
-router.delete('/:id/songs', requireAuth, removeSongFromCategory);
+router.get('/:id', requireAdminOrAuth, getCategory);
+router.put('/:id', requireAdminOrAuth, updateCategory);
+router.delete('/:id', requireAdminOrAuth, deleteCategory);
+router.post('/:id/songs', requireAdminOrAuth, addSongToCategory);
+router.delete('/:id/songs', requireAdminOrAuth, removeSongFromCategory);
 
 export default router;
 

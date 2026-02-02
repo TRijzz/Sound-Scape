@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAdminOrAuth } from '../middlewares/admin.js';
+import { upload } from '../middlewares/upload.js';
 import {
   createAlbum,
   getAlbums,
@@ -25,8 +26,8 @@ router.get('/:id', getAlbum);
 router.get('/:id/tracks', getAlbumTracks);
 
 // Protected routes (require authentication)
-router.post('/', requireAdminOrAuth, createAlbum);
-router.put('/:id', requireAdminOrAuth, updateAlbum);
+router.post('/', requireAdminOrAuth, upload.single('cover'), createAlbum);
+router.put('/:id', requireAdminOrAuth, upload.single('cover'), updateAlbum);
 router.delete('/:id', requireAdminOrAuth, deleteAlbum);
 
 export default router;
