@@ -5,6 +5,7 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
+import DatePicker from '../../components/ui/DatePicker';
 
 export default function AdminAlbums() {
   const navigate = useNavigate();
@@ -189,7 +190,11 @@ export default function AdminAlbums() {
             
             <input value={totalTracks} onChange={e=>setTotalTracks(e.target.value)} type="number" placeholder="Total Tracks" className="hidden" />
             
-            <input value={releaseDate} onChange={e=>setReleaseDate(e.target.value)} placeholder="Release Date (YYYY-MM-DD)" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
+            <DatePicker 
+              value={releaseDate} 
+              onChange={setReleaseDate} 
+              placeholder="Release Date" 
+            />
             
             <input value={genres} onChange={e=>setGenres(e.target.value)} placeholder="Genres (comma separated)" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
 

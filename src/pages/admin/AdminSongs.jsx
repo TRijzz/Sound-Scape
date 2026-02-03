@@ -315,8 +315,12 @@ export default function AdminSongs() {
             <div key={s._id || s.id} className="flex flex-col p-3 rounded-lg bg-light-gray/30 gap-3">
               <div className="flex gap-3">
                  <div className="w-16 h-16 flex-shrink-0 bg-black/40 rounded overflow-hidden">
-                   {s.cover_art_url ? (
-                     <img src={s.cover_art_url} alt={s.name} className="w-full h-full object-cover" />
+                   {(s.cover_art_url || s.album?.images?.[0]?.url) ? (
+                     <img 
+                       src={s.cover_art_url || s.album?.images?.[0]?.url} 
+                       alt={s.name} 
+                       className="w-full h-full object-cover" 
+                     />
                    ) : (
                      <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">No Art</div>
                    )}
@@ -329,7 +333,17 @@ export default function AdminSongs() {
                    <div className="text-xs text-gray-500 mt-1">
                      {s.album ? s.album.name : 'No Album'} • {Math.floor((s.duration_ms||0)/1000/60)}:{(Math.floor((s.duration_ms||0)/1000)%60).toString().padStart(2,'0')}
                    </div>
-                   {s.explicit && <div className="text-[10px] text-red-400 border border-red-400/50 inline-block px-1 rounded mt-1">Explicit</div>}
+                   <div className="flex flex-wrap gap-1 mt-1">
+                     {s.explicit && <div className="text-[10px] text-red-400 border border-red-400/50 inline-block px-1 rounded">Explicit</div>}
+                     {s.audio_url ? (
+                       <div className="text-[10px] text-green-400 border border-green-400/50 inline-block px-1 rounded flex items-center gap-1">
+                         <span>Audio</span>
+                         <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                       </div>
+                     ) : (
+                       <div className="text-[10px] text-orange-400 border border-orange-400/50 inline-block px-1 rounded">No Audio</div>
+                     )}
+                   </div>
                  </div>
               </div>
               

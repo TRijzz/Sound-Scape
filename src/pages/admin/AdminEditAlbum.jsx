@@ -5,6 +5,7 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
+import DatePicker from '../../components/ui/DatePicker';
 
 export default function AdminEditAlbum() {
   const { id } = useParams();
@@ -345,11 +346,10 @@ export default function AdminEditAlbum() {
               <div className="grid grid-cols-1 gap-4">
                  <div>
                     <label className="block text-sm text-gray-400 mb-1">Release Date</label>
-                    <input 
+                    <DatePicker 
                       value={releaseDate} 
-                      onChange={e => setReleaseDate(e.target.value)} 
-                      className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
-                      placeholder="YYYY-MM-DD"
+                      onChange={setReleaseDate} 
+                      placeholder="Select Date"
                     />
                  </div>
               </div>
