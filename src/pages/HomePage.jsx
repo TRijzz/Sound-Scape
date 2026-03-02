@@ -10,9 +10,7 @@ import apiService from '../services/api';
 
 const HomePage = () => {
   const { playTrack } = useMusic();
-  const [popSongs, setPopSongs] = React.useState([]);
-  const [chillVibes, setChillVibes] = React.useState([]);
-  const [topRock, setTopRock] = React.useState([]);
+  const [categorySections, setCategorySections] = React.useState([]);
   const [sectionsLoading, setSectionsLoading] = React.useState(false);
   
   // Use API hooks to fetch real data
@@ -53,61 +51,57 @@ const HomePage = () => {
     const loadSections = async () => {
       try {
         setSectionsLoading(true);
-        const [pop, chill, rock] = await Promise.all([
-          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Pop Songs'),
-          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Chill Vibes'),
-          apiService.getSongs(1, 10, '', '', '', '', '', '-popularity', '', '', '', 'Top Rock'),
-        ]);
-        const popList = pop?.songs || pop || [];
-        const chillList = chill?.songs || chill || [];
-        const rockList = rock?.songs || rock || [];
-        let finalPop = popList;
-        let finalChill = chillList;
-        let finalRock = rockList;
-        if (!Array.isArray(finalPop) || finalPop.length === 0) {
-          const byGenre = await apiService.getSongsByGenre('Pop', 10).catch(()=>[]);
-          finalPop = (byGenre?.songs || byGenre || []);
+        
+        // 1. Get available genres from API
+        const genresRes = await apiService.getGenres(50);
+        let availableGenres = Array.isArray(genresRes) ? genresRes : (genresRes?.genres || []);
+        
+        // Fallback if API returns empty or few genres
+        if (availableGenres.length < 5) {
+            availableGenres = [...new Set([...availableGenres, 'Pop', 'Rock', 'Hip Hop', 'R&B', 'Electronic', 'Jazz', 'Classical', 'Indie', 'Alternative'])];
         }
-        if (!Array.isArray(finalChill) || finalChill.length === 0) {
-          const bySearch = await apiService.searchSongs('chill', 10).catch(()=>[]);
-          finalChill = (bySearch?.songs || bySearch || []);
-          if ((!Array.isArray(finalChill) || finalChill.length === 0)) {
-            const popular = await apiService.getPopularSongs(20).catch(()=>[]);
-            const fromPopular = (popular?.songs || popular || []).filter(s => {
-              const name = String(s?.name || '').toLowerCase();
-              const tags = (Array.isArray(s?.tags) ? s.tags : []).map(t=>String(t).toLowerCase());
-              return name.includes('chill') || tags.includes('chill');
-            });
-            finalChill = fromPopular;
-          }
+
+        // 2. Shuffle and pick 3-4 genres
+        const shuffled = availableGenres.sort(() => 0.5 - Math.random());
+        const selectedGenres = shuffled.slice(0, 4);
+
+        // 3. Fetch songs for each selected genre
+        const sectionsData = await Promise.all(selectedGenres.map(async (genre) => {
+            const name = typeof genre === 'string' ? genre : genre.name;
+            try {
+                // Try fetching by genre
+                let res = await apiService.getSongsByGenre(name, 6);
+                let songs = res?.songs || res || [];
+                
+                // If empty, try searching (fallback for broad terms like "Chill")
+                if (!Array.isArray(songs) || songs.length === 0) {
+                     res = await apiService.searchSongs(name, 6);
+                     songs = res?.songs || res || [];
+                }
+                
+                return {
+                    title: name,
+                    songs: Array.isArray(songs) ? songs : []
+                };
+            } catch (e) {
+                return { title: name, songs: [] };
+            }
+        }));
+
+        // 4. Filter out empty sections and take top 3
+        const validSections = sectionsData.filter(s => s.songs.length > 0).slice(0, 3);
+        
+        // If we still don't have enough, fill with generic popular/latest
+        if (validSections.length < 3) {
+             const popRes = await apiService.getPopularSongs(6);
+             const popSongs = popRes?.songs || popRes || [];
+             if (popSongs.length > 0 && !validSections.some(s => s.title === 'Trending Now')) {
+                 validSections.push({ title: 'Trending Now', songs: popSongs });
+             }
         }
-        if (!Array.isArray(finalRock) || finalRock.length === 0) {
-          const byGenreRock = await apiService.getSongsByGenre('Rock', 10).catch(()=>[]);
-          finalRock = (byGenreRock?.songs || byGenreRock || []);
-          if ((!Array.isArray(finalRock) || finalRock.length === 0)) {
-            const popular = await apiService.getPopularSongs(20).catch(()=>[]);
-            const fromPopular = (popular?.songs || popular || []).filter(s => {
-              const name = String(s?.name || '').toLowerCase();
-              const g = Array.isArray(s?.genres) ? s.genres : [s?.genre];
-              const genres = (g || []).map(x=>String(x || '').toLowerCase());
-              return name.includes('rock') || genres.includes('rock');
-            });
-            finalRock = fromPopular;
-          }
-        }
-        const dedupById = (list) => {
-          const seen = new Set();
-          const out = [];
-          for (const s of (Array.isArray(list) ? list : [])) {
-            const id = s._id || s.id || s.songId;
-            if (!id) continue;
-            if (!seen.has(id)) { seen.add(id); out.push(s); }
-          }
-          return out;
-        };
-        setPopSongs(dedupById(finalPop));
-        setChillVibes(dedupById(finalChill));
-        setTopRock(dedupById(finalRock));
+
+        setCategorySections(validSections);
+
       } catch (err) {
         console.error('Failed to load category sections:', err);
       } finally {
@@ -187,7 +181,7 @@ const HomePage = () => {
         </div>
       </motion.section>
 
-      {/* Browse by Category */}
+      {/* Browse by Category - Dynamic Sections */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -195,33 +189,32 @@ const HomePage = () => {
       >
         <h2 className="text-xl font-bold text-white mb-4">Browse by category</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-light-gray/40 rounded-xl p-4">
-            <h3 className="text-lg font-semibold mb-3">Pop Songs</h3>
-            <div className="space-y-2">
-              {(sectionsLoading ? [] : popSongs).slice(0, 6).map((song, index) => (
-                <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
-              ))}
-              {sectionsLoading && <div className="text-gray-400">Loading...</div>}
-            </div>
-          </div>
-          <div className="bg-light-gray/40 rounded-xl p-4">
-            <h3 className="text-lg font-semibold mb-3">Chill Vibes</h3>
-            <div className="space-y-2">
-              {(sectionsLoading ? [] : chillVibes).slice(0, 6).map((song, index) => (
-                <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
-              ))}
-              {sectionsLoading && <div className="text-gray-400">Loading...</div>}
-            </div>
-          </div>
-          <div className="bg-light-gray/40 rounded-xl p-4">
-            <h3 className="text-lg font-semibold mb-3">Top Rock</h3>
-            <div className="space-y-2">
-              {(sectionsLoading ? [] : topRock).slice(0, 6).map((song, index) => (
-                <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
-              ))}
-              {sectionsLoading && <div className="text-gray-400">Loading...</div>}
-            </div>
-          </div>
+            {sectionsLoading ? (
+                 // Loading Placeholders
+                 [1, 2, 3].map(i => (
+                    <div key={i} className="bg-light-gray/40 rounded-xl p-4 h-64 animate-pulse">
+                        <div className="h-6 w-1/3 bg-gray-700 rounded mb-4"></div>
+                        <div className="space-y-3">
+                            {[1,2,3,4].map(j => <div key={j} className="h-12 bg-gray-700/50 rounded"></div>)}
+                        </div>
+                    </div>
+                 ))
+            ) : categorySections.length > 0 ? (
+                categorySections.map((section, idx) => (
+                    <div key={idx} className="bg-light-gray/40 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold mb-3 capitalize">{section.title}</h3>
+                        <div className="space-y-2">
+                        {section.songs.slice(0, 6).map((song, index) => (
+                            <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
+                        ))}
+                        </div>
+                    </div>
+                ))
+            ) : (
+                <div className="col-span-3 text-center text-gray-400 py-8">
+                    No categories available at the moment.
+                </div>
+            )}
         </div>
       </motion.section>
 

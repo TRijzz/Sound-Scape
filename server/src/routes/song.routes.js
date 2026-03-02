@@ -14,7 +14,9 @@ import {
   incrementPlayCount, 
   getLyrics, 
   updateLyrics,
-  populateSongCategories
+  populateSongCategories,
+  playSong,
+  getGenreStats
 } from '../controllers/song.controller.js';
 
 import { upload } from '../middlewares/upload.js';
@@ -28,9 +30,10 @@ router.get('/genre', getSongsByGenre);
 router.get('/year', getSongsByYear);
 router.get('/search', searchSongs);
 router.get('/spotify/:spotifyId', getSongBySpotifyId);
+router.get('/genre-stats', getGenreStats);
 router.get('/:id', getSong);
 router.get('/:id/lyrics', getLyrics);
-router.post('/:id/play', incrementPlayCount);
+router.post('/:id/play', playSong); // Changed from incrementPlayCount to playSong
 
 // Protected routes (require authentication)
 router.post('/', requireAdminOrAuth, upload.fields([

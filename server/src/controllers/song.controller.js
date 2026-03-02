@@ -1,4 +1,7 @@
 import Song from '../models/Song.js';
+import Genre from '../models/Genre.js'; // Added Genre model
+import ListeningHistory from '../models/ListeningHistory.js'; // Added ListeningHistory model
+import { broadcastNotification } from './notification.controller.js'; // Added notification broadcaster
 import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
 import Lyric from '../models/Lyric.js';
@@ -21,6 +24,7 @@ export const createSong = async (req, res) => {
     if (req.files) {
       if (req.files.audio) {
         songData.audio_url = `/songs/${req.files.audio[0].filename}`;
+        songData.file_path = req.files.audio[0].path; // Actual server path for storage location identification
       }
       if (req.files.cover) {
         songData.cover_art_url = `/images/${req.files.cover[0].filename}`;
@@ -54,10 +58,19 @@ export const createSong = async (req, res) => {
     if (req.body.cover_art_url) songData.cover_art_url = req.body.cover_art_url; // Allow manual URL too
     if (req.body.popularity !== undefined) songData.popularity = Number(req.body.popularity);
     if (req.body.lyrics) songData.lyrics = req.body.lyrics;
-    if (req.body.category) songData.category = req.body.category.trim();
-    if (req.body.genre) songData.genre = req.body.genre.trim();
-    if (req.body.mood) songData.mood = req.body.mood.trim();
-    if (req.body.language) songData.language = req.body.language.trim();
+    
+    // Genre handling - use ObjectId reference
+    if (req.body.genre_id) {
+      songData.genre = req.body.genre_id;
+    } else if (req.body.genre && mongoose.Types.ObjectId.isValid(req.body.genre)) {
+      songData.genre = req.body.genre;
+    }
+    
+    if (songData.genre) {
+      console.log(`🏷️ New Song "${songData.name}" assigned to genre ID: ${songData.genre}`);
+    } else {
+      console.log(`⚠️ New Song "${songData.name}" created without genre.`);
+    }
     
     // Handle tags (could be 'tags' array, 'tags[]', or comma string)
     let tagsInput = req.body.tags || req.body['tags[]'];
@@ -247,6 +260,7 @@ export const getSong = async (req, res) => {
     const song = await Song.findById(req.params.id)
       .populate('artists', 'name spotify_id images genres')
       .populate('album', 'name images release_date artists')
+      .populate('genre', 'name slug') // Added genre population
       .lean();
     
     if (!song) {
@@ -256,6 +270,124 @@ export const getSong = async (req, res) => {
     res.json(song);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch song', error: error.message });
+  }
+};
+
+/**
+ * Record a play event and return song details including storage location
+ */
+export const playSong = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const userId = req.user ? req.user.id : null;
+
+    // Populate genre to get its name
+    const song = await Song.findById(id).populate('genre').populate('artists');
+
+    if (!song) {
+      console.log(`❌ Playback failed: Song ID ${id} not found.`);
+      return res.status(404).json({ message: 'Song not found' });
+    }
+
+    const genreName = song.genre ? (typeof song.genre === 'string' ? 'Loading...' : song.genre.name) : 'No Genre Assigned';
+    const filePath = song.file_path || (song.audio_url ? song.audio_url : 'No storage path set');
+    const artistNames = Array.isArray(song.artists) ? song.artists.map(a => a.name).join(', ') : 'Unknown Artist';
+
+    console.log(`🎵 Playing: "${song.name}" by ${artistNames}`);
+    console.log(`📁 Storage Location: ${filePath}`);
+    console.log(`🏷️ Genre Identified: ${genreName}`);
+
+    // Identify storage location and metadata as requested
+    const playbackInfo = {
+      song_id: song._id,
+      title: song.name,
+      artist: artistNames,
+      duration: song.duration_ms,
+      genre: genreName,
+      file_path: filePath,
+      audio_url: song.audio_url,
+      cover_art_url: song.cover_art_url
+    };
+
+    // Increment play count and update last played time for Compass visibility
+    song.play_count = (song.play_count || 0) + 1;
+    song.last_played_at = new Date();
+    
+    try {
+      await song.save();
+    } catch (saveErr) {
+      console.error('⚠️ Failed to update song play count:', saveErr.message);
+    }
+
+    // Log to ListeningHistory if user is logged in
+    if (userId && song.genre) {
+      try {
+        await ListeningHistory.create({
+          user: userId,
+          song: song._id,
+          genre: typeof song.genre === 'object' ? song.genre._id : song.genre,
+          duration_listened_ms: song.duration_ms || 0
+        });
+        console.log(`📊 Recorded listening history for genre: ${genreName}`);
+      } catch (histErr) {
+        console.error('⚠️ Failed to record listening history:', histErr.message);
+      }
+    }
+
+    // Broadcast real-time notification to admin
+    try {
+      broadcastNotification({
+        type: 'SONG_PLAYED',
+        message: `🎵 Playing: "${song.name}" by ${artistNames}`,
+        storage_location: `📁 Storage Location: ${filePath}`,
+        genre_info: `🏷️ Genre Identified: ${genreName}`,
+        analytics_info: `📊 Recorded listening history for genre: ${genreName}`
+      });
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to broadcast admin notification:', notifyErr.message);
+    }
+
+    res.json(playbackInfo);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to process song playback', error: error.message });
+  }
+};
+
+/**
+ * Get genre-based analytics
+ */
+export const getGenreStats = async (req, res) => {
+  try {
+    const stats = await ListeningHistory.aggregate([
+      {
+        $group: {
+          _id: '$genre',
+          play_count: { $sum: 1 },
+          unique_users: { $addToSet: '$user' }
+        }
+      },
+      {
+        $lookup: {
+          from: 'genres',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'genre_info'
+        }
+      },
+      { $unwind: '$genre_info' },
+      {
+        $project: {
+          genre_name: '$genre_info.name',
+          play_count: 1,
+          user_count: { $size: '$unique_users' }
+        }
+      },
+      { $sort: { play_count: -1 } }
+    ]);
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch genre statistics', error: error.message });
   }
 };
 
@@ -301,12 +433,25 @@ export const getSongsByGenre = async (req, res) => {
       return res.status(400).json({ message: 'Genre parameter is required' });
     }
     
+    const genreRegex = new RegExp(genre, 'i');
+    
+    // Find artists with this genre
     const artistsWithGenre = await Artist.find({ 
-      genres: { $in: [new RegExp(genre, 'i')] }
+      genres: { $in: [genreRegex] }
     }).select('_id');
     
+    // Find albums with this genre
+    const albumsWithGenre = await Album.find({
+      genres: { $in: [genreRegex] }
+    }).select('_id');
+
+    // Find songs that match the genre directly, OR belong to matching artists, OR belong to matching albums
     const songs = await Song.find({ 
-      artists: { $in: artistsWithGenre.map(a => a._id) }
+      $or: [
+        { genre: genreRegex },
+        { artists: { $in: artistsWithGenre.map(a => a._id) } },
+        { album: { $in: albumsWithGenre.map(a => a._id) } }
+      ]
     })
       .populate('artists', 'name spotify_id images')
       .populate('album', 'name images')

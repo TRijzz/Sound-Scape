@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import Song from '../models/Song.js';
 import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
+import Genre from '../models/Genre.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,7 +100,7 @@ export const syncFromFolders = async (req, res) => {
       return res.status(404).json({ message: 'Songs directory not found' });
     }
 
-    const stats = { added: 0, updated: 0, errors: 0, skipped: 0 };
+    const stats = { added: 0, updated: 0, errors: 0, skipped: 0, errors_details: [] };
     
     // Recursive walker
     async function* walk(dir) {
@@ -175,6 +176,22 @@ export const syncFromFolders = async (req, res) => {
             albumId = album._id;
         }
 
+        // Normalize/ensure Genre document exists (map folder names to allowed enum)
+        const normalizeGenreName = (g) => {
+            if (!g) return 'Other';
+            const raw = String(g).trim().toLowerCase();
+            if (['hiphop', 'hip-hop', 'hip hop', 'rap'].includes(raw)) return 'HipHop';
+            if (['pop'].includes(raw)) return 'Pop';
+            if (['rock'].includes(raw)) return 'Rock';
+            if (['jazz'].includes(raw)) return 'Jazz';
+            return 'Other';
+        };
+        const genreName = normalizeGenreName(genre);
+        let genreDoc = await Genre.findOne({ name: genreName });
+        if (!genreDoc) {
+            genreDoc = await Genre.create({ name: genreName });
+        }
+
         // 3. Upsert Song
         // Normalize path separators to forward slashes for URL
         const urlPath = '/songs/' + relPath.split(path.sep).join('/');
@@ -182,10 +199,11 @@ export const syncFromFolders = async (req, res) => {
         const songData = {
             name: fileName,
             audio_url: urlPath,
-            genre: genre,
+            genre: genreDoc._id,
             artists: artistId ? [artistId] : [],
             album: albumId,
-            duration_ms: 0 // Would need ffprobe/music-metadata to get real duration
+            duration_ms: 0, // Would need ffprobe/music-metadata to get real duration
+            file_path: filePath
         };
 
         // Check if song exists by audio_url (file path)
@@ -194,9 +212,10 @@ export const syncFromFolders = async (req, res) => {
             // Update metadata if changed (optional, maybe user edited manually?)
             // Let's only update if missing important fields or force update
             // For now, assume folder structure is truth for Genre/Artist
-            song.genre = genre;
+            song.genre = genreDoc._id;
             if (artistId && (!song.artists || song.artists.length === 0)) song.artists = [artistId];
             if (albumId && !song.album) song.album = albumId;
+            if (!song.file_path) song.file_path = filePath;
             await song.save();
             stats.updated++;
         } else {
@@ -205,8 +224,8 @@ export const syncFromFolders = async (req, res) => {
         }
 
       } catch (err) {
-        console.error(`Error processing file ${filePath}:`, err);
         stats.errors++;
+        stats.errors_details.push({ file: filePath, error: err && err.message ? err.message : String(err) });
       }
     }
 

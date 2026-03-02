@@ -12,8 +12,18 @@ export const signRefreshToken = (payload) => {
 };
 
 export const requireAuth = (req, res, next) => {
+  let token = null;
+  
+  // Try Authorization header first
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.substring(7) : null;
+  if (header.startsWith('Bearer ')) {
+    token = header.substring(7);
+  } 
+  // Fallback to query parameter for EventSource (SSE) support
+  else if (req.query.token) {
+    token = req.query.token;
+  }
+
   if (!token) return res.status(401).json({ message: 'Missing token' });
   try {
     const decoded = jwt.verify(token, accessSecret);

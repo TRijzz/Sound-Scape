@@ -106,6 +106,13 @@ export function MusicProvider({ children }) {
       
       // Play track using audio player
       await player.playTrack(track);
+
+      // Notify backend to record play event and trigger admin notifications
+      if (track._id) {
+        apiService.playSong(track._id).catch(err => {
+          console.error('Failed to record play event:', err);
+        });
+      }
     } catch (error) {
       console.error('Error playing track:', error);
       // Still set the track even if play fails

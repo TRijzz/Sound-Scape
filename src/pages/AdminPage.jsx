@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api';
+import AdminNotifications from '../components/admin/AdminNotifications';
 
 function Section({ title, children }) {
   return (
@@ -65,11 +66,21 @@ function AdminPage() {
     const load = async () => {
       setLoading(true);
       try {
+        // Only load data if we have an access token to avoid 401s
+        const storedTokens = localStorage.getItem('authTokens');
+        if (!storedTokens) {
+          console.warn('No auth tokens found, skipping data load');
+          return;
+        }
+
         const [artistsRes, albumsRes, songsRes, myCats] = await Promise.all([
           apiService.getArtists(1, 20, ''),
           apiService.getAlbums(1, 20, ''),
           apiService.getSongs(1, 20, ''),
-          apiService.getMyCategories().catch(() => [])
+          apiService.getMyCategories().catch(err => {
+            console.warn('Failed to load categories, might not be logged in fully:', err.message);
+            return [];
+          })
         ]);
         setArtists(Array.isArray(artistsRes?.artists) ? artistsRes.artists : Array.isArray(artistsRes) ? artistsRes : []);
         setAlbums(Array.isArray(albumsRes?.albums) ? albumsRes.albums : Array.isArray(albumsRes) ? albumsRes : []);
@@ -92,6 +103,7 @@ function AdminPage() {
       }
       apiService.setAdminCode(code);
       await apiService.verifyAdminAccess(code);
+      localStorage.setItem('adminAccessCode', code); // Consistently save code for notifications
       localStorage.setItem('adminVerified', 'true');
       setAdminVerified(true);
     } catch (err) {
@@ -273,7 +285,8 @@ function AdminPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 relative">
+      <AdminNotifications />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Admin</h1>
       </div>

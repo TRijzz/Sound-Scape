@@ -14,6 +14,8 @@ import artistRoutes from './src/routes/artist.routes.js';
 import songRoutes from './src/routes/song.routes.js';
 import albumRoutes from './src/routes/album.routes.js';
 import playlistRoutes from './src/routes/playlist.routes.js';
+import genreRoutes from './src/routes/genre.routes.js'; // Added genre routes
+import notificationRoutes from './src/routes/notification.routes.js'; // Added notification routes
 import categoryRoutes from './src/routes/category.routes.js';
 import syncRoutes from './src/routes/sync.routes.js';
 import spotifyRoutes from './src/routes/spotify.routes.js';
@@ -31,8 +33,16 @@ const __dirname = path.dirname(__filename);
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'] }));
-app.use(helmet());
+app.use(cors({ 
+  origin: true, 
+  credentials: true, 
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for local development and SSE
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
 app.use(passport.initialize());
@@ -145,6 +155,8 @@ app.use('/api/artists', artistRoutes);
 app.use('/api/songs', songRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/playlists', playlistRoutes);
+app.use('/api/genres', genreRoutes); // Added genre routes
+app.use('/api/admin/notifications', notificationRoutes); // Added notification routes
 app.use('/api/categories', categoryRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/spotify', spotifyRoutes);

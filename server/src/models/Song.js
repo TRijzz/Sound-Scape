@@ -12,12 +12,14 @@ const songSchema = new mongoose.Schema(
     // Relationships
     artists: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Artist' }],
     album: { type: mongoose.Schema.Types.ObjectId, ref: 'Album' },
+    genre: { type: mongoose.Schema.Types.ObjectId, ref: 'Genre', required: true, index: true },
     
     // Track details
     duration_ms: { type: Number, default: 0 },
     track_number: { type: Number },
     disc_number: { type: Number, default: 1 },
     explicit: { type: Boolean, default: false },
+    file_path: { type: String, required: true }, // Added file_path for storage location
     
     // Audio features (can be populated from Spotify Audio Features API)
     audio_features: {
@@ -53,11 +55,8 @@ const songSchema = new mongoose.Schema(
     audio_url: { type: String },
     lyrics: { type: String },
     play_count: { type: Number, default: 0 },
+    last_played_at: { type: Date }, // Added to track playback activity in Compass
     // Categorization
-    category: { type: String, index: true },
-    genre: { type: String, index: true },
-    mood: { type: String, index: true },
-    language: { type: String, index: true },
     tags: [{ type: String, index: true }],
     
     // Sync metadata

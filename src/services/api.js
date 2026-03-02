@@ -16,6 +16,17 @@ class ApiService {
   }
 
   getAuthHeader() {
+    if (!this.authToken) {
+      try {
+        const stored = localStorage.getItem('authTokens');
+        if (stored) {
+          const { accessToken } = JSON.parse(stored);
+          this.authToken = accessToken;
+        }
+      } catch (e) {
+        console.error('Error loading token from localStorage:', e);
+      }
+    }
     return this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {};
   }
   async refreshAccessToken() {
@@ -49,6 +60,14 @@ class ApiService {
 
   getLyrics(songId) {                                   // Fetches lyrics for a song by its ID from the backend.
     return this.fetchData(`/lyrics/${songId}`);
+  }
+
+  getGenres() {                                        // Fetches all genres from the backend.
+    return this.fetchData('/genres');
+  }
+
+  getGenreStats() {                                   // Fetches genre-based playback analytics.
+    return this.fetchData('/songs/genre-stats');
   }
 
   async fetchData(endpoint, options = {}) {
@@ -130,6 +149,10 @@ class ApiService {
   // Artists API
   async getPopularArtists(limit = 20) {
     return this.fetchData(`/artists/popular?limit=${limit}`);
+  }
+
+  async getGenres(limit = 50) {
+    return this.fetchData(`/artists/genres?limit=${limit}`);
   }
 
   async getArtists(page = 1, limit = 20, search = '', genre = '') {
@@ -218,7 +241,7 @@ class ApiService {
     return this.fetchData(`/songs/${id}`);
   }
 
-  async incrementPlayCount(songId) {
+  async playSong(songId) {
     return this.fetchData(`/songs/${songId}/play`, { method: 'POST' });
   }
 

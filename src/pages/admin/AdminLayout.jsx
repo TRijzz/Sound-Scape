@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import AdminGuard from './AdminGuard';
+import AdminNotifications from '../../components/admin/AdminNotifications';
 
 export default function AdminLayout({ children }) {
   return (
     <AdminGuard>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 relative">
+        <AdminNotifications />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Admin</h1>
           <Link to="/" className="text-sm text-gray-400 hover:text-white">Back to site</Link>

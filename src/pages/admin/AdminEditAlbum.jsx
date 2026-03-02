@@ -36,13 +36,14 @@ export default function AdminEditAlbum() {
   const [uploading, setUploading] = useState(false);
   const [uploadingTrackId, setUploadingTrackId] = useState(null);
 
-  // Vinyl State
   const [vinyls, setVinyls] = useState([]);
   const [vinylName, setVinylName] = useState('');
   const [vinylImageFile, setVinylImageFile] = useState(null);
   const [creatingVinyl, setCreatingVinyl] = useState(false);
   const [vinylToDelete, setVinylToDelete] = useState(null);
   const [deleteVinylModalOpen, setDeleteVinylModalOpen] = useState(false);
+  const [trackToDelete, setTrackToDelete] = useState(null);
+  const [deleteTrackModalOpen, setDeleteTrackModalOpen] = useState(false);
 
   const showToast = (message, type = 'error', duration = 4000) => {
     const toastId = Date.now();
@@ -227,6 +228,21 @@ export default function AdminEditAlbum() {
     }
   };
 
+  const handleDeleteTrackAudio = async (songId) => {
+    if (!songId) return;
+    setUploadingTrackId(songId);
+    try {
+      await apiService.updateSong(songId, { audio_url: '' });
+      showToast('Track audio removed successfully', 'success');
+      loadData();
+    } catch (error) {
+      console.error('Error removing track audio:', error);
+      showToast('Failed to remove track audio', 'error');
+    } finally {
+      setUploadingTrackId(null);
+    }
+  };
+
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -284,6 +300,26 @@ export default function AdminEditAlbum() {
     } finally {
       setDeleteVinylModalOpen(false);
       setVinylToDelete(null);
+    }
+  };
+
+  const handleDeleteTrackClick = (song) => {
+    setTrackToDelete(song);
+    setDeleteTrackModalOpen(true);
+  };
+
+  const confirmDeleteTrack = async () => {
+    if (!trackToDelete) return;
+    try {
+      await apiService.deleteSong(trackToDelete._id || trackToDelete.id);
+      showToast('Track deleted', 'success');
+      loadData();
+    } catch (err) {
+      console.error('Error deleting track:', err);
+      showToast(err?.message || 'Failed to delete track', 'error');
+    } finally {
+      setDeleteTrackModalOpen(false);
+      setTrackToDelete(null);
     }
   };
 
@@ -526,49 +562,63 @@ export default function AdminEditAlbum() {
                                     )}
                                 </div>
                                 
-                                <div>
-                                <input
-                                    type="file"
-                                    id={`upload-${song._id}`}
-                                    accept="audio/*"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        if (e.target.files?.[0]) {
-                                            handleSingleTrackUpload(song._id, e.target.files[0]);
-                                        }
-                                        // Reset value to allow re-uploading same file if needed
-                                        e.target.value = '';
-                                    }}
-                                />
-                                <label 
-                                    htmlFor={`upload-${song._id}`}
-                                    className={`
-                                        cursor-pointer px-4 py-2 rounded border border-gray-700 text-sm font-medium transition-colors
-                                        ${uploadingTrackId === song._id 
-                                            ? 'bg-gray-800 text-gray-400 cursor-not-allowed' 
-                                            : 'text-gray-300 hover:text-white hover:border-gray-500 hover:bg-white/5'
-                                        }
-                                    `}
-                                >
-                                    {uploadingTrackId === song._id ? (
-                                        <span className="flex items-center gap-2">
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Uploading...
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                            </svg>
-                                            Upload Audio
-                                        </span>
-                                    )}
-                                </label>
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <input
+                                        type="file"
+                                        id={`upload-${song._id}`}
+                                        accept="audio/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files?.[0]) {
+                                                handleSingleTrackUpload(song._id, e.target.files[0]);
+                                            }
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                    <label 
+                                        htmlFor={`upload-${song._id}`}
+                                        className={`
+                                            cursor-pointer px-4 py-2 rounded border border-gray-700 text-sm font-medium transition-colors
+                                            ${uploadingTrackId === song._id 
+                                                ? 'bg-gray-800 text-gray-400 cursor-not-allowed' 
+                                                : 'text-gray-300 hover:text-white hover:border-gray-500 hover:bg-white/5'
+                                            }
+                                        `}
+                                    >
+                                        {uploadingTrackId === song._id ? (
+                                            <span className="flex items-center gap-2">
+                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Uploading...
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                </svg>
+                                                Upload Audio
+                                            </span>
+                                        )}
+                                    </label>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteTrackAudio(song._id || song.id)}
+                                    disabled={!song.audio_url || uploadingTrackId === (song._id || song.id)}
+                                    className="px-3 py-1.5 rounded border border-yellow-700 text-xs font-medium text-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-900/30 hover:text-yellow-200 transition-colors"
+                                  >
+                                    Remove Audio
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteTrackClick(song)}
+                                    className="px-3 py-1.5 rounded border border-red-800 text-xs font-medium text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                             </div>
-                        </div>
                         </div>
                     ))}
                 </div>
@@ -598,6 +648,15 @@ export default function AdminEditAlbum() {
           title="Delete Vinyl"
           message={`Are you sure you want to delete "${vinylToDelete?.name}"?`}
           confirmText="Delete Vinyl"
+          isDangerous={true}
+        />
+        <ConfirmModal
+          isOpen={deleteTrackModalOpen}
+          onClose={() => setDeleteTrackModalOpen(false)}
+          onConfirm={confirmDeleteTrack}
+          title="Delete Track"
+          message={`Are you sure you want to delete "${trackToDelete?.name}"?`}
+          confirmText="Delete Track"
           isDangerous={true}
         />
       </motion.div>
