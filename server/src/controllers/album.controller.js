@@ -75,6 +75,27 @@ export const createAlbum = async (req, res) => {
     }
 
     const album = await Album.create(albumData);
+    
+    // 🚀 NEW: Propagate genre changes to all songs in this album
+    if (album.genres && Array.isArray(album.genres) && album.genres.length > 0) {
+      try {
+        const genres = album.genres;
+        const primaryGenre = genres[0];
+        
+        // Update all songs that might already be linked to this album
+        await Song.updateMany(
+          { album: album._id },
+          { 
+            genre: primaryGenre,
+            genres: genres 
+          }
+        );
+        console.log(`[AlbumController] Propagated genres to songs for new album: ${album.name}`);
+      } catch (err) {
+        console.error('⚠️ Failed to propagate genre to songs:', err.message);
+      }
+    }
+
     // Populate artists for response
     await album.populate('artists', 'name spotify_id images');
     res.status(201).json(album);
@@ -294,6 +315,26 @@ export const updateAlbum = async (req, res) => {
     
     if (!album) {
       return res.status(404).json({ message: 'Album not found' });
+    }
+
+    // 🚀 NEW: Propagate genre changes to all songs in this album
+    if (updates.genres && Array.isArray(updates.genres) && updates.genres.length > 0) {
+      try {
+        const primaryGenre = updates.genres[0]; // Use the first genre as primary for songs
+        console.log(`[AlbumController] Propagating genres "${updates.genres.join(', ')}" to all songs in album: ${album.name}`);
+        
+        // Update all songs in the main DB
+        await Song.updateMany(
+          { album: album._id },
+          { 
+            genre: primaryGenre,
+            genres: updates.genres
+          }
+        );
+        console.log(`✓ Propagated genre to songs for album: ${album.name}`);
+      } catch (err) {
+        console.error('⚠️ Failed to propagate genre to songs:', err.message);
+      }
     }
     
     res.json(album);

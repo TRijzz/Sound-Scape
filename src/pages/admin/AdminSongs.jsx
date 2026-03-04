@@ -265,6 +265,25 @@ export default function AdminSongs() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name *" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
             
+            <select value={selectedAlbum} onChange={e=>setSelectedAlbum(e.target.value)} className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700">
+              <option value="">Select Album</option>
+              {albums.map(a => (
+                <option key={a._id || a.id} value={a._id || a.id}>{a.name}</option>
+              ))}
+            </select>
+
+            <select 
+              multiple 
+              value={selectedArtists} 
+              onChange={e => setSelectedArtists(Array.from(e.target.selectedOptions, option => option.value))}
+              className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 min-h-[42px]"
+            >
+              <option value="" disabled>Select Artists (Ctrl+Click)</option>
+              {artists.map(a => (
+                <option key={a._id || a.id} value={a._id || a.id}>{a.name}</option>
+              ))}
+            </select>
+            
             <input value={discNumber} onChange={e=>setDiscNumber(e.target.value)} type="number" placeholder="Disc #" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
             <div className="flex items-center px-3 border border-gray-700 rounded-lg bg-light-gray/50">
                <label className="flex items-center gap-2 text-white text-sm cursor-pointer w-full py-2">
@@ -275,6 +294,27 @@ export default function AdminSongs() {
 
             <input value={category} onChange={e=>setCategory(e.target.value)} placeholder="Category" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
             <input value={genre} onChange={e=>setGenre(e.target.value)} placeholder="Genre" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
+            {selectedAlbum && (
+              <div className="flex flex-col justify-center">
+                {(() => {
+                  const alb = albums.find(a => (a._id || a.id) === selectedAlbum);
+                  if (alb && alb.genres && alb.genres.length > 0) {
+                    return (
+                      <div className="text-[10px] text-gray-400 flex items-center gap-1">
+                        <span>Album Genre: {alb.genres[0]}</span>
+                        <button 
+                          onClick={() => setGenre(alb.genres[0])}
+                          className="text-neon-blue hover:underline"
+                        >
+                          Use
+                        </button>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
             <input value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
             
             <input value={language} onChange={e=>setLanguage(e.target.value)} placeholder="Language" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
@@ -332,6 +372,12 @@ export default function AdminSongs() {
                    </div>
                    <div className="text-xs text-gray-500 mt-1">
                      {s.album ? s.album.name : 'No Album'} • {Math.floor((s.duration_ms||0)/1000/60)}:{(Math.floor((s.duration_ms||0)/1000)%60).toString().padStart(2,'0')}
+                   </div>
+                   <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                      <span className="opacity-70">Genre:</span>
+                      <span className="bg-gray-800 px-1 rounded truncate max-w-[100px]">
+                        {s.genre?.name || s.genre || 'Uncategorized'}
+                      </span>
                    </div>
                    <div className="flex flex-wrap gap-1 mt-1">
                      {s.explicit && <div className="text-[10px] text-red-400 border border-red-400/50 inline-block px-1 rounded">Explicit</div>}

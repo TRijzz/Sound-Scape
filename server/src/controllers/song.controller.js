@@ -60,14 +60,46 @@ export const createSong = async (req, res) => {
     if (req.body.lyrics) songData.lyrics = req.body.lyrics;
     
     // Genre handling - use ObjectId reference
-    if (req.body.genre_id) {
+    if (req.body.genres) {
+      let genres = req.body.genres;
+      if (typeof genres === 'string') {
+        if (genres.startsWith('[')) {
+          try { genres = JSON.parse(genres); } catch {}
+        } else {
+          genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      songData.genres = Array.isArray(genres) ? genres : [genres];
+      if (songData.genres.length > 0) {
+        songData.genre = songData.genres[0];
+      }
+    } else if (req.body.genre_id) {
       songData.genre = req.body.genre_id;
+      songData.genres = [req.body.genre_id];
     } else if (req.body.genre && mongoose.Types.ObjectId.isValid(req.body.genre)) {
       songData.genre = req.body.genre;
+      songData.genres = [req.body.genre];
+    } else if (req.body.genre) {
+      songData.genre = req.body.genre;
+      songData.genres = [req.body.genre];
     }
     
+    // If no genre provided, try to inherit from album
+    if (!songData.genre && songData.album) {
+      try {
+        const album = await Album.findById(songData.album);
+        if (album && album.genres && album.genres.length > 0) {
+          songData.genres = album.genres;
+          songData.genre = album.genres[0];
+          console.log(`🏷️ Inherited genres from album: ${album.genres.join(', ')}`);
+        }
+      } catch (err) {
+        console.error('Error inheriting genres from album:', err);
+      }
+    }
+
     if (songData.genre) {
-      console.log(`🏷️ New Song "${songData.name}" assigned to genre ID: ${songData.genre}`);
+      console.log(`🏷️ New Song "${songData.name}" assigned to genre: ${songData.genre}`);
     } else {
       console.log(`⚠️ New Song "${songData.name}" created without genre.`);
     }
@@ -259,12 +291,19 @@ export const getSong = async (req, res) => {
   try {
     const song = await Song.findById(req.params.id)
       .populate('artists', 'name spotify_id images genres')
-      .populate('album', 'name images release_date artists')
-      .populate('genre', 'name slug') // Added genre population
+      .populate('album', 'name images release_date artists genres')
       .lean();
     
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
+    }
+
+    // Manual genre lookup if it's an ID
+    if (song.genre && mongoose.Types.ObjectId.isValid(song.genre)) {
+      try {
+        const g = await Genre.findById(song.genre).select('name slug').lean();
+        if (g) song.genre = g;
+      } catch {}
     }
     
     res.json(song);
@@ -281,15 +320,74 @@ export const playSong = async (req, res) => {
     const id = req.params.id;
     const userId = req.user ? req.user.id : null;
 
-    // Populate genre to get its name
-    const song = await Song.findById(id).populate('genre').populate('artists');
+    // Populate artists for names, and album for fallback genres
+    const song = await Song.findById(id)
+      .populate('artists')
+      .populate('album');
 
     if (!song) {
       console.log(`❌ Playback failed: Song ID ${id} not found.`);
       return res.status(404).json({ message: 'Song not found' });
     }
 
-    const genreName = song.genre ? (typeof song.genre === 'string' ? 'Loading...' : song.genre.name) : 'No Genre Assigned';
+    // Manual genre lookup if it's an ID
+    if (song.genre && mongoose.Types.ObjectId.isValid(song.genre)) {
+      try {
+        const g = await Genre.findById(song.genre).select('name').lean();
+        if (g) song.genre = g;
+      } catch {}
+    }
+
+    // Identify the genre name - Prefer song.genre, fallback to album.genres
+    let genreName = 'No Genre Assigned';
+    let genreIdToRecord = null;
+    
+    if (song.genre) {
+      if (typeof song.genre === 'object' && song.genre.name) {
+        genreName = song.genre.name;
+        genreIdToRecord = song.genre._id;
+      } else if (typeof song.genre === 'string') {
+        // Check if the string is actually an ID
+        if (mongoose.Types.ObjectId.isValid(song.genre)) {
+          genreIdToRecord = song.genre;
+          // Try a quick lookup for the name
+          try {
+            const g = await Genre.findById(song.genre).select('name').lean();
+            if (g) genreName = g.name;
+            else genreName = 'Unknown Genre';
+          } catch {
+            genreName = 'Unknown Genre';
+          }
+        } else {
+          // It's a plain name string
+          genreName = song.genre;
+        }
+      }
+    }
+    
+    // Fallback to album genre if song genre is missing, generic, or an ID we couldn't resolve to a name
+    if ((genreName === 'No Genre Assigned' || genreName === 'Unknown Genre' || mongoose.Types.ObjectId.isValid(genreName)) && song.album) {
+      if (Array.isArray(song.album.genres) && song.album.genres.length > 0) {
+        genreName = song.album.genres[0];
+        // Find or create the genre record for analytics
+        let g = await Genre.findOne({ name: { $regex: new RegExp(`^${genreName}$`, 'i') } });
+        if (!g) {
+          try {
+            g = await Genre.create({ name: genreName, description: `${genreName} music` });
+          } catch (e) {
+            console.error('[SongController] Fallback genre creation failed:', e.message);
+          }
+        }
+        if (g) genreIdToRecord = g._id;
+      }
+    }
+
+    // Last resort: if we still have 'Other' as an object, use it
+    if ((genreName === 'No Genre Assigned' || !genreName) && song.genre) {
+       genreName = (typeof song.genre === 'object' && song.genre.name) ? song.genre.name : 'Other';
+       genreIdToRecord = typeof song.genre === 'object' ? song.genre._id : song.genre;
+    }
+
     const filePath = song.file_path || (song.audio_url ? song.audio_url : 'No storage path set');
     const artistNames = Array.isArray(song.artists) ? song.artists.map(a => a.name).join(', ') : 'Unknown Artist';
 
@@ -320,12 +418,12 @@ export const playSong = async (req, res) => {
     }
 
     // Log to ListeningHistory if user is logged in
-    if (userId && song.genre) {
+    if (userId && genreIdToRecord) {
       try {
         await ListeningHistory.create({
           user: userId,
           song: song._id,
-          genre: typeof song.genre === 'object' ? song.genre._id : song.genre,
+          genre: genreIdToRecord,
           duration_listened_ms: song.duration_ms || 0
         });
         console.log(`📊 Recorded listening history for genre: ${genreName}`);
@@ -339,9 +437,9 @@ export const playSong = async (req, res) => {
       broadcastNotification({
         type: 'SONG_PLAYED',
         message: `🎵 Playing: "${song.name}" by ${artistNames}`,
-        storage_location: `📁 Storage Location: ${filePath}`,
-        genre_info: `🏷️ Genre Identified: ${genreName}`,
-        analytics_info: `📊 Recorded listening history for genre: ${genreName}`
+        storage_location: filePath, // Just the path string
+        genre_info: genreName,      // Just the name string (e.g., "HipHop")
+        analytics_info: genreName   // Just the name string
       });
     } catch (notifyErr) {
       console.error('⚠️ Failed to broadcast admin notification:', notifyErr.message);
@@ -553,11 +651,18 @@ export const searchSongs = async (req, res) => {
 export const updateSong = async (req, res) => {
   try {
     const updateData = { ...req.body };
+    
+    // Remove internal fields if they leaked from body
+    delete updateData._id;
+    delete updateData.__v;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
 
     // Handle file uploads
     if (req.files) {
       if (req.files.audio) {
         updateData.audio_url = `/songs/${req.files.audio[0].filename}`;
+        updateData.file_path = req.files.audio[0].path;
       }
       if (req.files.cover) {
         updateData.cover_art_url = `/images/${req.files.cover[0].filename}`;
@@ -565,12 +670,25 @@ export const updateSong = async (req, res) => {
     }
 
     // Handle numeric/boolean fields from FormData
-    if (updateData.duration_ms) updateData.duration_ms = Number(updateData.duration_ms);
+    if (updateData.duration_ms) {
+      updateData.duration_ms = Number(updateData.duration_ms);
+    } else if (updateData.duration) {
+      updateData.duration_ms = Number(updateData.duration) * 1000;
+      delete updateData.duration;
+    }
     if (updateData.track_number) updateData.track_number = Number(updateData.track_number);
     if (updateData.disc_number) updateData.disc_number = Number(updateData.disc_number);
     if (updateData.popularity) updateData.popularity = Number(updateData.popularity);
     if (updateData.explicit !== undefined) {
       updateData.explicit = updateData.explicit === 'true' || updateData.explicit === true;
+    }
+
+    // Handle nested external_urls (often sent as external_urls.spotify from FormData)
+    if (updateData['external_urls.spotify']) {
+      updateData.external_urls = { ...updateData.external_urls, spotify: updateData['external_urls.spotify'] };
+      delete updateData['external_urls.spotify'];
+    } else if (typeof updateData.external_urls === 'string') {
+      try { updateData.external_urls = JSON.parse(updateData.external_urls); } catch {}
     }
 
     // Handle Artists (JSON string or array)
@@ -579,8 +697,6 @@ export const updateSong = async (req, res) => {
         if (updateData.artists.startsWith('[')) {
           try { updateData.artists = JSON.parse(updateData.artists); } catch {}
         } else {
-           // If it's just one ID string, wrap it. If comma separated, split it.
-           // Usually IDs don't have commas.
            if (updateData.artists.includes(',')) {
              updateData.artists = updateData.artists.split(',').map(s => s.trim()).filter(Boolean);
            } else {
@@ -591,7 +707,6 @@ export const updateSong = async (req, res) => {
     }
 
     // Handle Tags
-    // Check if tags[] exists in body if tags is missing or empty
     if (!updateData.tags && req.body['tags[]']) {
       updateData.tags = req.body['tags[]'];
     }
@@ -604,7 +719,6 @@ export const updateSong = async (req, res) => {
            updateData.tags = updateData.tags.split(',').map(t => t.trim()).filter(Boolean);
          }
        }
-       // Ensure it's array of strings
        if (Array.isArray(updateData.tags)) {
          updateData.tags = updateData.tags.map(t => String(t).trim()).filter(Boolean);
        } else {
@@ -612,10 +726,42 @@ export const updateSong = async (req, res) => {
        }
     }
 
+    // Improved Genre handling - Map text names to ObjectId references
+    if (updateData.genres !== undefined) {
+      if (typeof updateData.genres === 'string') {
+        if (updateData.genres.startsWith('[')) {
+          try { updateData.genres = JSON.parse(updateData.genres); } catch {}
+        } else {
+          updateData.genres = updateData.genres.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      if (Array.isArray(updateData.genres) && updateData.genres.length > 0) {
+        updateData.genre = updateData.genres[0];
+      }
+    } else if (updateData.genre !== undefined) {
+      if (updateData.genre === '' || updateData.genre === null) {
+        updateData.genre = null;
+        updateData.genres = [];
+      } else {
+        updateData.genres = [updateData.genre];
+      }
+    }
+
+    // If album is being updated, maybe inherit genres?
+    if (updateData.album && !updateData.genres) {
+       try {
+         const album = await Album.findById(updateData.album);
+         if (album && album.genres && album.genres.length > 0) {
+           updateData.genres = album.genres;
+           updateData.genre = album.genres[0];
+         }
+       } catch {}
+    }
+
     const song = await Song.findByIdAndUpdate(
       req.params.id, 
       updateData, 
-      { new: true, runValidators: true }
+      { new: true }
     )
       .populate('artists', 'name spotify_id images')
       .populate('album', 'name images')
@@ -623,6 +769,14 @@ export const updateSong = async (req, res) => {
     
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
+    }
+
+    // If genre is an ID, manually populate it for the response if needed
+    if (song.genre && mongoose.Types.ObjectId.isValid(song.genre)) {
+      try {
+        const g = await Genre.findById(song.genre).select('name slug').lean();
+        if (g) song.genre = g;
+      } catch {}
     }
 
     // Handle Lyrics File Upload (Update)
@@ -641,14 +795,12 @@ export const updateSong = async (req, res) => {
           { upsert: true, new: true }
         );
         
-        // Update raw text on Song model
         const rawText = fs.readFileSync(lrcPath, 'utf8');
         await Song.findByIdAndUpdate(song._id, { lyrics: rawText });
       } catch (err) {
         console.error('Error processing lyrics file update:', err);
       }
     } else if (req.body.lyrics) {
-         // Update text lyrics
          await Lyric.findOneAndUpdate(
              { song: song._id },
              { lyrics: req.body.lyrics, synced: false },
@@ -658,7 +810,12 @@ export const updateSong = async (req, res) => {
     
     res.json(song);
   } catch (error) {
-    res.status(400).json({ message: 'Failed to update song', error: error.message });
+    console.error('[SongController] updateSong error details:', error);
+    res.status(400).json({ 
+      message: 'Failed to update song', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

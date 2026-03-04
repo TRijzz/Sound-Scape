@@ -12,14 +12,15 @@ const songSchema = new mongoose.Schema(
     // Relationships
     artists: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Artist' }],
     album: { type: mongoose.Schema.Types.ObjectId, ref: 'Album' },
-    genre: { type: mongoose.Schema.Types.ObjectId, ref: 'Genre', required: true, index: true },
+    genre: { type: String, index: true },
+    genres: [{ type: String, index: true }],
     
     // Track details
     duration_ms: { type: Number, default: 0 },
     track_number: { type: Number },
     disc_number: { type: Number, default: 1 },
     explicit: { type: Boolean, default: false },
-    file_path: { type: String, required: true }, // Added file_path for storage location
+    file_path: { type: String }, // Made optional to avoid validation errors with existing data
     
     // Audio features (can be populated from Spotify Audio Features API)
     audio_features: {
@@ -81,4 +82,10 @@ songSchema.virtual('duration_seconds').get(function() {
 // Ensure virtual fields are serialized
 songSchema.set('toJSON', { virtuals: true });
 
-export default mongoose.model('Song', songSchema);
+// Force re-registration of the model to apply schema changes
+if (mongoose.models && mongoose.models.Song) {
+  delete mongoose.models.Song;
+}
+
+const Song = mongoose.model('Song', songSchema);
+export default Song;

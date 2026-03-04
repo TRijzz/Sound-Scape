@@ -32,9 +32,14 @@ export default function AdminEditSong() {
   const [explicit, setExplicit] = useState(false);
   const [category, setCategory] = useState('');
   const [genre, setGenre] = useState('');
+  const [albumGenres, setAlbumGenres] = useState([]);
   const [mood, setMood] = useState('');
   const [language, setLanguage] = useState('');
   const [artistNames, setArtistNames] = useState('');
+  
+  // Current File URLs
+  const [currentAudioUrl, setCurrentAudioUrl] = useState('');
+  const [currentCoverUrl, setCurrentCoverUrl] = useState('');
   
   // File State
   const [audioFile, setAudioFile] = useState(null);
@@ -77,6 +82,7 @@ export default function AdminEditSong() {
         setArtistNames(aNames);
 
         setAlbum(song.album ? (song.album._id || song.album) : '');
+        setAlbumGenres(song.album?.genres || []);
         setTrackNumber(song.track_number || '');
         setDuration(song.duration_ms ? Math.round(song.duration_ms / 1000) : '');
         setSpotifyId(song.spotify_id || '');
@@ -88,9 +94,12 @@ export default function AdminEditSong() {
         setDiscNumber(song.disc_number || '1');
         setExplicit(song.explicit || false);
         setCategory(song.category || '');
-        setGenre(song.genre || '');
+        setGenre(song.genre ? (song.genre.name || song.genre) : '');
         setMood(song.mood || '');
         setLanguage(song.language || '');
+        
+        setCurrentAudioUrl(song.audio_url || '');
+        setCurrentCoverUrl(song.cover_art_url || song.album?.images?.[0]?.url || '');
       } catch (error) {
         console.error('Error loading data:', error);
         showToast('Error loading song details', 'error');
@@ -132,14 +141,16 @@ export default function AdminEditSong() {
 
       if (audioFile) formData.append('audio', audioFile);
       if (coverFile) formData.append('cover', coverFile);
-      if (lyricsFile) formData.append('lyrics', lyricsFile);
+      if (lyricsFile) formData.append('lyricsFile', lyricsFile);
 
       await apiService.updateSong(id, formData);
       showToast('Song updated successfully', 'success');
       setTimeout(() => navigate('/admin/songs'), 1000);
     } catch (error) {
       console.error('Error updating song:', error);
-      showToast(error.message || 'Failed to update song', 'error');
+      // Try to get the detailed error from backend
+      const detail = error.details?.error || error.details?.message || error.message;
+      showToast(`Failed to update song: ${detail}`, 'error');
       setSaving(false);
     }
   };
@@ -213,12 +224,31 @@ export default function AdminEditSong() {
 
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Genre</label>
-                <input 
-                  value={genre} 
-                  onChange={e => setGenre(e.target.value)} 
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
-                  placeholder="e.g. Synth-pop"
-                />
+                <div className="flex gap-2">
+                  <input 
+                    value={genre} 
+                    onChange={e => setGenre(e.target.value)} 
+                    className="flex-1 px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
+                    placeholder="e.g. Synth-pop"
+                  />
+                  {albumGenres.length > 0 && genre !== albumGenres[0] && (
+                    <button 
+                      onClick={() => setGenre(albumGenres[0])}
+                      className="px-3 py-1 text-[10px] bg-neon-blue/20 text-neon-blue rounded border border-neon-blue/30 hover:bg-neon-blue/30 transition-colors"
+                      title={`Use album's primary genre: ${albumGenres[0]}`}
+                    >
+                      Use Album Genre
+                    </button>
+                  )}
+                </div>
+                {albumGenres.length > 0 && (
+                   <div className="mt-1 flex flex-wrap gap-1">
+                      <span className="text-[10px] text-gray-500 mr-1">Album Genres:</span>
+                      {albumGenres.map(g => (
+                        <span key={g} className="text-[10px] text-gray-400 bg-gray-800 px-1 rounded">{g}</span>
+                      ))}
+                   </div>
+                )}
               </div>
 
               <div>
@@ -255,16 +285,38 @@ export default function AdminEditSong() {
 
               <div className="pt-4 space-y-4 border-t border-gray-800 mt-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Update Audio File</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm text-gray-400">Audio File</label>
+                    {currentAudioUrl ? (
+                      <span className="text-[10px] text-green-400 border border-green-400/50 px-1 rounded flex items-center gap-1">
+                        <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        Already Uploaded
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-orange-400 border border-orange-400/50 px-1 rounded">No Audio</span>
+                    )}
+                  </div>
                   <input 
                     type="file" 
                     accept="audio/*" 
                     onChange={e => setAudioFile(e.target.files[0])} 
                     className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20" 
                   />
+                  {currentAudioUrl && (
+                    <div className="mt-1 text-xs text-gray-500 truncate max-w-xs">
+                      Current: {currentAudioUrl.split('/').pop()}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Update Cover Image</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm text-gray-400">Cover Image</label>
+                    {currentCoverUrl ? (
+                      <span className="text-[10px] text-green-400 border border-green-400/50 px-1 rounded">Has Cover</span>
+                    ) : (
+                      <span className="text-[10px] text-orange-400 border border-orange-400/50 px-1 rounded">No Cover</span>
+                    )}
+                  </div>
                   <input 
                     type="file" 
                     accept="image/*" 
@@ -273,7 +325,7 @@ export default function AdminEditSong() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Update Lyrics File</label>
+                  <label className="block text-sm text-gray-400 mb-1">Lyrics File</label>
                   <input 
                     type="file" 
                     accept=".lrc,.txt" 

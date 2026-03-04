@@ -138,11 +138,15 @@ const AdminNotifications = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-400 text-[10px] font-mono shrink-0">GENRE:</span>
-                <div className="text-neon-blue text-[10px] font-bold bg-neon-blue/10 px-1.5 py-0.5 rounded">{n.genre_info.replace('🏷️ Genre Identified: ', '')}</div>
+                <div className="text-neon-blue text-[10px] font-bold bg-neon-blue/10 px-1.5 py-0.5 rounded">
+                  {n.genre_info.length > 20 && /^[0-9a-fA-F]{24}$/.test(n.genre_info) ? 'Resolving...' : n.genre_info.replace('🏷️ Genre Identified: ', '')}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-400 text-[10px] font-mono shrink-0">LOG:</span>
-                <div className="text-green-500 text-[9px] font-medium italic">{n.analytics_info.replace('📊 Recorded listening history for genre: ', '')}</div>
+                <div className="text-green-500 text-[9px] font-medium italic">
+                  {n.analytics_info.length > 20 && /^[0-9a-fA-F]{24}$/.test(n.analytics_info) ? 'Recording...' : n.analytics_info.replace('📊 Recorded listening history for genre: ', '')}
+                </div>
               </div>
             </div>
           </motion.div>

@@ -6,8 +6,7 @@ const genreSchema = new mongoose.Schema(
       type: String, 
       required: true, 
       unique: true, 
-      trim: true,
-      enum: ['HipHop', 'Pop', 'Rock', 'Jazz', 'Other'] // Predefined list from user requirement
+      trim: true
     },
     slug: { type: String, unique: true, index: true },
     description: { type: String },
