@@ -36,6 +36,8 @@ import AdminLyrics from './pages/admin/AdminLyrics';
 import AdminVinyls from './pages/admin/AdminVinyls';
 import AdminGuard from './pages/admin/AdminGuard';
 import NotFound from './pages/NotFound';
+import VinylStore from './pages/VinylStore';
+import VinylPage from './pages/VinylPage';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -99,6 +101,8 @@ function AppContent() {
                 <Route path="/artist/:id" element={<ArtistPage />} />
                 <Route path="/album/:id" element={<AlbumPage />} />
                 <Route path="/genre/:name" element={<GenrePage />} />
+                <Route path="/store" element={<VinylStore />} />
+                <Route path="/vinyl/:id" element={<VinylPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />

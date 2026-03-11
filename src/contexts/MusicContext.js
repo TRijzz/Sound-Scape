@@ -17,6 +17,7 @@ const initialState = {
   isAuthenticated: false,
   repeatMode: 'off', // 'off', 'all', 'one'
   likedSongs: new Set(),
+  purchasedVinyls: [],
 };
 
 // Reducer for music state
@@ -42,7 +43,8 @@ function musicReducer(state, action) {
         user: action.payload, 
         isAuthenticated: !!action.payload,
         // Initialize liked songs from user data if available
-        likedSongs: action.payload?.likedSongs ? new Set(action.payload.likedSongs) : new Set()
+        likedSongs: action.payload?.likedSongs ? new Set(action.payload.likedSongs) : new Set(),
+        purchasedVinyls: action.payload?.purchased_vinyls || []
       };
     case 'TOGGLE_LIKE':
       const newLikedSongs = new Set(state.likedSongs);
@@ -271,6 +273,12 @@ export function MusicProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.currentTrack, player.isPlaying, player.progress, player.duration, player.volume]);
 
+  const getVinylForSong = (song) => {
+    if (!song || !song.album) return null;
+    const vinyl = state.purchasedVinyls.find(v => v.artist === song.album.artist?.name);
+    return vinyl ? vinyl.image_url : null;
+  };
+
   const value = {
     ...state,
     playTrack,
@@ -292,6 +300,7 @@ export function MusicProvider({ children }) {
     isLoading,
     showAuthPrompt,
     setShowAuthPrompt,
+    getVinylForSong,
   };
 
   return (

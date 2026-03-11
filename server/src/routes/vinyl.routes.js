@@ -1,12 +1,20 @@
 import { Router } from 'express';
+import {
+  createVinyl,
+  getVinyls,
+  getVinyl,
+  updateVinyl,
+  deleteVinyl,
+} from '../controllers/vinyl.controller.js';
 import { requireAdminOrAuth } from '../middlewares/admin.js';
-import { listVinyls, createVinyl, deleteVinyl, getVinylImage } from '../controllers/vinyl.controller.js';
 
 const router = Router();
 
-router.get('/', listVinyls);
-router.get('/:id/image', getVinylImage);
-router.post('/', requireAdminOrAuth, createVinyl);
-router.delete('/:id', requireAdminOrAuth, deleteVinyl);
+router.route('/').post(requireAdminOrAuth, createVinyl).get(getVinyls);
+router
+  .route('/:id')
+  .get(getVinyl)
+  .put(requireAdminOrAuth, updateVinyl)
+  .delete(requireAdminOrAuth, deleteVinyl);
 
 export default router;

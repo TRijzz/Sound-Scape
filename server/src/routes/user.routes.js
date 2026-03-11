@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
-import { me, getUsers, getUser, updateUser, deleteUser, getLikedSongs, likeSong, unlikeSong } from '../controllers/user.controller.js';
+import { me, getUsers, getUser, updateUser, deleteUser, getLikedSongs, likeSong, unlikeSong, purchaseVinyl, setActiveVinyl } from '../controllers/user.controller.js';
 
 const router = Router();
 
@@ -15,6 +15,9 @@ router.delete('/likes', requireAuth, unlikeSong);
 router.get('/me/likes', requireAuth, getLikedSongs);
 router.post('/me/likes', requireAuth, likeSong);
 router.delete('/me/likes', requireAuth, unlikeSong);
+
+router.post('/purchase-vinyl', requireAuth, purchaseVinyl);
+router.post('/set-active-vinyl', requireAuth, setActiveVinyl);
 
 router.get('/id/:id', getUser);
 router.put('/id/:id', requireAuth, updateUser);

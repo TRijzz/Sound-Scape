@@ -62,6 +62,13 @@ class ApiService {
     return this.fetchData(`/lyrics/${songId}`);
   }
 
+  updateLyrics(songId, lyrics, synced = true) {
+    return this.fetchData(`/lyrics/${songId}`, {
+      method: 'POST',
+      body: JSON.stringify({ lyrics, synced })
+    });
+  }
+
   getGenres() {                                        // Fetches all genres from the backend.
     return this.fetchData('/genres');
   }
@@ -312,7 +319,34 @@ class ApiService {
     return this.fetchData(`/albums/${id}`, { method: 'DELETE' });
   }
 
-  // Search API
+  // Vinyl Store
+  async getVinyls(page = 1, limit = 20, search = '', display_in_store = undefined) {
+    const params = new URLSearchParams({ page, limit, search });
+    if (display_in_store !== undefined) params.append('display_in_store', display_in_store);
+    return this.fetchData(`/vinyls?${params.toString()}`);
+  }
+
+  async getVinyl(id) {
+    return this.fetchData(`/vinyls/${id}`);
+  }
+
+  async createVinyl(data) {
+    return this.fetchData('/vinyls', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateVinyl(id, updates) {
+    return this.fetchData(`/vinyls/${id}`, { method: 'PUT', body: JSON.stringify(updates) });
+  }
+
+  async deleteVinyl(id) {
+    return this.fetchData(`/vinyls/${id}`, { method: 'DELETE' });
+  }
+
+  async purchaseVinyl(vinylId) {
+    return this.fetchData('/users/purchase-vinyl', { method: 'POST', body: JSON.stringify({ vinylId }) });
+  }
+
+  // PlaylistsSearch API
   async searchAll(query, limit = 20) {
     try {
       // Ensure query is properly formatted

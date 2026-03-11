@@ -5,11 +5,13 @@ import AlbumCard from '../components/ui/AlbumCard';
 import ArtistCard from '../components/ui/ArtistCard';
 import { useMusic } from '../contexts/MusicContext';
 import { usePopularArtists, usePopularSongs, usePopularAlbums } from '../hooks/useMusicData';
-import { PlayIcon, SearchIcon, HeartIcon } from '../components/ui/Icons';
+import { PlayIcon, SearchIcon, HeartIcon, VinylIcon } from '../components/ui/Icons';
 import apiService from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const HomePage = () => {
   const { playTrack } = useMusic();
+  const navigate = useNavigate();
   const [categorySections, setCategorySections] = React.useState([]);
   const [sectionsLoading, setSectionsLoading] = React.useState(false);
   
@@ -113,26 +115,61 @@ const HomePage = () => {
 
   return (
     <div className="p-6 space-y-8">
-      {/* Welcome Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h1 className="text-3xl font-bold text-white mb-2">
-          Welcome to Sound Scape
-        </h1>
-        <p className="text-gray-400">
-          Discover new music and enjoy your favorites
-        </p>
-      </motion.div>
+      {/* Welcome & Vinyl Banner */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        <motion.div
+          className="flex-1"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Welcome to Sound Scape
+          </h1>
+          <p className="text-gray-400">
+            Discover new music and enjoy your favorites
+          </p>
+        </motion.div>
+
+        <motion.div
+          className="lg:w-1/3 bg-gradient-to-br from-neon-blue to-purple-600 rounded-2xl p-6 relative overflow-hidden cursor-pointer group shadow-xl shadow-neon-blue/20"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          onClick={() => navigate('/store')}
+        >
+          <div className="relative z-10 h-full flex flex-col justify-between">
+            <div>
+              <h3 className="text-xl font-black text-dark-bg uppercase tracking-tight leading-none mb-1">
+                Vinyl Store
+              </h3>
+              <p className="text-dark-bg/80 text-sm font-bold">
+                Premium Pressings
+              </p>
+            </div>
+            <button className="mt-4 bg-dark-bg text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest hover:scale-105 transition-transform w-fit">
+              Shop Now
+            </button>
+          </div>
+          
+          {/* Animated Vinyl Icon Background */}
+          <div className="absolute -right-8 -bottom-8 opacity-20 group-hover:opacity-40 transition-opacity duration-500">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 10, ease: "linear" }}
+            >
+              <VinylIcon className="w-48 h-48 text-dark-bg" />
+            </motion.div>
+          </div>
+        </motion.div>
+      </div>
 
       {/* Vinyl Experience Hint */}
       <motion.div
-        className="text-center py-8"
+        className="text-center py-4 bg-light-gray/20 rounded-xl border border-gray-800"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
       >
         <p className="text-gray-400 text-sm">
           💡 Click the vinyl icon in the player below to experience the immersive vinyl animation

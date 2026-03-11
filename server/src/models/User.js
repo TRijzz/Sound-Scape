@@ -23,6 +23,9 @@ const userSchema = new mongoose.Schema(
     preferred_moods: [{ type: String }],
     preferred_languages: [{ type: String }],
     preferred_tags: [{ type: String }],
+    // Vinyl Store Purchases
+    purchased_vinyls: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vinyl' }],
+    active_vinyl: { type: mongoose.Schema.Types.ObjectId, ref: 'Vinyl' },
   },
   { timestamps: true }
 );
