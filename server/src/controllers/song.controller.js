@@ -687,6 +687,14 @@ export const updateSong = async (req, res) => {
        }
     }
 
+    // Persist taxonomy fields from admin edits as clean strings
+    ['genre', 'category', 'mood', 'language'].forEach((field) => {
+      if (updateData[field] !== undefined) {
+        const normalized = normalizeOptionalText(updateData[field]);
+        updateData[field] = normalized === '' ? null : normalized;
+      }
+    });
+
     // Improved Genre handling - Map text names to ObjectId references
     if (updateData.genres !== undefined) {
       if (typeof updateData.genres === 'string') {
