@@ -727,10 +727,10 @@ class ApiService {
     });
   }
 
-  async populateSongCategories({ dryRun = false, limit = 1000 } = {}) {
+  async populateSongCategories({ dryRun = false, limit = 1000, overwriteGenre = false, overwriteCategory = false } = {}) {
     return this.fetchData(`/songs/populate-categories`, {
       method: 'POST',
-      body: JSON.stringify({ dryRun, limit })
+      body: JSON.stringify({ dryRun, limit, overwriteGenre, overwriteCategory })
     });
   }
 

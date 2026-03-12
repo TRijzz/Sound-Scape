@@ -49,6 +49,11 @@ const songSchema = new mongoose.Schema(
     // Popularity
     popularity: { type: Number, min: 0, max: 100 },
     
+    // Song taxonomy fields used by admin and discovery views
+    category: { type: String, index: true },
+    mood: { type: String, index: true },
+    language: { type: String, index: true },
+
     // Legacy fields (for backward compatibility)
     artist: { type: mongoose.Schema.Types.ObjectId, ref: 'Artist' },
     duration: { type: Number },

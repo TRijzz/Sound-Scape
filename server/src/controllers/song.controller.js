@@ -7,6 +7,7 @@ import Lyric from '../models/Lyric.js';
 import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
+import { classifySongTaxonomy, getSongTaxonomyLookups } from '../utils/songTaxonomy.js';
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -852,95 +853,68 @@ export const updateLyrics = async (req, res) => {
 
 export const populateSongCategories = async (req, res) => {
   try {
-    const { dryRun = false, limit = 1000 } = req.body || {};
+    const {
+      dryRun = false,
+      limit = 1000,
+      overwriteGenre = false,
+      overwriteCategory = false
+    } = req.body || {};
 
-    const songs = await Song.find({}).select('_id name artists album genre mood language category tags audio_features explicit popularity').limit(parseInt(limit)).lean();
+    const parsedLimit = Math.max(parseInt(limit, 10) || 0, 0);
+    const lookups = await getSongTaxonomyLookups();
+    let query = Song.find({})
+      .select('_id name artists album genre genres category tags explicit')
+      .populate('artists', 'name genres')
+      .populate('album', 'name genres release_date');
+
+    if (parsedLimit > 0) {
+      query = query.limit(parsedLimit);
+    }
+
+    const songs = await query.lean();
     const updates = [];
 
-    for (const s of songs) {
-      const set = {};
+    for (const song of songs) {
+      const { updates: nextSet, reasons } = classifySongTaxonomy(song, lookups, {
+        overwriteGenre,
+        overwriteCategory
+      });
 
-      // Genre: prefer existing; else infer from first artist or album
-      if (!s.genre) {
-        let inferredGenre = '';
-        if (s.artists && s.artists.length) {
-          const artist = await Artist.findById(s.artists[0]).select('genres').lean();
-          if (artist && Array.isArray(artist.genres) && artist.genres.length) {
-            inferredGenre = String(artist.genres[0] || '').toLowerCase();
-          }
-        }
-        if (!inferredGenre && s.album) {
-          const alb = await Album.findById(s.album).select('genres').lean();
-          if (alb && Array.isArray(alb.genres) && alb.genres.length) {
-            inferredGenre = String(alb.genres[0] || '').toLowerCase();
-          }
-        }
-        if (inferredGenre) set.genre = inferredGenre;
-      }
-
-      // Mood: derive from audio features when available
-      if (!s.mood && s.audio_features) {
-        const { valence = 0, energy = 0, acousticness = 0 } = s.audio_features || {};
-        let mood = '';
-        if (energy >= 0.75) mood = 'energetic';
-        else if (valence >= 0.65 && energy >= 0.4) mood = 'happy';
-        else if (valence <= 0.35 && energy <= 0.5) mood = 'sad';
-        else if (acousticness >= 0.6 || energy <= 0.45) mood = 'chill';
-        if (mood) set.mood = mood;
-      }
-
-      // Category: derive from genre or mood
-      if (!s.category) {
-        const g = (set.genre || s.genre || '').toLowerCase();
-        const m = (set.mood || s.mood || '').toLowerCase();
-        let category = '';
-        if (g.includes('pop')) category = 'Pop Songs';
-        else if (g.includes('rock')) category = 'Top Rock';
-        else if (m.includes('chill')) category = 'Chill Vibes';
-        else if (g.includes('hip') || g.includes('rap')) category = 'Hip-Hop Essentials';
-        if (category) set.category = category;
-      }
-
-      // Language: leave if existing; otherwise skip (cannot infer reliably)
-      // Tags: add helpful tags based on attributes
-      const tagSet = new Set([...(s.tags || [])]);
-      if (s.explicit) tagSet.add('explicit');
-      const energy = s.audio_features?.energy ?? null;
-      if (typeof energy === 'number') {
-        if (energy >= 0.75) tagSet.add('high-energy');
-        else if (energy <= 0.35) tagSet.add('low-energy');
-      }
-      if (s.album) {
-        const alb = await Album.findById(s.album).select('release_date').lean();
-        const year = alb?.release_date ? String(alb.release_date).slice(0, 4) : '';
-        if (year) {
-          const decade = year.slice(0, 3) + '0s';
-          tagSet.add(decade);
-        }
-      }
-      if (tagSet.size && (!s.tags || tagSet.size !== s.tags.length)) set.tags = Array.from(tagSet);
-
-      if (Object.keys(set).length) {
-        updates.push({ id: s._id, set });
+      if (Object.keys(nextSet).length > 0) {
+        updates.push({ id: song._id, set: nextSet, name: song.name, reasons });
       }
     }
 
     if (dryRun) {
-      return res.json({ message: 'Dry run complete', updates: updates.slice(0, 50), totalUpdates: updates.length });
+      return res.json({
+        message: 'Dry run complete',
+        updates: updates.slice(0, 50),
+        totalUpdates: updates.length,
+        totalSongs: songs.length
+      });
     }
 
-    const bulk = updates.map(u => ({
+    const bulk = updates.map((item) => ({
       updateOne: {
-        filter: { _id: new mongoose.Types.ObjectId(String(u.id)) },
-        update: { $set: u.set }
+        filter: { _id: new mongoose.Types.ObjectId(String(item.id)) },
+        update: { $set: item.set }
       }
     }));
-    if (bulk.length) await Song.bulkWrite(bulk);
 
-    res.json({ success: true, updated: bulk.length });
+    if (bulk.length) {
+      await Song.bulkWrite(bulk);
+    }
+
+    res.json({
+      success: true,
+      updated: bulk.length,
+      totalSongs: songs.length,
+      preview: updates.slice(0, 10)
+    });
   } catch (error) {
     console.error('Populate categories error:', error);
     res.status(500).json({ message: 'Failed to populate song categories', error: error.message });
   }
 };
+
 
