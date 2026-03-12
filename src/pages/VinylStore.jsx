@@ -14,11 +14,9 @@ export default function VinylStore() {
   useEffect(() => {
     const fetchVinyls = async () => {
       try {
-        // Fetch only vinyls with display_in_store=true
         const response = await apiService.getVinyls(1, 100, '', true);
         const allVinyls = response.vinyls || [];
-        
-        // Use is_featured for the carousel if any, otherwise first few
+
         const featured = allVinyls.filter(v => v.is_featured);
         setFeaturedVinyls(featured.length > 0 ? featured : allVinyls.slice(0, 3));
         setVinyls(allVinyls);
@@ -30,11 +28,6 @@ export default function VinylStore() {
     };
     fetchVinyls();
   }, []);
-
-  const showToast = (message, type = 'success', duration = 3000) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
-  };
 
   const removeToast = (id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
@@ -114,7 +107,6 @@ export default function VinylStore() {
                 ) : (
                   <div className="text-center py-20 bg-dark-gray/20 rounded-3xl border border-dashed border-gray-800">
                     <p className="text-gray-500 text-lg">No vinyls available in the store right now.</p>
-                    <p className="text-gray-600 text-sm mt-2">Check back later for new arrivals!</p>
                   </div>
                 )}
               </section>
@@ -125,3 +117,4 @@ export default function VinylStore() {
     </div>
   );
 }
+

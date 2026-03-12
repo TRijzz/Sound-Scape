@@ -9,6 +9,31 @@ import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildSongSearchPatterns = (search = '') => {
+  const query = String(search || '').trim();
+  if (!query) return [];
+
+  const variants = new Set([query]);
+  const lowerQuery = query.toLowerCase();
+
+  if (lowerQuery.includes('divide')) {
+    variants.add('\u00F7 (Deluxe)');
+    variants.add('Divide Deluxe');
+  }
+
+  if (query.includes('\u00F7')) {
+    variants.add('Divide');
+    variants.add('Divide Deluxe');
+  }
+
+  return Array.from(variants).map((variant) => ({
+    $regex: escapeRegex(variant),
+    $options: 'i'
+  }));
+};
+
 export const createSong = async (req, res) => {
   try {
     // Validate required fields
@@ -91,7 +116,7 @@ export const createSong = async (req, res) => {
         if (album && album.genres && album.genres.length > 0) {
           songData.genres = album.genres;
           songData.genre = album.genres[0];
-          console.log(`🏷️ Inherited genres from album: ${album.genres.join(', ')}`);
+          console.log(`ÃƒÂ°Ã…Â¸Ã‚ÂÃ‚Â·ÃƒÂ¯Ã‚Â¸Ã‚Â Inherited genres from album: ${album.genres.join(', ')}`);
         }
       } catch (err) {
         console.error('Error inheriting genres from album:', err);
@@ -99,9 +124,9 @@ export const createSong = async (req, res) => {
     }
 
     if (songData.genre) {
-      console.log(`🏷️ New Song "${songData.name}" assigned to genre: ${songData.genre}`);
+      console.log(`ÃƒÂ°Ã…Â¸Ã‚ÂÃ‚Â·ÃƒÂ¯Ã‚Â¸Ã‚Â New Song "${songData.name}" assigned to genre: ${songData.genre}`);
     } else {
-      console.log(`⚠️ New Song "${songData.name}" created without genre.`);
+      console.log(`ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â New Song "${songData.name}" created without genre.`);
     }
     
     // Handle tags (could be 'tags' array, 'tags[]', or comma string)
@@ -326,7 +351,7 @@ export const playSong = async (req, res) => {
       .populate('album');
 
     if (!song) {
-      console.log(`❌ Playback failed: Song ID ${id} not found.`);
+      console.log(`ÃƒÂ¢Ã‚ÂÃ…â€™ Playback failed: Song ID ${id} not found.`);
       return res.status(404).json({ message: 'Song not found' });
     }
 
@@ -391,9 +416,9 @@ export const playSong = async (req, res) => {
     const filePath = song.file_path || (song.audio_url ? song.audio_url : 'No storage path set');
     const artistNames = Array.isArray(song.artists) ? song.artists.map(a => a.name).join(', ') : 'Unknown Artist';
 
-    console.log(`🎵 Playing: "${song.name}" by ${artistNames}`);
-    console.log(`📁 Storage Location: ${filePath}`);
-    console.log(`🏷️ Genre Identified: ${genreName}`);
+    console.log(`ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Âµ Playing: "${song.name}" by ${artistNames}`);
+    console.log(`ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â Storage Location: ${filePath}`);
+    console.log(`ÃƒÂ°Ã…Â¸Ã‚ÂÃ‚Â·ÃƒÂ¯Ã‚Â¸Ã‚Â Genre Identified: ${genreName}`);
 
     // Identify storage location and metadata as requested
     const playbackInfo = {
@@ -414,7 +439,7 @@ export const playSong = async (req, res) => {
     try {
       await song.save();
     } catch (saveErr) {
-      console.error('⚠️ Failed to update song play count:', saveErr.message);
+      console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to update song play count:', saveErr.message);
     }
 
     // Log to ListeningHistory if user is logged in
@@ -426,9 +451,9 @@ export const playSong = async (req, res) => {
           genre: genreIdToRecord,
           duration_listened_ms: song.duration_ms || 0
         });
-        console.log(`📊 Recorded listening history for genre: ${genreName}`);
+        console.log(`ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â  Recorded listening history for genre: ${genreName}`);
       } catch (histErr) {
-        console.error('⚠️ Failed to record listening history:', histErr.message);
+        console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to record listening history:', histErr.message);
       }
     }
 
@@ -436,13 +461,13 @@ export const playSong = async (req, res) => {
     try {
       broadcastNotification({
         type: 'SONG_PLAYED',
-        message: `🎵 Playing: "${song.name}" by ${artistNames}`,
+        message: `ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Âµ Playing: "${song.name}" by ${artistNames}`,
         storage_location: filePath, // Just the path string
         genre_info: genreName,      // Just the name string (e.g., "HipHop")
         analytics_info: genreName   // Just the name string
       });
     } catch (notifyErr) {
-      console.error('⚠️ Failed to broadcast admin notification:', notifyErr.message);
+      console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to broadcast admin notification:', notifyErr.message);
     }
 
     res.json(playbackInfo);
@@ -991,3 +1016,4 @@ export const populateSongCategories = async (req, res) => {
     res.status(500).json({ message: 'Failed to populate song categories', error: error.message });
   }
 };
+

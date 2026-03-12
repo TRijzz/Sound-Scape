@@ -5,6 +5,11 @@ import { PlayIcon, MoreIcon, LikeIcon, LikedIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
+const getAlbumDisplayName = (album) => {
+  if (album?.name === '\u00F7 (Deluxe)') return 'Divide Deluxe';
+  return album?.name;
+};
+
 const AlbumCard = ({ album, index, isLiked = false }) => {
   const { playTrack } = useMusic();
 
@@ -31,7 +36,7 @@ const AlbumCard = ({ album, index, isLiked = false }) => {
           <div className="relative overflow-hidden rounded-xl bg-light-gray">
             <img
               src={album.images?.[0]?.url || albumArtPlaceholder}
-              alt={album.name}
+              alt={getAlbumDisplayName(album)}
               className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
             />
             
@@ -68,14 +73,14 @@ const AlbumCard = ({ album, index, isLiked = false }) => {
           {/* Album Info */}
           <div className="mt-3">
             <h3 className="text-sm font-medium text-white truncate group-hover:text-neon-blue transition-colors duration-200">
-              {album.name}
+              {getAlbumDisplayName(album)}
             </h3>
             <p className="text-xs text-gray-400 truncate mt-1">
               {album.artists?.map(artist => artist.name).join(', ')}
             </p>
             <p className="text-xs text-gray-500 mt-1">
               {album.release_date ? new Date(album.release_date).getFullYear() : ''}
-              {album.total_tracks && ` • ${album.total_tracks} tracks`}
+              {album.total_tracks && ` â€¢ ${album.total_tracks} tracks`}
             </p>
           </div>
         </div>
@@ -85,3 +90,4 @@ const AlbumCard = ({ album, index, isLiked = false }) => {
 };
 
 export default AlbumCard;
+

@@ -26,4 +26,3 @@ categorySchema.pre('save', function(next) {
 });
 
 export default mongoose.model('Category', categorySchema);
-

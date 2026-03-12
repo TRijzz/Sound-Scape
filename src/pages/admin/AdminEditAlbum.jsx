@@ -349,8 +349,8 @@ export default function AdminEditAlbum() {
                 <label className="block text-sm text-gray-400 mb-1">Name *</label>
                 <input 
                   value={name} 
-                  readOnly
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/30 text-gray-400 border border-gray-800 cursor-not-allowed focus:outline-none" 
+                  onChange={e => setName(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
                   placeholder="Album Name"
                 />
               </div>
@@ -405,11 +405,28 @@ export default function AdminEditAlbum() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Artists</label>
-                <input 
-                  value={artistNames} 
-                  readOnly
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/30 text-gray-400 border border-gray-800 cursor-not-allowed focus:outline-none" 
-                />
+                <select
+                  multiple
+                  value={selectedArtists}
+                  onChange={e => {
+                    const values = Array.from(e.target.selectedOptions).map(option => option.value);
+                    const names = values
+                      .map(value => allArtists.find(artist => artist._id === value)?.name)
+                      .filter(Boolean)
+                      .join(', ');
+                    setSelectedArtists(values);
+                    setArtistNames(names);
+                  }}
+                  className="w-full min-h-[140px] px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
+                >
+                  {allArtists.map((artist) => (
+                    <option key={artist._id} value={artist._id}>
+                      {artist.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-2">Hold `Ctrl` or `Cmd` to select multiple artists.</p>
+                {artistNames && <p className="text-xs text-gray-400 mt-1">Selected: {artistNames}</p>}
               </div>
 
               <div className="pt-4 space-y-4 border-t border-gray-800 mt-4">

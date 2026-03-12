@@ -1,53 +1,85 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import AdminLayout from './AdminLayout';
 import apiService from '../../services/api';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 
+const getAlbumTrackCount = (counts, album) => counts[album._id || album.id] || 0;
+const getAlbumArtistLabel = (album) => {
+  const names = Array.isArray(album?.artists) ? album.artists.map((artist) => artist.name).filter(Boolean) : [];
+  return names.length > 0 ? names.join(', ') : 'Unknown artist';
+};
+
+const formatAlbumOption = (album, counts) => {
+  const trackCount = getAlbumTrackCount(counts, album);
+  const artistLabel = getAlbumArtistLabel(album);
+  const releaseDate = album?.release_date || 'No date';
+  return `${album.name} | ${artistLabel} | ${releaseDate} | ${trackCount} tracks`;
+};
+
 export default function AdminVinyls() {
   const [vinyls, setVinyls] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [songs, setSongs] = useState([]);
+  const [albumTrackCounts, setAlbumTrackCounts] = useState({});
   const [name, setName] = useState('');
   const [artist, setArtist] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [releaseYear, setReleaseYear] = useState('');
   const [displayInStore, setDisplayInStore] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [isFeatured, setIsFeatured] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [albumId, setAlbumId] = useState('');
   const [songId, setSongId] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toasts, setToasts] = useState([]);
-  
-  // Edit State
   const [editingId, setEditingId] = useState(null);
-
-  // Delete State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [vinylToDelete, setVinylToDelete] = useState(null);
 
   const showToast = (message, type = 'success', duration = 3000) => {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts((prev) => [...prev, { id, message, type, duration }]);
   };
-  const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+  const removeToast = (id) => setToasts((prev) => prev.filter((toast) => toast.id !== id));
+
+  const sortedAlbums = useMemo(() => {
+    return [...albums].sort((left, right) => {
+      const leftCount = getAlbumTrackCount(albumTrackCounts, left);
+      const rightCount = getAlbumTrackCount(albumTrackCounts, right);
+      if (leftCount !== rightCount) return rightCount - leftCount;
+      return String(left.name || '').localeCompare(String(right.name || ''));
+    });
+  }, [albums, albumTrackCounts]);
 
   const load = async () => {
     setLoading(true);
     try {
       const [res, albumsRes, songsRes] = await Promise.all([
-        apiService.getVinyls(1, 100),
+        apiService.getVinyls(1, 200),
         apiService.getAlbums(1, 1000),
-        apiService.getSongs(1, 1000)
+        apiService.getSongs(1, 2000),
       ]);
-      
-      const list = Array.isArray(res?.vinyls) ? res.vinyls : Array.isArray(res) ? res : [];
-      setVinyls(list);
-      setAlbums(albumsRes?.albums || []);
-      setSongs(songsRes?.songs || []);
+
+      const vinylList = Array.isArray(res?.vinyls) ? res.vinyls : Array.isArray(res) ? res : [];
+      const albumList = albumsRes?.albums || [];
+      const songList = songsRes?.songs || [];
+      const counts = {};
+
+      songList.forEach((song) => {
+        const linkedAlbumId = typeof song.album === 'object' ? song.album?._id || song.album?.id : song.album;
+        if (!linkedAlbumId) return;
+        counts[linkedAlbumId] = (counts[linkedAlbumId] || 0) + 1;
+      });
+
+      setVinyls(vinylList);
+      setAlbums(albumList);
+      setSongs(songList);
+      setAlbumTrackCounts(counts);
     } catch (err) {
       console.error(err);
       showToast('Failed to load data', 'error');
@@ -56,34 +88,33 @@ export default function AdminVinyls() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleAlbumChange = (id) => {
     setAlbumId(id);
-    if (id) {
-      const selectedAlbum = albums.find(a => a._id === id);
-      if (selectedAlbum) {
-        setName(selectedAlbum.name);
-        setArtist(selectedAlbum.artist);
-        if (selectedAlbum.release_date) {
-          setReleaseYear(new Date(selectedAlbum.release_date).getFullYear());
-        }
+    if (!id) return;
+    const selectedAlbum = albums.find((album) => album._id === id || album.id === id);
+    if (selectedAlbum) {
+      setName(selectedAlbum.name || '');
+      setArtist(getAlbumArtistLabel(selectedAlbum));
+      if (selectedAlbum.release_date) {
+        setReleaseYear(String(new Date(selectedAlbum.release_date).getFullYear()));
       }
     }
   };
 
-  const fileToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result || '';
-        const base64 = String(result).split(',')[1] || '';
-        resolve({ base64, mime: file.type || 'image/png' });
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result || '';
+      const base64 = String(result).split(',')[1] || '';
+      resolve({ base64, mime: file.type || 'image/png' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
   const resetForm = () => {
     setName('');
@@ -92,6 +123,8 @@ export default function AdminVinyls() {
     setPrice('');
     setReleaseYear('');
     setDisplayInStore(false);
+    setIsAvailable(true);
+    setIsFeatured(false);
     setImageFile(null);
     setAlbumId('');
     setSongId('');
@@ -113,11 +146,13 @@ export default function AdminVinyls() {
         artist: artist.trim(),
         description: description.trim(),
         price: parseFloat(price) || 0,
-        release_year: parseInt(releaseYear) || undefined,
+        release_year: parseInt(releaseYear, 10) || undefined,
         display_in_store: displayInStore,
-        albumId: albumId.trim() || undefined,
-        songId: songId.trim() || undefined,
-        ...imageData
+        is_available: isAvailable,
+        is_featured: isFeatured,
+        albumId: albumId.trim() || null,
+        songId: songId.trim() || null,
+        ...imageData,
       };
 
       if (editingId) {
@@ -127,7 +162,7 @@ export default function AdminVinyls() {
         await apiService.createVinyl(payload);
         showToast('Vinyl created', 'success');
       }
-      
+
       resetForm();
       await load();
     } catch (err) {
@@ -137,16 +172,18 @@ export default function AdminVinyls() {
     }
   };
 
-  const handleEdit = (v) => {
-    setEditingId(v._id || v.id);
-    setName(v.name || '');
-    setArtist(v.artist || '');
-    setDescription(v.description || '');
-    setPrice(v.price?.toString() || '');
-    setReleaseYear(v.release_year?.toString() || '');
-    setDisplayInStore(v.display_in_store || false);
-    setAlbumId(v.albumId?._id || v.albumId || '');
-    setSongId(v.songId?._id || v.songId || '');
+  const handleEdit = (vinyl) => {
+    setEditingId(vinyl._id || vinyl.id);
+    setName(vinyl.name || '');
+    setArtist(vinyl.artist || '');
+    setDescription(vinyl.description || '');
+    setPrice(vinyl.price?.toString() || '');
+    setReleaseYear(vinyl.release_year?.toString() || '');
+    setDisplayInStore(Boolean(vinyl.display_in_store));
+    setIsAvailable(vinyl.is_available !== false);
+    setIsFeatured(Boolean(vinyl.is_featured));
+    setAlbumId(vinyl.albumId?._id || vinyl.albumId || '');
+    setSongId(vinyl.songId?._id || vinyl.songId || '');
     setImageFile(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -175,7 +212,10 @@ export default function AdminVinyls() {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-white">Vinyl Management</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Vinyl Management</h2>
+            <p className="text-sm text-gray-400 mt-1">Create, update, publish, feature, and delete shop vinyls from one place.</p>
+          </div>
           {editingId && (
             <button onClick={resetForm} className="text-sm text-gray-400 hover:text-white underline">
               Cancel Editing
@@ -187,53 +227,75 @@ export default function AdminVinyls() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Vinyl Name</label>
-              <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. God Did" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. God Did" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
             </div>
 
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Artist</label>
-              <input value={artist} onChange={e=>setArtist(e.target.value)} placeholder="e.g. DJ Khaled" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
+              <input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="e.g. DJ Khaled" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
             </div>
 
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Price ($)</label>
-              <input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="29.99" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
+              <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="29.99" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
             </div>
 
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Release Year</label>
-              <input type="number" value={releaseYear} onChange={e=>setReleaseYear(e.target.value)} placeholder="2022" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
+              <input type="number" value={releaseYear} onChange={(e) => setReleaseYear(e.target.value)} placeholder="2022" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none" />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 lg:col-span-2">
               <label className="text-xs text-gray-400">Link to Album</label>
-              <select value={albumId} onChange={e=>handleAlbumChange(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none appearance-none">
+              <select value={albumId} onChange={(e) => handleAlbumChange(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none appearance-none">
                 <option value="">None</option>
-                {albums.map(album => <option key={album._id} value={album._id}>{album.name}</option>)}
+                {sortedAlbums.map((album) => (
+                  <option key={album._id} value={album._id}>{formatAlbumOption(album, albumTrackCounts)}</option>
+                ))}
               </select>
+              {albumId && (() => {
+                const selectedAlbum = albums.find((album) => album._id === albumId || album.id === albumId);
+                if (!selectedAlbum) return null;
+                const count = getAlbumTrackCount(albumTrackCounts, selectedAlbum);
+                return (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Linked album will expose {count} {count === 1 ? 'track' : 'tracks'} on the vinyl page.
+                  </p>
+                );
+              })()}
             </div>
 
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Link to Song</label>
-              <select value={songId} onChange={e=>setSongId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none appearance-none">
+              <select value={songId} onChange={(e) => setSongId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none appearance-none">
                 <option value="">None</option>
-                {songs.map(song => <option key={song._id} value={song._id}>{song.name}</option>)}
+                {songs.map((song) => <option key={song._id} value={song._id}>{song.name}</option>)}
               </select>
             </div>
 
             <div className="md:col-span-2 lg:col-span-3 space-y-1">
               <label className="text-xs text-gray-400">Description</label>
-              <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Tell us more about this vinyl..." rows="3" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none resize-none" />
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Tell us more about this vinyl..." rows="3" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none resize-none" />
             </div>
 
             <div className="flex items-center space-x-3 p-2 bg-light-gray/20 rounded-lg border border-gray-700">
-              <input type="checkbox" id="displayInStore" checked={displayInStore} onChange={e=>setDisplayInStore(e.target.checked)} className="w-4 h-4 rounded border-gray-700 text-neon-blue focus:ring-neon-blue" />
+              <input type="checkbox" id="displayInStore" checked={displayInStore} onChange={(e) => setDisplayInStore(e.target.checked)} className="w-4 h-4 rounded border-gray-700 text-neon-blue focus:ring-neon-blue" />
               <label htmlFor="displayInStore" className="text-sm text-gray-200 cursor-pointer">Display in Store</label>
             </div>
 
-            <div className="space-y-1">
+            <div className="flex items-center space-x-3 p-2 bg-light-gray/20 rounded-lg border border-gray-700">
+              <input type="checkbox" id="isAvailable" checked={isAvailable} onChange={(e) => setIsAvailable(e.target.checked)} className="w-4 h-4 rounded border-gray-700 text-neon-blue focus:ring-neon-blue" />
+              <label htmlFor="isAvailable" className="text-sm text-gray-200 cursor-pointer">Available to Buy</label>
+            </div>
+
+            <div className="flex items-center space-x-3 p-2 bg-light-gray/20 rounded-lg border border-gray-700">
+              <input type="checkbox" id="isFeatured" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)} className="w-4 h-4 rounded border-gray-700 text-neon-blue focus:ring-neon-blue" />
+              <label htmlFor="isFeatured" className="text-sm text-gray-200 cursor-pointer">Featured Release</label>
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3 space-y-1">
               <label className="text-xs text-gray-400">Vinyl Image {editingId && '(Optional if not changing)'}</label>
-              <input type="file" accept="image/*" onChange={e=>setImageFile(e.target.files[0])} className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20 cursor-pointer" />
+              <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20 cursor-pointer" />
             </div>
           </div>
 
@@ -244,37 +306,48 @@ export default function AdminVinyls() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {vinyls.map(v => (
-            <div key={v._id || v.id} className={`p-4 rounded-xl bg-light-gray/30 border ${v.display_in_store ? 'border-neon-blue/30' : 'border-gray-800'} space-y-3 relative overflow-hidden group`}>
-              {!v.display_in_store && (
-                <div className="absolute top-2 right-2 px-2 py-1 bg-gray-900/80 text-[10px] text-gray-400 rounded uppercase tracking-wider border border-gray-700">Hidden</div>
-              )}
-              {v.display_in_store && (
-                <div className="absolute top-2 right-2 px-2 py-1 bg-neon-blue/20 text-[10px] text-neon-blue rounded uppercase tracking-wider border border-neon-blue/30">In Store</div>
-              )}
-              
-              <div className="w-full aspect-square rounded-lg overflow-hidden bg-black/40 border border-gray-700">
-                <img
-                  src={v.image_base64 ? `data:${v.mime_type || 'image/png'};base64,${v.image_base64}` : v.image_url || '/src/assets/album_art_placeholder.svg'}
-                  alt={v.name}
-                  className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                />
-              </div>
-              
-              <div>
-                <div className="font-bold text-white truncate">{v.name}</div>
-                <div className="text-xs text-gray-400 truncate">{v.artist}</div>
-                <div className="text-sm text-neon-blue font-medium mt-1">${v.price || '0.00'}</div>
-              </div>
+        {loading ? (
+          <div className="text-center py-16 text-gray-500">Loading vinyl inventory...</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {vinyls.map((vinyl) => (
+              <div key={vinyl._id || vinyl.id} className={`p-4 rounded-xl bg-light-gray/30 border ${vinyl.display_in_store ? 'border-neon-blue/30' : 'border-gray-800'} space-y-3 relative overflow-hidden group`}>
+                <div className="absolute top-2 right-2 flex gap-2 flex-wrap justify-end max-w-[70%]">
+                  {vinyl.display_in_store ? (
+                    <span className="px-2 py-1 bg-neon-blue/20 text-[10px] text-neon-blue rounded uppercase tracking-wider border border-neon-blue/30">In Store</span>
+                  ) : (
+                    <span className="px-2 py-1 bg-gray-900/80 text-[10px] text-gray-400 rounded uppercase tracking-wider border border-gray-700">Hidden</span>
+                  )}
+                  {vinyl.is_featured && <span className="px-2 py-1 bg-amber-500/20 text-[10px] text-amber-300 rounded uppercase tracking-wider border border-amber-500/30">Featured</span>}
+                </div>
 
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => handleEdit(v)} className="flex-1 px-3 py-1.5 rounded bg-gray-700 text-white text-sm hover:bg-gray-600 transition-colors">Edit</button>
-                <button onClick={() => handleDeleteClick(v)} className="px-3 py-1.5 rounded bg-red-600/20 text-red-500 text-sm hover:bg-red-600/40 transition-colors border border-red-600/30">Delete</button>
+                <div className="w-full aspect-square rounded-lg overflow-hidden bg-black/40 border border-gray-700">
+                  <img
+                    src={vinyl.image_base64 ? `data:${vinyl.mime_type || 'image/png'};base64,${vinyl.image_base64}` : vinyl.image_url || '/src/assets/album_art_placeholder.svg'}
+                    alt={vinyl.name}
+                    className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                  />
+                </div>
+
+                <div>
+                  <div className="font-bold text-white truncate">{vinyl.name}</div>
+                  <div className="text-xs text-gray-400 truncate">{vinyl.artist}</div>
+                  <div className="text-sm text-neon-blue font-medium mt-1">${Number(vinyl.price || 0).toFixed(2)}</div>
+                  <div className="flex flex-wrap gap-2 mt-3 text-[10px] uppercase tracking-wider">
+                    <span className={`px-2 py-1 rounded-full border ${vinyl.is_available ? 'bg-green-900/20 text-green-400 border-green-700/40' : 'bg-red-900/20 text-red-400 border-red-700/40'}`}>
+                      {vinyl.is_available ? 'Available' : 'Sold Out'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => handleEdit(vinyl)} className="flex-1 px-3 py-1.5 rounded bg-gray-700 text-white text-sm hover:bg-gray-600 transition-colors">Edit</button>
+                  <button onClick={() => handleDeleteClick(vinyl)} className="px-3 py-1.5 rounded bg-red-600/20 text-red-500 text-sm hover:bg-red-600/40 transition-colors border border-red-600/30">Delete</button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {vinyls.length === 0 && !loading && (
           <div className="text-center py-20 bg-dark-gray/20 rounded-2xl border border-dashed border-gray-800">

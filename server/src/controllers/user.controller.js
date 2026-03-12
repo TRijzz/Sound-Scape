@@ -2,12 +2,43 @@ import User from '../models/User.js';
 import LikedSong from '../models/LikedSong.js';
 import Vinyl from '../models/Vinyl.js';
 
+const userIdFromRequest = (req) => req.user?.id || req.user?._id;
+
+const vinylPopulate = [
+  {
+    path: 'purchased_vinyls',
+    populate: [
+      { path: 'albumId' },
+      { path: 'songId' },
+      { path: 'tracklist.songId', populate: [{ path: 'album' }, { path: 'artists', select: 'name images' }] },
+    ],
+  },
+  {
+    path: 'active_vinyl',
+    populate: [
+      { path: 'albumId' },
+      { path: 'songId' },
+      { path: 'tracklist.songId', populate: [{ path: 'album' }, { path: 'artists', select: 'name images' }] },
+    ],
+  },
+];
+
+const buildUserPayload = async (userId) => {
+  const user = await User.findById(userId)
+    .populate(vinylPopulate)
+    .lean();
+
+  if (!user) return null;
+
+  const likes = await LikedSong.find({ user: userId }).select('song').lean();
+  const likedSongs = likes.map((like) => like.song).filter(Boolean);
+  return { ...user, likedSongs };
+};
+
 export const me = async (req, res) => {
-  const user = await User.findById(req.user.id).lean();
+  const user = await buildUserPayload(userIdFromRequest(req));
   if (!user) return res.status(404).json({ message: 'User not found' });
-  const likes = await LikedSong.find({ user: req.user.id }).select('song').lean();
-  const likedSongs = likes.map(l => l.song).filter(Boolean);
-  res.json({ ...user, likedSongs });
+  res.json(user);
 };
 
 export const getUsers = async (req, res) => {
@@ -60,7 +91,7 @@ export const deleteUser = async (req, res) => {
 };
 
 export const getLikedSongs = async (req, res) => {
-  const likes = await LikedSong.find({ user: req.user.id })
+  const likes = await LikedSong.find({ user: userIdFromRequest(req) })
     .populate({
       path: 'song',
       populate: [
@@ -69,7 +100,7 @@ export const getLikedSongs = async (req, res) => {
       ]
     })
     .lean();
-  const songs = likes.map(l => l.song).filter(Boolean);
+  const songs = likes.map((like) => like.song).filter(Boolean);
   res.json(songs);
 };
 
@@ -78,8 +109,8 @@ export const likeSong = async (req, res) => {
   if (!songId) return res.status(400).json({ message: 'songId required' });
   try {
     await LikedSong.updateOne(
-      { user: req.user.id, song: songId },
-      { $setOnInsert: { user: req.user.id, song: songId, createdAt: new Date() } },
+      { user: userIdFromRequest(req), song: songId },
+      { $setOnInsert: { user: userIdFromRequest(req), song: songId, createdAt: new Date() } },
       { upsert: true }
     );
     res.json({ success: true });
@@ -88,12 +119,9 @@ export const likeSong = async (req, res) => {
   }
 };
 
-// @desc    Purchase a vinyl
-// @route   POST /api/users/purchase-vinyl
-// @access  Private
 export const purchaseVinyl = async (req, res) => {
   const { vinylId } = req.body;
-  const userId = req.user._id;
+  const userId = userIdFromRequest(req);
 
   try {
     const user = await User.findById(userId);
@@ -107,15 +135,21 @@ export const purchaseVinyl = async (req, res) => {
       return res.status(404).json({ message: 'Vinyl not found' });
     }
 
-    // Check if the user already owns the vinyl
-    if (user.purchased_vinyls.includes(vinylId)) {
+    const alreadyOwned = user.purchased_vinyls.some((ownedVinylId) => String(ownedVinylId) === String(vinylId));
+    if (alreadyOwned) {
       return res.status(400).json({ message: 'Vinyl already purchased' });
     }
 
     user.purchased_vinyls.push(vinylId);
+    user.active_vinyl = vinylId;
     await user.save();
 
-    res.json({ message: 'Vinyl purchased successfully', purchased_vinyls: user.purchased_vinyls });
+    const hydratedUser = await buildUserPayload(userId);
+    res.json({
+      message: 'Vinyl purchased successfully',
+      purchased_vinyls: hydratedUser?.purchased_vinyls || [],
+      active_vinyl: hydratedUser?.active_vinyl || null,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -124,16 +158,13 @@ export const purchaseVinyl = async (req, res) => {
 export const unlikeSong = async (req, res) => {
   const { songId } = req.body || {};
   if (!songId) return res.status(400).json({ message: 'songId required' });
-  await LikedSong.deleteOne({ user: req.user.id, song: songId });
+  await LikedSong.deleteOne({ user: userIdFromRequest(req), song: songId });
   res.json({ success: true });
 };
 
-// @desc    Set active vinyl
-// @route   POST /api/users/set-active-vinyl
-// @access  Private
 export const setActiveVinyl = async (req, res) => {
   const { vinylId } = req.body;
-  const userId = req.user._id;
+  const userId = userIdFromRequest(req);
 
   try {
     const user = await User.findById(userId);
@@ -142,22 +173,22 @@ export const setActiveVinyl = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // If vinylId is null, clear the active vinyl
     if (!vinylId) {
       user.active_vinyl = null;
       await user.save();
       return res.json({ message: 'Active vinyl cleared', active_vinyl: null });
     }
 
-    // Check if the user has purchased the vinyl
-    if (!user.purchased_vinyls.includes(vinylId)) {
+    const ownsVinyl = user.purchased_vinyls.some((ownedVinylId) => String(ownedVinylId) === String(vinylId));
+    if (!ownsVinyl) {
       return res.status(403).json({ message: 'You have not purchased this vinyl' });
     }
 
     user.active_vinyl = vinylId;
     await user.save();
 
-    res.json({ message: 'Active vinyl set successfully', active_vinyl: user.active_vinyl });
+    const hydratedUser = await buildUserPayload(userId);
+    res.json({ message: 'Active vinyl set successfully', active_vinyl: hydratedUser?.active_vinyl || null });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

@@ -1,18 +1,18 @@
 {
   "files": {
-    "main.css": "/static/css/main.d18b05c2.css",
-    "main.js": "/static/js/main.12e82558.js",
+    "main.css": "/static/css/main.2e6f0e7a.css",
+    "main.js": "/static/js/main.73432147.js",
     "static/media/Divide_Vinyl.svg": "/static/media/Divide_Vinyl.601cb89b863f597514f64f0c16b739ea.svg",
     "static/media/GOD_DID_VINYL.svg": "/static/media/GOD_DID_VINYL.ed858f82183361456f5f18e548300d91.svg",
     "static/media/vinyl.svg": "/static/media/vinyl.5c53e36ee83206964132d04adab6c6b6.svg",
     "index.html": "/index.html",
     "static/media/tonearm.svg": "/static/media/tonearm.74f2a133962910119bb6f617a3bfeb1a.svg",
     "static/media/album_art_placeholder.svg": "/static/media/album_art_placeholder.b6c3659bf24fcb669cb8a57a54ad1ab2.svg",
-    "main.d18b05c2.css.map": "/static/css/main.d18b05c2.css.map",
-    "main.12e82558.js.map": "/static/js/main.12e82558.js.map"
+    "main.2e6f0e7a.css.map": "/static/css/main.2e6f0e7a.css.map",
+    "main.73432147.js.map": "/static/js/main.73432147.js.map"
   },
   "entrypoints": [
-    "static/css/main.d18b05c2.css",
-    "static/js/main.12e82558.js"
+    "static/css/main.2e6f0e7a.css",
+    "static/js/main.73432147.js"
   ]
 }

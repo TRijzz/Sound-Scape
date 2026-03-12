@@ -10,7 +10,7 @@ export default function VinylCarousel({ items }) {
     if (!items || items.length === 0) return;
     const timer = setInterval(() => {
       setIndex(prevIndex => (prevIndex + 1) % items.length);
-    }, 8000); // Auto-swipe every 8 seconds
+    }, 8000);
     return () => clearInterval(timer);
   }, [items?.length]);
 
@@ -27,16 +27,14 @@ export default function VinylCarousel({ items }) {
   if (!items || items.length === 0) return null;
 
   const v = items[index];
-  const imageSrc = v.image_base64 
-    ? `data:${v.mime_type || 'image/png'};base64,${v.image_base64}` 
+  const imageSrc = v.image_base64
+    ? `data:${v.mime_type || 'image/png'};base64,${v.image_base64}`
     : v.image_url || '/src/assets/album_art_placeholder.svg';
 
   return (
     <div className="relative w-full h-[400px] md:h-[450px] bg-gradient-to-br from-gray-900 to-[#050505] rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl group">
-      {/* Background Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-neon-blue/10 blur-[120px] rounded-full -z-0" />
 
-      {/* Navigation Buttons */}
       <div className="absolute inset-x-6 top-1/2 -translate-y-1/2 flex justify-between items-center z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
         <button onClick={handlePrev} className="w-12 h-12 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-neon-blue hover:text-dark-bg transition-all backdrop-blur-md border border-white/10">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
@@ -56,21 +54,17 @@ export default function VinylCarousel({ items }) {
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           onClick={() => navigate(`/vinyl/${v._id || v.id}`)}
         >
-          {/* Left: Vinyl Visual */}
           <div className="relative w-48 h-48 md:w-80 md:h-80 flex-shrink-0">
-            <motion.div 
-              className="absolute inset-0"
+            <div className="absolute inset-0 rounded-[2rem] bg-[#18181B] border border-white/10 shadow-2xl" />
+            <motion.img
+              src={imageSrc}
+              alt={v.name}
+              className="relative z-10 w-full h-full object-contain p-6 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
               animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
-            >
-              <img src="/src/assets/vinyl.svg" alt="" className="w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]" />
-            </motion.div>
-            <div className="absolute inset-4 md:inset-8 bg-[#18181B] rounded-xl overflow-hidden border border-white/10 shadow-2xl">
-              <img src={imageSrc} alt={v.name} className="w-full h-full object-cover" />
-            </div>
+              transition={{ repeat: Infinity, duration: 15, ease: 'linear' }}
+            />
           </div>
 
-          {/* Right: Info */}
           <div className="flex-1 text-center md:text-left space-y-4 max-w-xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -99,7 +93,6 @@ export default function VinylCarousel({ items }) {
         </motion.div>
       </AnimatePresence>
 
-      {/* Indicators */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex space-x-2 z-20">
         {items.map((_, i) => (
           <button

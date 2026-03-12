@@ -1,6 +1,30 @@
 import Album from '../models/Album.js';
 import Song from '../models/Song.js';
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildAlbumSearchClauses = (search = '') => {
+  const query = String(search || '').trim();
+  if (!query) return [];
+
+  const variants = new Set([query]);
+  const lowerQuery = query.toLowerCase();
+
+  if (lowerQuery.includes('divide')) {
+    variants.add('\u00F7 (Deluxe)');
+    variants.add('Divide Deluxe');
+  }
+
+  if (query.includes('\u00F7')) {
+    variants.add('Divide');
+    variants.add('Divide Deluxe');
+  }
+
+  return Array.from(variants).map((variant) => ({
+    name: { $regex: escapeRegex(variant), $options: 'i' }
+  }));
+};
+
 export const createAlbum = async (req, res) => {
   try {
     // Validate required fields
@@ -76,7 +100,7 @@ export const createAlbum = async (req, res) => {
 
     const album = await Album.create(albumData);
     
-    // 🚀 NEW: Propagate genre changes to all songs in this album
+    // ÃƒÂ°Ã…Â¸Ã…Â¡Ã¢â€šÂ¬ NEW: Propagate genre changes to all songs in this album
     if (album.genres && Array.isArray(album.genres) && album.genres.length > 0) {
       try {
         const genres = album.genres;
@@ -92,7 +116,7 @@ export const createAlbum = async (req, res) => {
         );
         console.log(`[AlbumController] Propagated genres to songs for new album: ${album.name}`);
       } catch (err) {
-        console.error('⚠️ Failed to propagate genre to songs:', err.message);
+        console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to propagate genre to songs:', err.message);
       }
     }
 
@@ -317,7 +341,7 @@ export const updateAlbum = async (req, res) => {
       return res.status(404).json({ message: 'Album not found' });
     }
 
-    // 🚀 NEW: Propagate genre changes to all songs in this album
+    // ÃƒÂ°Ã…Â¸Ã…Â¡Ã¢â€šÂ¬ NEW: Propagate genre changes to all songs in this album
     if (updates.genres && Array.isArray(updates.genres) && updates.genres.length > 0) {
       try {
         const primaryGenre = updates.genres[0]; // Use the first genre as primary for songs
@@ -331,9 +355,9 @@ export const updateAlbum = async (req, res) => {
             genres: updates.genres
           }
         );
-        console.log(`✓ Propagated genre to songs for album: ${album.name}`);
+        console.log(`ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Propagated genre to songs for album: ${album.name}`);
       } catch (err) {
-        console.error('⚠️ Failed to propagate genre to songs:', err.message);
+        console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to propagate genre to songs:', err.message);
       }
     }
     
@@ -419,3 +443,4 @@ export const getAlbumsByYear = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch albums by year', error: error.message });
   }
 };
+

@@ -7,6 +7,11 @@ import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import DatePicker from '../../components/ui/DatePicker';
 
+const getAlbumDisplayName = (album) => {
+  if (album?.name === '\u00F7 (Deluxe)') return 'Divide Deluxe';
+  return album?.name;
+};
+
 export default function AdminAlbums() {
   const navigate = useNavigate();
   const [albums, setAlbums] = useState([]);
@@ -212,21 +217,21 @@ export default function AdminAlbums() {
                  {/* Image */}
                  <div className="w-16 h-16 flex-shrink-0 bg-black/40 rounded overflow-hidden">
                    {a.images && a.images[0] ? (
-                     <img src={a.images[0].url} alt={a.name} className="w-full h-full object-cover" />
+                     <img src={a.images[0].url} alt={getAlbumDisplayName(a)} className="w-full h-full object-cover" />
                    ) : (
                      <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">No Img</div>
                    )}
                  </div>
                  <div className="flex-1 min-w-0">
-                   <div className="font-medium truncate">{a.name}</div>
+                   <div className="font-medium truncate">{getAlbumDisplayName(a)}</div>
                    <div className="text-xs text-gray-400 truncate">
                      {a.artists && a.artists.map(ar => ar.name).join(', ')}
                    </div>
                    <div className="text-xs text-gray-500 mt-1">
-                     {a.release_date} • {a.album_type}
+                     {a.release_date} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {a.album_type}
                    </div>
                    <div className="text-xs text-neon-blue mt-1">
-                     Uploaded Tracks: {trackCounts[a._id || a.id] || 0}
+                     Linked Tracks: {trackCounts[a._id || a.id] || 0}
                    </div>
                  </div>
               </div>
@@ -265,3 +270,5 @@ export default function AdminAlbums() {
     </AdminLayout>
   );
 }
+
+

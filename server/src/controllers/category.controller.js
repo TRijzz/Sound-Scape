@@ -37,7 +37,6 @@ export const getMyCategories = async (req, res) => {
 export const getCategories = async (req, res) => {
   try {
     const { search = '' } = req.query;
-    // Admins can see all, regular users see public
     const query = {}; 
     if (!req.isAdmin) {
        query.is_public = true;
@@ -58,7 +57,6 @@ export const getCategory = async (req, res) => {
       .lean();
     if (!cat) return res.status(404).json({ message: 'Category not found' });
     
-    // Allow access if public, or if owner, or if admin
     const isOwner = req.user && String(cat.user) === String(req.user.id);
     if (!cat.is_public && !isOwner && !req.isAdmin) {
       return res.status(403).json({ message: 'Forbidden' });
@@ -74,7 +72,6 @@ export const updateCategory = async (req, res) => {
     const updates = req.body || {};
     const query = { _id: req.params.id };
     
-    // If not admin, restrict to owner
     if (!req.isAdmin && req.user) {
       query.user = req.user.id;
     } else if (!req.isAdmin && !req.user) {
@@ -97,7 +94,6 @@ export const deleteCategory = async (req, res) => {
   try {
     const query = { _id: req.params.id };
     
-    // If not admin, restrict to owner
     if (!req.isAdmin && req.user) {
       query.user = req.user.id;
     } else if (!req.isAdmin && !req.user) {
@@ -118,7 +114,6 @@ export const addSongToCategory = async (req, res) => {
     if (!songId) return res.status(400).json({ message: 'songId required' });
     
     const query = { _id: req.params.id };
-    // If not admin, restrict to owner
     if (!req.isAdmin && req.user) {
       query.user = req.user.id;
     } else if (!req.isAdmin && !req.user) {
@@ -143,7 +138,6 @@ export const removeSongFromCategory = async (req, res) => {
     if (!songId) return res.status(400).json({ message: 'songId required' });
     
     const query = { _id: req.params.id };
-    // If not admin, restrict to owner
     if (!req.isAdmin && req.user) {
       query.user = req.user.id;
     } else if (!req.isAdmin && !req.user) {

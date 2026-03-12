@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
 import apiService from '../services/api';
 import useAudioPlayer from '../hooks/useAudioPlayer';
+import { getVinylImageSrc, vinylContainsTrack } from '../utils/vinyl';
 
 const MusicContext = createContext();
 
-// Initial state
 const initialState = {
   currentTrack: null,
   isPlaying: false,
@@ -15,12 +15,13 @@ const initialState = {
   currentIndex: 0,
   user: null,
   isAuthenticated: false,
-  repeatMode: 'off', // 'off', 'all', 'one'
+  repeatMode: 'off',
   likedSongs: new Set(),
   purchasedVinyls: [],
+  activeVinyl: null,
+  showVinylOverlay: false,
 };
 
-// Reducer for music state
 function musicReducer(state, action) {
   switch (action.type) {
     case 'SET_CURRENT_TRACK':
@@ -38,52 +39,29 @@ function musicReducer(state, action) {
     case 'SET_CURRENT_INDEX':
       return { ...state, currentIndex: action.payload };
     case 'SET_USER':
-      return { 
-        ...state, 
-        user: action.payload, 
+      return {
+        ...state,
+        user: action.payload,
         isAuthenticated: !!action.payload,
-        // Initialize liked songs from user data if available
         likedSongs: action.payload?.likedSongs ? new Set(action.payload.likedSongs) : new Set(),
-        purchasedVinyls: action.payload?.purchased_vinyls || []
+        purchasedVinyls: action.payload?.purchased_vinyls || [],
+        activeVinyl: action.payload?.active_vinyl || state.activeVinyl,
       };
-    case 'TOGGLE_LIKE':
+    case 'SET_ACTIVE_VINYL':
+      return { ...state, activeVinyl: action.payload };
+    case 'SET_VINYL_OVERLAY':
+      return { ...state, showVinylOverlay: action.payload };
+    case 'TOGGLE_LIKE': {
       const newLikedSongs = new Set(state.likedSongs);
       if (newLikedSongs.has(action.payload)) {
         newLikedSongs.delete(action.payload);
       } else {
         newLikedSongs.add(action.payload);
       }
-      // Here you would typically make an API call to update the backend
       return { ...state, likedSongs: newLikedSongs };
+    }
     case 'SET_REPEAT_MODE':
       return { ...state, repeatMode: action.payload };
-    case 'PLAY_TRACK':
-      return {
-        ...state,
-        currentTrack: action.payload,
-        isPlaying: true,
-        progress: 0,
-      };
-    case 'PAUSE_TRACK':
-      return { ...state, isPlaying: false };
-    case 'RESUME_TRACK':
-      return { ...state, isPlaying: true };
-    case 'NEXT_TRACK':
-      const nextIndex = state.currentIndex < state.queue.length - 1 ? state.currentIndex + 1 : 0;
-      return {
-        ...state,
-        currentIndex: nextIndex,
-        currentTrack: state.queue[nextIndex],
-        progress: 0,
-      };
-    case 'PREVIOUS_TRACK':
-      const prevIndex = state.currentIndex > 0 ? state.currentIndex - 1 : state.queue.length - 1;
-      return {
-        ...state,
-        currentIndex: prevIndex,
-        currentTrack: state.queue[prevIndex],
-        progress: 0,
-      };
     default:
       return state;
   }
@@ -95,29 +73,35 @@ export function MusicProvider({ children }) {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const player = useAudioPlayer();
 
+  const syncCurrentUser = async () => {
+    try {
+      const user = await apiService.getCurrentUser();
+      if (user) {
+        dispatch({ type: 'SET_USER', payload: user });
+      }
+      return user;
+    } catch (error) {
+      console.error('Failed to sync user:', error);
+      return null;
+    }
+  };
+
   const playTrack = async (track) => {
     if (!track) return;
-    
-    // Remove authentication check for now - allow all songs to play
-    // Users can still be prompted for auth if needed for other features
-    
+
     try {
-      // Set track in context first
       dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
       dispatch({ type: 'SET_PLAYING', payload: true });
-      
-      // Play track using audio player
+
       await player.playTrack(track);
 
-      // Notify backend to record play event and trigger admin notifications
       if (track._id) {
-        apiService.playSong(track._id).catch(err => {
+        apiService.playSong(track._id).catch((err) => {
           console.error('Failed to record play event:', err);
         });
       }
     } catch (error) {
       console.error('Error playing track:', error);
-      // Still set the track even if play fails
       dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
       dispatch({ type: 'SET_PLAYING', payload: false });
     }
@@ -141,14 +125,31 @@ export function MusicProvider({ children }) {
     }
   };
 
-  const nextTrack = () => {
-    dispatch({ type: 'NEXT_TRACK' });
-    player.nextTrack && player.nextTrack();
+  const setQueue = (queue, currentIndex = 0) => {
+    dispatch({ type: 'SET_QUEUE', payload: queue });
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: currentIndex });
   };
 
-  const previousTrack = () => {
-    dispatch({ type: 'PREVIOUS_TRACK' });
-    player.previousTrack && player.previousTrack();
+  const nextTrack = async () => {
+    if (!state.queue.length) {
+      player.nextTrack && player.nextTrack();
+      return;
+    }
+
+    const nextIndex = state.currentIndex < state.queue.length - 1 ? state.currentIndex + 1 : 0;
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: nextIndex });
+    await playTrack(state.queue[nextIndex]);
+  };
+
+  const previousTrack = async () => {
+    if (!state.queue.length) {
+      player.previousTrack && player.previousTrack();
+      return;
+    }
+
+    const prevIndex = state.currentIndex > 0 ? state.currentIndex - 1 : state.queue.length - 1;
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: prevIndex });
+    await playTrack(state.queue[prevIndex]);
   };
 
   const setProgress = (progress) => {
@@ -180,8 +181,57 @@ export function MusicProvider({ children }) {
     dispatch({ type: 'SET_REPEAT_MODE', payload: mode });
   };
 
-  const setQueue = (queue) => {
-    dispatch({ type: 'SET_QUEUE', payload: queue });
+  const openVinylOverlay = () => {
+    dispatch({ type: 'SET_VINYL_OVERLAY', payload: true });
+  };
+
+  const closeVinylOverlay = () => {
+    dispatch({ type: 'SET_VINYL_OVERLAY', payload: false });
+  };
+
+  const setActiveVinyl = async (vinyl, { persist = true } = {}) => {
+    dispatch({ type: 'SET_ACTIVE_VINYL', payload: vinyl || null });
+
+    if (!persist || !state.isAuthenticated) {
+      return vinyl || null;
+    }
+
+    try {
+      const vinylId = vinyl?._id || vinyl?.id || null;
+      const response = await apiService.setActiveVinyl(vinylId);
+      if (response?.active_vinyl) {
+        dispatch({ type: 'SET_ACTIVE_VINYL', payload: response.active_vinyl });
+        return response.active_vinyl;
+      }
+      return vinyl || null;
+    } catch (error) {
+      console.error('Failed to persist active vinyl:', error);
+      return vinyl || null;
+    }
+  };
+
+  const playVinylTrack = async ({ track, vinyl = null, queue = [], trackIndex = 0, openOverlay = true, persistActive = true }) => {
+    const playbackQueue = Array.isArray(queue) && queue.length > 0 ? queue : (track ? [track] : []);
+    const safeIndex = Math.max(0, Math.min(trackIndex, Math.max(playbackQueue.length - 1, 0)));
+    const selectedTrack = track || playbackQueue[safeIndex];
+
+    if (!selectedTrack) {
+      return;
+    }
+
+    if (playbackQueue.length > 0) {
+      setQueue(playbackQueue, safeIndex);
+    }
+
+    if (vinyl) {
+      await setActiveVinyl(vinyl, { persist: persistActive });
+    }
+
+    await playTrack(selectedTrack);
+
+    if (openOverlay) {
+      openVinylOverlay();
+    }
   };
 
   const login = async (user, tokens) => {
@@ -198,9 +248,10 @@ export function MusicProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('authTokens');
     dispatch({ type: 'SET_USER', payload: null });
+    dispatch({ type: 'SET_ACTIVE_VINYL', payload: null });
+    dispatch({ type: 'SET_VINYL_OVERLAY', payload: false });
   };
 
-  // Check if user is already authenticated on initial load
   const checkAuth = async () => {
     try {
       const storedTokens = localStorage.getItem('authTokens');
@@ -215,18 +266,12 @@ export function MusicProvider({ children }) {
         return null;
       }
 
-      // Set the auth header for all requests
       apiService.setAuthToken(accessToken);
 
-      // Fetch the current user
-      const user = await apiService.getCurrentUser();
-      if (user) {
-        dispatch({ type: 'SET_USER', payload: user });
-      }
+      const user = await syncCurrentUser();
       return user;
     } catch (error) {
       console.error('Auth check failed:', error);
-      // Clear invalid tokens
       localStorage.removeItem('authTokens');
       return null;
     } finally {
@@ -234,14 +279,11 @@ export function MusicProvider({ children }) {
     }
   };
 
-  // Check authentication status on mount
   useEffect(() => {
     checkAuth();
   }, []);
 
-  // Sync player state with context state
   useEffect(() => {
-    // Sync current track
     if (player.currentTrack) {
       const currentId = player.currentTrack._id || player.currentTrack.id;
       const stateId = state.currentTrack?._id || state.currentTrack?.id;
@@ -249,39 +291,40 @@ export function MusicProvider({ children }) {
         dispatch({ type: 'SET_CURRENT_TRACK', payload: player.currentTrack });
       }
     }
-    
-    // Sync playing state
+
     if (player.isPlaying !== state.isPlaying) {
       dispatch({ type: 'SET_PLAYING', payload: player.isPlaying });
     }
-    
-    // Sync progress (with threshold to avoid too many updates)
+
     if (Math.abs((player.progress || 0) - (state.progress || 0)) > 0.01) {
       dispatch({ type: 'SET_PROGRESS', payload: player.progress || 0 });
     }
-    
-    // Sync duration
+
     if (player.duration !== state.duration) {
       dispatch({ type: 'SET_DURATION', payload: player.duration || 0 });
     }
-    
-    // Sync volume
+
     const volPercent = Math.round((player.volume || 0) * 100);
     if (!Number.isNaN(volPercent) && Math.abs(volPercent - (state.volume || 0)) > 1) {
       dispatch({ type: 'SET_VOLUME', payload: volPercent });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player.currentTrack, player.isPlaying, player.progress, player.duration, player.volume]);
+  }, [player.currentTrack, player.isPlaying, player.progress, player.duration, player.volume, state.currentTrack, state.duration, state.isPlaying, state.progress, state.volume]);
 
   const getVinylForSong = (song) => {
-    if (!song || !song.album) return null;
-    const vinyl = state.purchasedVinyls.find(v => v.artist === song.album.artist?.name);
-    return vinyl ? vinyl.image_url : null;
+    if (!song) return null;
+
+    if (state.activeVinyl && vinylContainsTrack(state.activeVinyl, song)) {
+      return getVinylImageSrc(state.activeVinyl, null);
+    }
+
+    const matchedVinyl = state.purchasedVinyls.find((vinyl) => vinylContainsTrack(vinyl, song));
+    return matchedVinyl ? getVinylImageSrc(matchedVinyl, null) : null;
   };
 
   const value = {
     ...state,
     playTrack,
+    playVinylTrack,
     pauseTrack,
     resumeTrack,
     nextTrack,
@@ -290,17 +333,20 @@ export function MusicProvider({ children }) {
     setVolume,
     toggleLike,
     setRepeatMode,
-    repeatMode: state.repeatMode,
     isLiked: (songId) => state.likedSongs.has(songId),
     likedSongsIds: Array.from(state.likedSongs),
     setQueue,
     login,
     logout,
     checkAuth,
+    syncCurrentUser,
     isLoading,
     showAuthPrompt,
     setShowAuthPrompt,
     getVinylForSong,
+    openVinylOverlay,
+    closeVinylOverlay,
+    setActiveVinyl,
   };
 
   return (

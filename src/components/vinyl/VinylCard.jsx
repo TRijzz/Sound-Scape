@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import vinylDisc from '../../assets/vinyl.svg';
 
 export default function VinylCard({ vinyl }) {
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
 
-  const imageSrc = vinyl.image_base64 
-    ? `data:${vinyl.mime_type || 'image/png'};base64,${vinyl.image_base64}` 
+  const imageSrc = vinyl.image_base64
+    ? `data:${vinyl.mime_type || 'image/png'};base64,${vinyl.image_base64}`
     : vinyl.image_url || '/src/assets/album_art_placeholder.svg';
 
   return (
-    <motion.div 
+    <motion.div
       className="group relative cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -20,32 +19,17 @@ export default function VinylCard({ vinyl }) {
       whileHover={{ y: -5 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Vinyl Disc Animation Background */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] aspect-square -z-10 transition-all duration-500 ease-out"
-           style={{ 
-             transform: isHovered ? 'translate(-30%, -10px)' : 'translate(-50%, 0)',
-             opacity: isHovered ? 1 : 0 
-           }}>
-        <div className="w-full h-full">
-          <img 
-            src={vinylDisc} 
-            alt="" 
-            className="w-full h-full object-contain drop-shadow-2xl spinning"
-            style={{ animationPlayState: isHovered ? 'running' : 'paused' }}
-          />
-        </div>
-      </div>
-
-      {/* Main Card */}
       <div className="bg-[#18181B] rounded-2xl p-4 border border-gray-800/50 group-hover:border-neon-blue/30 transition-colors shadow-xl">
-        <div className="relative aspect-square rounded-xl overflow-hidden mb-4 shadow-lg">
-          <img 
-            src={imageSrc} 
-            alt={vinyl.name} 
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        <div className="relative aspect-square rounded-xl overflow-hidden mb-4 shadow-lg bg-[#141418] border border-white/5">
+          <motion.img
+            src={imageSrc}
+            alt={vinyl.name}
+            className="w-full h-full object-contain p-4"
+            animate={{ rotate: isHovered ? 360 : 0 }}
+            transition={{ repeat: isHovered ? Infinity : 0, duration: 8, ease: 'linear' }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
+
           <div className="absolute bottom-3 right-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
             <div className="bg-neon-blue text-dark-bg p-2 rounded-full shadow-lg">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

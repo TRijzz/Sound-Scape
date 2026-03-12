@@ -321,8 +321,12 @@ class ApiService {
 
   // Vinyl Store
   async getVinyls(page = 1, limit = 20, search = '', display_in_store = undefined) {
-    const params = new URLSearchParams({ page, limit, search });
-    if (display_in_store !== undefined) params.append('display_in_store', display_in_store);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (search) params.append('search', search);
+    if (display_in_store !== undefined) params.append('display_in_store', String(display_in_store));
     return this.fetchData(`/vinyls?${params.toString()}`);
   }
 
@@ -524,7 +528,7 @@ class ApiService {
   async getCategories(search = '') {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
-    return this.fetchData(`/categories?${params}`);
+    return this.fetchData(`/categories?${params.toString()}`);
   }
 
   async getMyCategories() {
@@ -730,21 +734,6 @@ class ApiService {
     });
   }
 
-  // Vinyls
-  async getVinyls() {
-    return this.fetchData(`/vinyls`);
-  }
-  async createVinyl(payload) {
-    return this.fetchData(`/vinyls`, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-  }
-  async deleteVinyl(id) {
-    return this.fetchData(`/vinyls/${id}`, {
-      method: 'DELETE'
-    });
-  }
 
   async getSongsByCategory(category, limit = 20) {
     const params = new URLSearchParams({ limit: String(limit), category });
@@ -900,3 +889,4 @@ class ApiService {
 }
 
 export default new ApiService();
+

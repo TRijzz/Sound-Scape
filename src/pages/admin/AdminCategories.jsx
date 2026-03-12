@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
@@ -122,7 +122,6 @@ export default function AdminCategories() {
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       
-      {/* Create Section */}
       <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 mb-8">
         <h2 className="text-xl font-semibold">Create Category</h2>
         <div className="flex flex-col gap-3 p-4 bg-dark-gray/40 rounded-xl border border-gray-800">
@@ -168,7 +167,6 @@ export default function AdminCategories() {
         </div>
       </motion.section>
 
-      {/* List Section */}
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Categories ({categories.length})</h2>
         {loading ? (

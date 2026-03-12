@@ -11,7 +11,6 @@ const vinylSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     is_available: { type: Boolean, default: true },
     display_in_store: { type: Boolean, default: false },
-    // For promotional items
     is_featured: { type: Boolean, default: false },
     albumId: { type: mongoose.Schema.Types.ObjectId, ref: 'Album' },
     songId: { type: mongoose.Schema.Types.ObjectId, ref: 'Song' },

@@ -181,8 +181,8 @@ export default function AdminEditSong() {
                 <label className="block text-sm text-gray-400 mb-1">Name *</label>
                 <input 
                   value={name} 
-                  readOnly
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/30 text-gray-400 border border-gray-800 cursor-not-allowed focus:outline-none" 
+                  onChange={e => setName(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
                   placeholder="Song Name"
                 />
               </div>
@@ -191,8 +191,13 @@ export default function AdminEditSong() {
                 <label className="block text-sm text-gray-400 mb-1">Album</label>
                 <select 
                   value={album} 
-                  disabled
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/30 text-gray-400 border border-gray-800 cursor-not-allowed appearance-none"
+                  onChange={e => {
+                    const selectedAlbumId = e.target.value;
+                    setAlbum(selectedAlbumId);
+                    const selectedAlbum = allAlbums.find(item => item._id === selectedAlbumId);
+                    setAlbumGenres(selectedAlbum?.genres || []);
+                  }}
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none appearance-none"
                 >
                   <option value="">Select Album</option>
                   {allAlbums.map(a => (
@@ -203,15 +208,90 @@ export default function AdminEditSong() {
 
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Artists</label>
-                <input 
-                  value={artistNames} 
-                  readOnly
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/30 text-gray-400 border border-gray-800 cursor-not-allowed focus:outline-none" 
-                />
+                <select
+                  multiple
+                  value={artists}
+                  onChange={e => {
+                    const values = Array.from(e.target.selectedOptions).map(option => option.value);
+                    const names = values
+                      .map(value => allArtists.find(artist => artist._id === value)?.name)
+                      .filter(Boolean)
+                      .join(', ');
+                    setArtists(values);
+                    setArtistNames(names);
+                  }}
+                  className="w-full min-h-[140px] px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
+                >
+                  {allArtists.map((artist) => (
+                    <option key={artist._id} value={artist._id}>
+                      {artist.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-2">Hold `Ctrl` or `Cmd` to select multiple artists.</p>
+                {artistNames && <p className="text-xs text-gray-400 mt-1">Selected: {artistNames}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Track Number</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={trackNumber}
+                    onChange={e => setTrackNumber(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Duration (seconds)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={duration}
+                    onChange={e => setDuration(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
+                    placeholder="215"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Preview URL</label>
+                <input 
+                  value={previewUrl} 
+                  onChange={e => setPreviewUrl(e.target.value)} 
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Popularity</label>
+                <input 
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={popularity} 
+                  onChange={e => setPopularity(e.target.value)} 
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
+                  placeholder="0-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Tags (comma separated)</label>
+                <input 
+                  value={tags} 
+                  onChange={e => setTags(e.target.value)} 
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
+                  placeholder="hit, single, acoustic"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Category</label>
                 <input 
