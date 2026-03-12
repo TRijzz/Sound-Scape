@@ -1,4 +1,7 @@
 import Vinyl from '../models/Vinyl.js';
+import Album from '../models/Album.js';
+
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
 
 const normalizeVinylPayload = (payload = {}) => ({
   ...payload,
@@ -28,7 +31,16 @@ export const getVinyls = async (req, res) => {
     const query = {};
 
     if (search) {
-      query.$text = { $search: search };
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
+      const matchingAlbums = await Album.find({ name: searchRegex }).select('_id').lean();
+      const matchingAlbumIds = matchingAlbums.map((album) => album._id);
+
+      query.$or = [
+        { name: searchRegex },
+        { artist: searchRegex },
+        { description: searchRegex },
+        ...(matchingAlbumIds.length > 0 ? [{ albumId: { $in: matchingAlbumIds } }] : []),
+      ];
     }
     if (display_in_store !== undefined) {
       query.display_in_store = display_in_store === 'true';

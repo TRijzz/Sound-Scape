@@ -17,10 +17,11 @@ const Navbar = () => {
   const { suggestions, isLoading, searchSuggestions, clearSuggestions } = useSearchSuggestions();
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
+  const searchPlaceholder = location.pathname.startsWith('/store') ? 'Search vinyl by album name' : "What's playing in your head?";
 
   // Keep input in sync with URL query when on /search
   useEffect(() => {
-    if (location.pathname.startsWith('/search')) {
+    if (location.pathname.startsWith('/search') || location.pathname.startsWith('/store')) {
       const params = new URLSearchParams(location.search);
       const q = params.get('q') || '';
       setSearchQuery(q);
@@ -29,17 +30,18 @@ const Navbar = () => {
 
   // Live update search results by updating URL as user types on /search
   useEffect(() => {
-    if (!location.pathname.startsWith('/search')) return;
+    if (!location.pathname.startsWith('/search') && !location.pathname.startsWith('/store')) return;
     const timeoutId = setTimeout(() => {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`, { replace: true });
+      const nextPath = location.pathname.startsWith('/store') ? '/store' : '/search';
+      navigate(`${nextPath}?q=${encodeURIComponent(searchQuery)}`, { replace: true });
     }, 250);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, location.pathname]);
+  }, [searchQuery, location.pathname, navigate]);
 
   // Debounced search suggestions
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      const allowSuggestions = !location.pathname.startsWith('/search');
+      const allowSuggestions = !location.pathname.startsWith('/search') && !location.pathname.startsWith('/store');
       if (!allowSuggestions) {
         clearSuggestions();
         setShowSuggestions(false);
@@ -80,7 +82,8 @@ const Navbar = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+      const nextPath = location.pathname.startsWith('/store') ? '/store' : '/search';
+      navigate(`${nextPath}?q=${encodeURIComponent(searchQuery)}`);
       setShowSuggestions(false);
     }
   };
@@ -101,13 +104,13 @@ const Navbar = () => {
 
   const handleInputChange = (e) => {
     setSearchQuery(e.target.value);
-    if (location.pathname.startsWith('/search')) {
+    if (location.pathname.startsWith('/search') || location.pathname.startsWith('/store')) {
       setShowSuggestions(false);
     }
   };
 
   const handleInputFocus = () => {
-    const allowSuggestions = !location.pathname.startsWith('/search');
+    const allowSuggestions = !location.pathname.startsWith('/search') && !location.pathname.startsWith('/store');
     if (!allowSuggestions) {
       setShowSuggestions(false);
       return;
@@ -130,7 +133,7 @@ const Navbar = () => {
           <form onSubmit={handleSearch} className="relative">
             <input
               type="text"
-              placeholder="What's playing in your head?"
+              placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={handleInputChange}
               onFocus={handleInputFocus}

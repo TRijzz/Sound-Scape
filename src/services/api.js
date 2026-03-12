@@ -69,8 +69,17 @@ class ApiService {
     });
   }
 
-  getGenres() {                                        // Fetches all genres from the backend.
-    return this.fetchData('/genres');
+  async getGenres(limit = 100) {
+    const response = await this.fetchData('/genres');
+    const genres = Array.isArray(response) ? response : (response?.genres || []);
+    const names = genres
+      .map((genre) => {
+        if (typeof genre === 'string') return genre.trim();
+        return String(genre?.name || '').trim();
+      })
+      .filter(Boolean);
+
+    return names.slice(0, limit);
   }
 
   getGenreStats() {                                   // Fetches genre-based playback analytics.
@@ -158,9 +167,6 @@ class ApiService {
     return this.fetchData(`/artists/popular?limit=${limit}`);
   }
 
-  async getGenres(limit = 50) {
-    return this.fetchData(`/artists/genres?limit=${limit}`);
-  }
 
   async getArtists(page = 1, limit = 20, search = '', genre = '') {
     const params = new URLSearchParams({
@@ -738,80 +744,6 @@ class ApiService {
   async getSongsByCategory(category, limit = 20) {
     const params = new URLSearchParams({ limit: String(limit), category });
     return this.fetchData(`/songs?${params}`);
-  }
-
-  async getGenres(limit = 50) {
-    try {
-      // Try fetching from artists/genres endpoint first
-      const res = await this.fetchData(`/artists/genres?limit=${limit}`);
-      const fromApi = Array.isArray(res) ? res : (res?.genres || []);
-      if (Array.isArray(fromApi) && fromApi.length > 0) {
-        const raw = fromApi.map(g => (typeof g === 'string' ? g : g?.name)).filter(Boolean);
-        let canonical = this.canonicalizeGenreList(raw);
-        if (canonical.length < 12) {
-          const defaults = this.canonicalizeGenreList([
-            'Pop','Rock','Hip Hop','Jazz','Classical','Country','Indie','Electronic','R&B','Metal','Blues','Reggae','Folk','K-Pop','Latin','Nepali','Nepali Pop','EDM','Dance','House','Techno','Trap','Alternative','Alternative Rock','Indie Rock','Soul','Funk','Gospel','Punk','Bollywood'
-          ]);
-          const seen = new Set(canonical.map(x => x.toLowerCase()));
-          for (const d of defaults) {
-            const k = d.toLowerCase();
-            if (!seen.has(k)) {
-              seen.add(k);
-              canonical.push(d);
-            }
-          }
-        }
-        return canonical.slice(0, limit);
-      }
-    } catch (e) {
-      // Continue to fallback resolution
-    }
-
-    try {
-      const artistsRes = await this.fetchData(`/artists?limit=${Math.min(limit * 5, 500)}`);
-      const artists = artistsRes?.artists || artistsRes || [];
-      const artistGenres = [];
-      (Array.isArray(artists) ? artists : []).forEach(a => {
-        if (Array.isArray(a?.genres)) artistGenres.push(...a.genres);
-        if (a?.genre) artistGenres.push(a.genre);
-      });
-
-      const songsRes = await this.getSongs(1, Math.min(limit * 5, 500));
-      const songs = songsRes?.songs || songsRes || [];
-      const songGenres = (Array.isArray(songs) ? songs : []).map(s => s?.genre).filter(Boolean);
-
-      const all = [...artistGenres, ...songGenres].map(g => String(g || '').trim());
-      const seen = new Set();
-      const dedup = [];
-      for (const g of all) {
-        const key = g.toLowerCase();
-        if (!key) continue;
-        if (!seen.has(key)) {
-          seen.add(key);
-          dedup.push(g);
-        }
-      }
-      let canonical = this.canonicalizeGenreList(dedup);
-      if (canonical.length < 12) {
-        const defaults = this.canonicalizeGenreList([
-          'Pop','Rock','Hip Hop','Jazz','Classical','Country','Indie','Electronic','R&B','Metal','Blues','Reggae','Folk','K-Pop','Latin','Nepali','Nepali Pop','EDM','Dance','House','Techno','Trap','Alternative','Alternative Rock','Indie Rock','Soul','Funk','Gospel','Punk','Bollywood'
-        ]);
-        const seen = new Set(canonical.map(x => x.toLowerCase()));
-        for (const d of defaults) {
-          const k = d.toLowerCase();
-          if (!seen.has(k)) {
-            seen.add(k);
-            canonical.push(d);
-          }
-        }
-      }
-      return canonical.slice(0, limit);
-    } catch {
-      // Last resort: default genres
-      return this.canonicalizeGenreList([
-        'Pop','Rock','Hip Hop','Jazz','Classical','Country','Indie','Electronic','R&B','Metal','Blues','Reggae','Folk','K-Pop','Latin','Nepali','Nepali Pop','EDM','Dance','House','Techno','Trap','Alternative','Alternative Rock','Indie Rock','Soul','Funk','Gospel','Punk','Bollywood'
-      ]);
-    }
   }
 
   canonicalizeGenreList(list) {

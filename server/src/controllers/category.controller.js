@@ -1,50 +1,39 @@
-import Category from '../models/Category.js';
+import Song from '../models/Song.js';
+import {
+  createTaxonomyEntry,
+  deleteTaxonomyEntry,
+  getTaxonomyEntry,
+  listTaxonomyEntries,
+  updateTaxonomyEntry
+} from '../utils/taxonomyStore.js';
+
+const DB_NAME = 'categories';
+
+const enrichCategory = async (entry) => {
+  const songCount = await Song.countDocuments({ category: entry.name });
+  return {
+    ...entry,
+    song_count: songCount
+  };
+};
 
 export const createCategory = async (req, res) => {
   try {
-    const { name, description, cover_image, is_public } = req.body || {};
-    if (!name) return res.status(400).json({ message: 'name required' });
-    
-    const categoryData = {
-      name,
-      description,
-      cover_image,
-      is_public: !!is_public,
-    };
-    
-    if (req.user) {
-      categoryData.user = req.user.id;
-    }
-    
-    const cat = await Category.create(categoryData);
-    res.status(201).json(cat);
+    const category = await createTaxonomyEntry(DB_NAME, req.body || {}, { is_public: true });
+    res.status(201).json(await enrichCategory(category));
   } catch (error) {
     res.status(400).json({ message: 'Failed to create category', error: error.message });
   }
 };
 
 export const getMyCategories = async (req, res) => {
-  try {
-    const cats = await Category.find({ user: req.user.id })
-      .sort('-updatedAt')
-      .lean();
-    res.json(cats);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch categories', error: error.message });
-  }
+  res.json([]);
 };
 
 export const getCategories = async (req, res) => {
   try {
-    const { search = '' } = req.query;
-    const query = {}; 
-    if (!req.isAdmin) {
-       query.is_public = true;
-    }
-    
-    if (search) query.name = new RegExp(search, 'i');
-    const cats = await Category.find(query).sort('name').lean();
-    res.json(cats);
+    const categories = await listTaxonomyEntries(DB_NAME, { search: req.query.search || '' });
+    res.json(await Promise.all(categories.map(enrichCategory)));
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch categories', error: error.message });
   }
@@ -52,16 +41,21 @@ export const getCategories = async (req, res) => {
 
 export const getCategory = async (req, res) => {
   try {
-    const cat = await Category.findById(req.params.id)
-      .populate('songs')
-      .lean();
-    if (!cat) return res.status(404).json({ message: 'Category not found' });
-    
-    const isOwner = req.user && String(cat.user) === String(req.user.id);
-    if (!cat.is_public && !isOwner && !req.isAdmin) {
-      return res.status(403).json({ message: 'Forbidden' });
+    const category = await getTaxonomyEntry(DB_NAME, req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
     }
-    res.json(cat);
+
+    const songs = await Song.find({ category: category.name })
+      .populate('artists', 'name spotify_id images')
+      .populate('album', 'name images release_date')
+      .limit(100)
+      .lean();
+
+    res.json({
+      ...(await enrichCategory(category)),
+      songs
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch category', error: error.message });
   }
@@ -69,39 +63,33 @@ export const getCategory = async (req, res) => {
 
 export const updateCategory = async (req, res) => {
   try {
-    const updates = req.body || {};
-    const query = { _id: req.params.id };
-    
-    if (!req.isAdmin && req.user) {
-      query.user = req.user.id;
-    } else if (!req.isAdmin && !req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
+    const result = await updateTaxonomyEntry(DB_NAME, req.params.id, req.body || {}, { is_public: true });
+    if (result.previousName !== result.entry.name) {
+      await Song.updateMany(
+        { category: result.previousName },
+        { $set: { category: result.entry.name } }
+      );
     }
 
-    const cat = await Category.findOneAndUpdate(
-      query,
-      updates,
-      { new: true, runValidators: true }
-    ).populate('songs');
-    if (!cat) return res.status(404).json({ message: 'Category not found' });
-    res.json(cat);
+    res.json(await enrichCategory(result.entry));
   } catch (error) {
-    res.status(400).json({ message: 'Failed to update category', error: error.message });
+    const status = error.message === 'Entry not found' ? 404 : 400;
+    res.status(status).json({ message: 'Failed to update category', error: error.message });
   }
 };
 
 export const deleteCategory = async (req, res) => {
   try {
-    const query = { _id: req.params.id };
-    
-    if (!req.isAdmin && req.user) {
-      query.user = req.user.id;
-    } else if (!req.isAdmin && !req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
+    const category = await deleteTaxonomyEntry(DB_NAME, req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
     }
 
-    const cat = await Category.findOneAndDelete(query);
-    if (!cat) return res.status(404).json({ message: 'Category not found' });
+    await Song.updateMany(
+      { category: category.name },
+      { $set: { category: 'Uncategorized' } }
+    );
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete category', error: error.message });
@@ -112,21 +100,14 @@ export const addSongToCategory = async (req, res) => {
   try {
     const { songId } = req.body || {};
     if (!songId) return res.status(400).json({ message: 'songId required' });
-    
-    const query = { _id: req.params.id };
-    if (!req.isAdmin && req.user) {
-      query.user = req.user.id;
-    } else if (!req.isAdmin && !req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
+
+    const category = await getTaxonomyEntry(DB_NAME, req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
     }
 
-    const cat = await Category.findOneAndUpdate(
-      query,
-      { $addToSet: { songs: songId } },
-      { new: true }
-    ).populate('songs');
-    if (!cat) return res.status(404).json({ message: 'Category not found' });
-    res.json(cat);
+    await Song.findByIdAndUpdate(songId, { $set: { category: category.name } });
+    res.json(await enrichCategory(category));
   } catch (error) {
     res.status(400).json({ message: 'Failed to add song', error: error.message });
   }
@@ -136,21 +117,14 @@ export const removeSongFromCategory = async (req, res) => {
   try {
     const { songId } = req.body || {};
     if (!songId) return res.status(400).json({ message: 'songId required' });
-    
-    const query = { _id: req.params.id };
-    if (!req.isAdmin && req.user) {
-      query.user = req.user.id;
-    } else if (!req.isAdmin && !req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
+
+    const category = await getTaxonomyEntry(DB_NAME, req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
     }
 
-    const cat = await Category.findOneAndUpdate(
-      query,
-      { $pull: { songs: songId } },
-      { new: true }
-    ).populate('songs');
-    if (!cat) return res.status(404).json({ message: 'Category not found' });
-    res.json(cat);
+    await Song.findByIdAndUpdate(songId, { $set: { category: 'Uncategorized' } });
+    res.json(await enrichCategory(category));
   } catch (error) {
     res.status(400).json({ message: 'Failed to remove song', error: error.message });
   }

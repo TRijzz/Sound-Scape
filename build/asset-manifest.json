@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/static/css/main.2e6f0e7a.css",
-    "main.js": "/static/js/main.73432147.js",
+    "main.js": "/static/js/main.c19f6e53.js",
     "static/media/Divide_Vinyl.svg": "/static/media/Divide_Vinyl.601cb89b863f597514f64f0c16b739ea.svg",
     "static/media/GOD_DID_VINYL.svg": "/static/media/GOD_DID_VINYL.ed858f82183361456f5f18e548300d91.svg",
     "static/media/vinyl.svg": "/static/media/vinyl.5c53e36ee83206964132d04adab6c6b6.svg",
@@ -9,10 +9,10 @@
     "static/media/tonearm.svg": "/static/media/tonearm.74f2a133962910119bb6f617a3bfeb1a.svg",
     "static/media/album_art_placeholder.svg": "/static/media/album_art_placeholder.b6c3659bf24fcb669cb8a57a54ad1ab2.svg",
     "main.2e6f0e7a.css.map": "/static/css/main.2e6f0e7a.css.map",
-    "main.73432147.js.map": "/static/js/main.73432147.js.map"
+    "main.c19f6e53.js.map": "/static/js/main.c19f6e53.js.map"
   },
   "entrypoints": [
     "static/css/main.2e6f0e7a.css",
-    "static/js/main.73432147.js"
+    "static/js/main.c19f6e53.js"
   ]
 }

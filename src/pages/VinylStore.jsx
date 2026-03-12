@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import apiService from '../services/api';
 import VinylCard from '../components/vinyl/VinylCard';
 import VinylCarousel from '../components/vinyl/VinylCarousel';
 import { ToastContainer } from '../components/ui/Toast';
 
 export default function VinylStore() {
+  const location = useLocation();
   const [vinyls, setVinyls] = useState([]);
   const [featuredVinyls, setFeaturedVinyls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
+  const searchQuery = new URLSearchParams(location.search).get('q') || '';
 
   useEffect(() => {
     const fetchVinyls = async () => {
       try {
-        const response = await apiService.getVinyls(1, 100, '', true);
+        const response = await apiService.getVinyls(1, 100, searchQuery, true);
         const allVinyls = response.vinyls || [];
 
         const featured = allVinyls.filter(v => v.is_featured);
-        setFeaturedVinyls(featured.length > 0 ? featured : allVinyls.slice(0, 3));
+        setFeaturedVinyls(searchQuery ? [] : (featured.length > 0 ? featured : allVinyls.slice(0, 3)));
         setVinyls(allVinyls);
       } catch (error) {
         console.error('Error fetching vinyls:', error);
@@ -26,8 +29,10 @@ export default function VinylStore() {
         setLoading(false);
       }
     };
+
+    setLoading(true);
     fetchVinyls();
-  }, []);
+  }, [searchQuery]);
 
   const removeToast = (id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
@@ -84,7 +89,7 @@ export default function VinylStore() {
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="text-2xl font-bold flex items-center">
                     <span className="w-2 h-8 bg-purple-500 rounded-full mr-3"></span>
-                    Browse All Vinyls
+                    {searchQuery ? `Album Vinyl Results for "${searchQuery}"` : 'Browse All Vinyls'}
                   </h2>
                   <div className="text-sm text-gray-400">
                     Showing {vinyls.length} items
@@ -106,7 +111,9 @@ export default function VinylStore() {
                   </div>
                 ) : (
                   <div className="text-center py-20 bg-dark-gray/20 rounded-3xl border border-dashed border-gray-800">
-                    <p className="text-gray-500 text-lg">No vinyls available in the store right now.</p>
+                    <p className="text-gray-500 text-lg">
+                      {searchQuery ? 'No vinyl editions matched that album search.' : 'No vinyls available in the store right now.'}
+                    </p>
                   </div>
                 )}
               </section>
@@ -117,4 +124,3 @@ export default function VinylStore() {
     </div>
   );
 }
-

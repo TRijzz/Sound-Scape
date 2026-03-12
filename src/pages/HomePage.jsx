@@ -54,44 +54,38 @@ const HomePage = () => {
       try {
         setSectionsLoading(true);
         
-        // 1. Get available genres from API
-        const genresRes = await apiService.getGenres(50);
-        let availableGenres = Array.isArray(genresRes) ? genresRes : (genresRes?.genres || []);
-        
-        // Fallback if API returns empty or few genres
-        if (availableGenres.length < 5) {
-            availableGenres = [...new Set([...availableGenres, 'Pop', 'Rock', 'Hip Hop', 'R&B', 'Electronic', 'Jazz', 'Classical', 'Indie', 'Alternative'])];
-        }
+        const categoriesRes = await apiService.getCategories();
+        const categories = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.categories || []);
+        const selectedCategories = categories.slice(0, 4);
 
-        // 2. Shuffle and pick 3-4 genres
-        const shuffled = availableGenres.sort(() => 0.5 - Math.random());
-        const selectedGenres = shuffled.slice(0, 4);
+        const sectionsData = await Promise.all(selectedCategories.map(async (category) => {
+          const name = String(category?.name || '').trim();
+          if (!name) return { title: '', songs: [] };
 
-        // 3. Fetch songs for each selected genre
-        const sectionsData = await Promise.all(selectedGenres.map(async (genre) => {
-            const name = typeof genre === 'string' ? genre : genre.name;
-            try {
-                // Try fetching by genre
-                let res = await apiService.getSongsByGenre(name, 6);
-                let songs = res?.songs || res || [];
-                
-                // If empty, try searching (fallback for broad terms like "Chill")
-                if (!Array.isArray(songs) || songs.length === 0) {
-                     res = await apiService.searchSongs(name, 6);
-                     songs = res?.songs || res || [];
-                }
-                
-                return {
-                    title: name,
-                    songs: Array.isArray(songs) ? songs : []
-                };
-            } catch (e) {
-                return { title: name, songs: [] };
+          try {
+            let res = await apiService.getSongsByCategory(name, 6);
+            let songs = res?.songs || res || [];
+
+            if (!Array.isArray(songs) || songs.length === 0) {
+              res = await apiService.getSongsByGenre(name, 6);
+              songs = res?.songs || res || [];
             }
+
+            if (!Array.isArray(songs) || songs.length === 0) {
+              res = await apiService.searchSongs(name, 6);
+              songs = res?.songs || res || [];
+            }
+
+            return {
+              title: name,
+              songs: Array.isArray(songs) ? songs : []
+            };
+          } catch (e) {
+            return { title: name, songs: [] };
+          }
         }));
 
-        // 4. Filter out empty sections and take top 3
-        const validSections = sectionsData.filter(s => s.songs.length > 0).slice(0, 3);
+        const validSections = sectionsData.filter((section) => section.title && section.songs.length > 0).slice(0, 3);
         
         // If we still don't have enough, fill with generic popular/latest
         if (validSections.length < 3) {

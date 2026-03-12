@@ -234,7 +234,7 @@ export default function AdminCategories() {
                     </div>
                     {cat.description && <p className="text-gray-400 text-sm mb-3 line-clamp-2">{cat.description}</p>}
                     <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>{cat.songs?.length || 0} songs</span>
+                      <span>{cat.song_count ?? cat.songs?.length ?? 0} songs</span>
                       <span className={`px-2 py-0.5 rounded-full ${cat.is_public ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
                         {cat.is_public ? 'Public' : 'Private'}
                       </span>

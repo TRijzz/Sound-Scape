@@ -1,5 +1,4 @@
 import Song from '../models/Song.js';
-import Genre from '../models/Genre.js'; // Added Genre model
 import ListeningHistory from '../models/ListeningHistory.js'; // Added ListeningHistory model
 import { broadcastNotification } from './notification.controller.js'; // Added notification broadcaster
 import Artist from '../models/Artist.js';
@@ -10,6 +9,32 @@ import mongoose from 'mongoose';
 import fs from 'fs';
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const resolveGenreLabel = (song) => {
+  const directGenre = typeof song?.genre === 'string' ? song.genre.trim() : '';
+  if (directGenre && !/^[a-f\d]{24}$/i.test(directGenre)) {
+    return directGenre;
+  }
+
+  if (Array.isArray(song?.genres) && song.genres.length > 0) {
+    const named = song.genres.find((genre) => typeof genre === 'string' && genre.trim() && !/^[a-f\d]{24}$/i.test(genre));
+    if (named) return named.trim();
+  }
+
+  if (Array.isArray(song?.album?.genres) && song.album.genres.length > 0) {
+    return String(song.album.genres[0] || '').trim() || 'Uncategorized';
+  }
+
+  if (Array.isArray(song?.artists)) {
+    for (const artist of song.artists) {
+      if (Array.isArray(artist?.genres) && artist.genres.length > 0) {
+        return String(artist.genres[0] || '').trim() || 'Uncategorized';
+      }
+    }
+  }
+
+  return 'Uncategorized';
+};
 
 const buildSongSearchPatterns = (search = '') => {
   const query = String(search || '').trim();
@@ -318,19 +343,11 @@ export const getSong = async (req, res) => {
       .populate('artists', 'name spotify_id images genres')
       .populate('album', 'name images release_date artists genres')
       .lean();
-    
+
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
     }
 
-    // Manual genre lookup if it's an ID
-    if (song.genre && mongoose.Types.ObjectId.isValid(song.genre)) {
-      try {
-        const g = await Genre.findById(song.genre).select('name slug').lean();
-        if (g) song.genre = g;
-      } catch {}
-    }
-    
     res.json(song);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch song', error: error.message });
@@ -345,82 +362,18 @@ export const playSong = async (req, res) => {
     const id = req.params.id;
     const userId = req.user ? req.user.id : null;
 
-    // Populate artists for names, and album for fallback genres
     const song = await Song.findById(id)
       .populate('artists')
       .populate('album');
 
     if (!song) {
-      console.log(`ÃƒÂ¢Ã‚ÂÃ…â€™ Playback failed: Song ID ${id} not found.`);
       return res.status(404).json({ message: 'Song not found' });
     }
 
-    // Manual genre lookup if it's an ID
-    if (song.genre && mongoose.Types.ObjectId.isValid(song.genre)) {
-      try {
-        const g = await Genre.findById(song.genre).select('name').lean();
-        if (g) song.genre = g;
-      } catch {}
-    }
-
-    // Identify the genre name - Prefer song.genre, fallback to album.genres
-    let genreName = 'No Genre Assigned';
-    let genreIdToRecord = null;
-    
-    if (song.genre) {
-      if (typeof song.genre === 'object' && song.genre.name) {
-        genreName = song.genre.name;
-        genreIdToRecord = song.genre._id;
-      } else if (typeof song.genre === 'string') {
-        // Check if the string is actually an ID
-        if (mongoose.Types.ObjectId.isValid(song.genre)) {
-          genreIdToRecord = song.genre;
-          // Try a quick lookup for the name
-          try {
-            const g = await Genre.findById(song.genre).select('name').lean();
-            if (g) genreName = g.name;
-            else genreName = 'Unknown Genre';
-          } catch {
-            genreName = 'Unknown Genre';
-          }
-        } else {
-          // It's a plain name string
-          genreName = song.genre;
-        }
-      }
-    }
-    
-    // Fallback to album genre if song genre is missing, generic, or an ID we couldn't resolve to a name
-    if ((genreName === 'No Genre Assigned' || genreName === 'Unknown Genre' || mongoose.Types.ObjectId.isValid(genreName)) && song.album) {
-      if (Array.isArray(song.album.genres) && song.album.genres.length > 0) {
-        genreName = song.album.genres[0];
-        // Find or create the genre record for analytics
-        let g = await Genre.findOne({ name: { $regex: new RegExp(`^${genreName}$`, 'i') } });
-        if (!g) {
-          try {
-            g = await Genre.create({ name: genreName, description: `${genreName} music` });
-          } catch (e) {
-            console.error('[SongController] Fallback genre creation failed:', e.message);
-          }
-        }
-        if (g) genreIdToRecord = g._id;
-      }
-    }
-
-    // Last resort: if we still have 'Other' as an object, use it
-    if ((genreName === 'No Genre Assigned' || !genreName) && song.genre) {
-       genreName = (typeof song.genre === 'object' && song.genre.name) ? song.genre.name : 'Other';
-       genreIdToRecord = typeof song.genre === 'object' ? song.genre._id : song.genre;
-    }
-
+    const genreName = resolveGenreLabel(song);
     const filePath = song.file_path || (song.audio_url ? song.audio_url : 'No storage path set');
-    const artistNames = Array.isArray(song.artists) ? song.artists.map(a => a.name).join(', ') : 'Unknown Artist';
+    const artistNames = Array.isArray(song.artists) ? song.artists.map((artist) => artist.name).join(', ') : 'Unknown Artist';
 
-    console.log(`ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Âµ Playing: "${song.name}" by ${artistNames}`);
-    console.log(`ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â Storage Location: ${filePath}`);
-    console.log(`ÃƒÂ°Ã…Â¸Ã‚ÂÃ‚Â·ÃƒÂ¯Ã‚Â¸Ã‚Â Genre Identified: ${genreName}`);
-
-    // Identify storage location and metadata as requested
     const playbackInfo = {
       song_id: song._id,
       title: song.name,
@@ -432,42 +385,33 @@ export const playSong = async (req, res) => {
       cover_art_url: song.cover_art_url
     };
 
-    // Increment play count and update last played time for Compass visibility
     song.play_count = (song.play_count || 0) + 1;
     song.last_played_at = new Date();
-    
-    try {
-      await song.save();
-    } catch (saveErr) {
-      console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to update song play count:', saveErr.message);
-    }
+    await song.save();
 
-    // Log to ListeningHistory if user is logged in
-    if (userId && genreIdToRecord) {
+    if (userId) {
       try {
         await ListeningHistory.create({
           user: userId,
           song: song._id,
-          genre: genreIdToRecord,
+          genre: genreName,
           duration_listened_ms: song.duration_ms || 0
         });
-        console.log(`ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â  Recorded listening history for genre: ${genreName}`);
       } catch (histErr) {
-        console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to record listening history:', histErr.message);
+        console.error('Failed to record listening history:', histErr.message);
       }
     }
 
-    // Broadcast real-time notification to admin
     try {
       broadcastNotification({
         type: 'SONG_PLAYED',
-        message: `ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Âµ Playing: "${song.name}" by ${artistNames}`,
-        storage_location: filePath, // Just the path string
-        genre_info: genreName,      // Just the name string (e.g., "HipHop")
-        analytics_info: genreName   // Just the name string
+        message: `Playing: "${song.name}" by ${artistNames}`,
+        storage_location: filePath,
+        genre_info: genreName,
+        analytics_info: genreName
       });
     } catch (notifyErr) {
-      console.error('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Failed to broadcast admin notification:', notifyErr.message);
+      console.error('Failed to broadcast admin notification:', notifyErr.message);
     }
 
     res.json(playbackInfo);
@@ -490,17 +434,8 @@ export const getGenreStats = async (req, res) => {
         }
       },
       {
-        $lookup: {
-          from: 'genres',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'genre_info'
-        }
-      },
-      { $unwind: '$genre_info' },
-      {
         $project: {
-          genre_name: '$genre_info.name',
+          genre_name: '$_id',
           play_count: 1,
           user_count: { $size: '$unique_users' }
         }
@@ -794,14 +729,6 @@ export const updateSong = async (req, res) => {
     
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
-    }
-
-    // If genre is an ID, manually populate it for the response if needed
-    if (song.genre && mongoose.Types.ObjectId.isValid(song.genre)) {
-      try {
-        const g = await Genre.findById(song.genre).select('name slug').lean();
-        if (g) song.genre = g;
-      } catch {}
     }
 
     // Handle Lyrics File Upload (Update)
