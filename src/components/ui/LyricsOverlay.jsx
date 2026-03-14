@@ -18,6 +18,20 @@ import {
   SyncIcon
 } from '../ui/Icons';
 
+const LYRIC_HIGHLIGHT_LEAD_SECONDS = 0.35;
+
+const normalizeTrackTitle = (value = '') => value
+  .toLowerCase()
+  .replace(/\((feat|featuring)[^)]+\)/gi, ' ')
+  .replace(/\[(feat|featuring)[^\]]+\]/gi, ' ')
+  .replace(/\b(feat|featuring)\.?\s+.+$/gi, ' ')
+  .replace(/\s*-\s*feat\.?\s+.+$/gi, ' ')
+  .trim();
+
+const slugifyTrackTitle = (value = '') => normalizeTrackTitle(value)
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
 const parseLRC = (lrcString) => {
   if (!lrcString) return [];
   const lines = lrcString.split('\n');
@@ -39,64 +53,92 @@ const parseLRC = (lrcString) => {
   }).filter(l => l.text);
 };
 
+const estimateLineTimes = (lines, trackDuration) => {
+  if (!Array.isArray(lines) || lines.length === 0) return [];
+
+  const safeDuration = trackDuration > 0 ? trackDuration : 180;
+  const timePerLine = safeDuration / lines.length;
+
+  return lines.map((line, idx) => ({
+    ...line,
+    time: idx * timePerLine
+  }));
+};
+
+const hasUsableSyncData = (lines, trackDuration) => {
+  if (!Array.isArray(lines) || lines.length === 0) return false;
+
+  const numericTimes = lines
+    .map((line) => line.time)
+    .filter((time) => typeof time === 'number' && Number.isFinite(time));
+
+  if (numericTimes.length === 0) return false;
+
+  const maxTime = Math.max(...numericTimes);
+  const minTime = Math.min(...numericTimes);
+  const safeDuration = trackDuration > 0 ? trackDuration : 180;
+
+  return maxTime > 1 && minTime >= 0 && maxTime <= safeDuration + 5;
+};
+
+const loadLocalTimedLyrics = async (trackName) => {
+  const slug = slugifyTrackTitle(trackName);
+  if (!slug) return [];
+
+  try {
+    const response = await fetch(`/lyrics/${slug}.lrc`);
+    if (!response.ok) return [];
+
+    const lrc = await response.text();
+    return parseLRC(lrc);
+  } catch (error) {
+    console.warn('Local timed lyrics lookup failed:', error);
+    return [];
+  }
+};
+
 const LyricsOverlay = ({ isOpen, onClose }) => {
-  const { currentTrack, progress, setProgress, duration, isAuthenticated, showAuthPrompt, setShowAuthPrompt } = useMusic();
+  const { currentTrack, progress, setProgress, duration } = useMusic();
   const [lyrics, setLyrics] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [syncMode, setSyncMode] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [userIsScrolling, setUserIsScrolling] = useState(false);
+  const [isFollowingLyrics, setIsFollowingLyrics] = useState(true);
   const scrollContainerRef = useRef(null);
-  const activeLineRef = useRef(null);
-  const scrollTimeoutRef = useRef(null);
+  const lineRefs = useRef({});
   const isProgrammaticScrollRef = useRef(false);
   const programmaticScrollTimeoutRef = useRef(null);
 
   const handleScroll = () => {
-    // If we're performing an auto-scroll, don't let it trigger "manual" mode
     if (isProgrammaticScrollRef.current) return;
-
-    // Detect manual scrolling
-    if (syncMode) {
-      setUserIsScrolling(true);
-      
-      // If user stops scrolling for a while, we'll keep it detached
-      // to match Spotify's behavior until they click the "Sync" button
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    }
+    setIsFollowingLyrics(false);
   };
 
-  const scrollToActiveLine = (behavior = 'smooth') => {
+  const scrollToLine = (index, behavior = 'smooth') => {
     const container = scrollContainerRef.current;
-    const activeLine = activeLineRef.current;
+    const activeLine = lineRefs.current[index];
     
     if (container && activeLine) {
-      // Mark this as a programmatic scroll
       isProgrammaticScrollRef.current = true;
       
-      // Clear any existing timeout for resetting the flag
       if (programmaticScrollTimeoutRef.current) {
         clearTimeout(programmaticScrollTimeoutRef.current);
       }
 
-      const containerHeight = container.clientHeight;
-      const lineTop = activeLine.offsetTop;
-      const lineHeight = activeLine.clientHeight;
-      
-      const targetScrollTop = lineTop - (containerHeight / 2) + (lineHeight / 2);
+      const containerRect = container.getBoundingClientRect();
+      const lineRect = activeLine.getBoundingClientRect();
+      const targetScrollTop =
+        container.scrollTop +
+        (lineRect.top - containerRect.top) -
+        (container.clientHeight / 2) +
+        (lineRect.height / 2);
 
       container.scrollTo({
-        top: targetScrollTop,
-        behavior: behavior
+        top: Math.max(0, targetScrollTop),
+        behavior
       });
 
-      // Reset the programmatic scroll flag after the animation completes
-      const delay = behavior === 'smooth' ? 600 : 50;
+      const delay = behavior === 'smooth' ? 700 : 120;
       programmaticScrollTimeoutRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, delay);
@@ -106,64 +148,19 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
   const handleLineClick = (time) => {
     if (time !== null && time !== undefined) {
       setProgress(time);
-      setUserIsScrolling(false);
-      // Immediately scroll to the line we just clicked
-      setTimeout(() => scrollToActiveLine('smooth'), 50);
+      setIsFollowingLyrics(true);
     }
   };
 
-  const handleSyncToActiveLine = () => {
-    setUserIsScrolling(false);
-    setSyncMode(true);
-    // Use a small delay to ensure the active index is updated if needed
-    setTimeout(() => scrollToActiveLine('smooth'), 50);
-  };
-
-  const handleSyncLyrics = async () => {
-    if (!currentTrack || lyrics.length === 0) return;
-
-    if (!isAuthenticated) {
-      setShowAuthPrompt(true);
-      setSyncMessage('Error: Please log in to sync lyrics.');
-      setTimeout(() => setSyncMessage(''), 5000);
-      return;
-    }
-    
-    setIsSyncing(true);
-    setSyncMessage('Automatically aligning lyrics...');
-    
-    try {
-      const songId = currentTrack._id || currentTrack.id;
-      const trackDuration = duration || (currentTrack.duration_ms ? currentTrack.duration_ms / 1000 : 180);
-      const timePerLine = trackDuration / lyrics.length;
-      
-      const estimatedLines = lyrics.map((line, idx) => ({
-        time: Math.round(idx * timePerLine * 1000), // convert to ms for backend
-        text: line.text
-      }));
-
-      await apiService.updateLyrics(songId, estimatedLines, true);
-      
-      // Update local state to reflect new timings
-      const newLyrics = estimatedLines.map(l => ({ time: l.time / 1000, text: l.text }));
-      setLyrics(newLyrics);
-      setSyncMode(true);
-      setUserIsScrolling(false);
-      setSyncMessage('Lyrics synchronized automatically!');
-      setTimeout(() => setSyncMessage(''), 3000);
-    } catch (err) {
-      console.error('Failed to auto-sync lyrics:', err);
-      setSyncMessage(`Error: ${err.message}`);
-      setTimeout(() => setSyncMessage(''), 5000);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const toggleSyncMode = () => {
-    const nextMode = !syncMode;
-    setSyncMode(nextMode);
-    if (nextMode) setUserIsScrolling(false);
+  const handleSyncFollow = () => {
+    setIsFollowingLyrics(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (activeIndex !== -1) {
+          scrollToLine(activeIndex, 'smooth');
+        }
+      });
+    });
   };
 
   // Fetch lyrics
@@ -171,14 +168,18 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
     if (isOpen && currentTrack) {
       setLoading(true);
       setError(null);
+      setActiveIndex(-1);
+      setLyrics([]);
+      setIsFollowingLyrics(true);
       const id = currentTrack._id || currentTrack.id;
       
       console.log('Fetching lyrics for ID:', id, 'Name:', currentTrack.name);
 
       apiService.getLyrics(id)   // API is called
-        .then(data => {
+        .then(async data => {
           console.log('Lyrics fetched:', data);
           let parsed = [];
+          const trackDuration = duration || (currentTrack.duration_ms ? currentTrack.duration_ms / 1000 : 180);
           
           if (data.lines && Array.isArray(data.lines)) {
             // Backend provides pre-parsed lines
@@ -193,19 +194,18 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
           }
 
           console.log('Parsed lyrics:', parsed);
+
+          const localTimedLyrics = await loadLocalTimedLyrics(currentTrack.name);
+          if (localTimedLyrics.length > 0) {
+            parsed = localTimedLyrics;
+          }
           
-          // Auto-sync estimation if no timestamps provided
-          if (parsed.length > 0 && parsed.every(l => l.time === null || l.time === 0)) {
-            const trackDuration = duration || (currentTrack.duration_ms ? currentTrack.duration_ms / 1000 : 180);
-            const timePerLine = trackDuration / parsed.length;
-            parsed = parsed.map((line, idx) => ({
-              ...line,
-              time: idx * timePerLine
-            }));
+          // Re-estimate timings for unsynced/plain lyrics or clearly invalid near-zero timings.
+          if (parsed.length > 0 && (!data.synced || !hasUsableSyncData(parsed, trackDuration))) {
+            parsed = estimateLineTimes(parsed, trackDuration);
           }
 
           setLyrics(parsed);
-          setSyncMode(true);
         })
         .catch(err => {
           console.error('Lyrics fetch error:', err);
@@ -222,9 +222,9 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
 
   // Sync logic
   useEffect(() => {
-    if (!syncMode || lyrics.length === 0 || !isOpen) return;
+    if (lyrics.length === 0 || !isOpen) return;
 
-    const currentTime = progress > 10000 ? progress / 1000 : progress;
+    const currentTime = Math.max(0, progress + LYRIC_HIGHLIGHT_LEAD_SECONDS);
 
     // Find the current active line
     let foundIndex = -1;
@@ -242,18 +242,25 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
     if (foundIndex !== activeIndex) {
       setActiveIndex(foundIndex);
     }
-  }, [progress, syncMode, lyrics, isOpen]); // Removed activeIndex from deps to avoid extra loops
+  }, [activeIndex, isOpen, lyrics, progress]);
 
   // Auto-scroll effect
   useEffect(() => {
-    if (syncMode && activeIndex !== -1 && isOpen && !userIsScrolling) {
-      // Small delay to ensure refs are correctly positioned after layout updates
+    if (activeIndex !== -1 && isOpen && isFollowingLyrics) {
       const timeoutId = setTimeout(() => {
-        scrollToActiveLine('smooth');
+        scrollToLine(activeIndex, 'smooth');
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [activeIndex, syncMode, isOpen, userIsScrolling]);
+  }, [activeIndex, isFollowingLyrics, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (programmaticScrollTimeoutRef.current) {
+        clearTimeout(programmaticScrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!isOpen && !lyrics.length) {
     // console.log('LyricsOverlay: Not open and no lyrics');
@@ -271,53 +278,17 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
           exit={{ opacity: 0, y: 50 }}
           className="fixed inset-0 z-[10000] bg-gray-900/95 backdrop-blur-xl flex flex-col"
         >
-          {/* Lyrics Header Actions */}
-          <div className="absolute top-6 right-6 z-50 flex items-center space-x-4">
-            {syncMessage && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${syncMessage.includes('Error') ? 'bg-red-500/20 text-red-400' : 'bg-neon-blue/20 text-neon-blue'}`}
-              >
-                {syncMessage}
-              </motion.div>
-            )}
-            
-            {/* Spotify-style Sync Button */}
-            {userIsScrolling && (
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={handleSyncToActiveLine}
+          {!isFollowingLyrics && activeIndex !== -1 && (
+            <div className="absolute top-6 right-6 z-50">
+              <button
+                onClick={handleSyncFollow}
                 className="bg-neon-blue text-dark-bg px-4 py-2 rounded-full font-bold flex items-center space-x-2 shadow-lg shadow-neon-blue/20 hover:scale-105 transition-transform"
               >
                 <SyncIcon className="w-5 h-5" />
-                <span>Sync to active line</span>
-              </motion.button>
-            )}
-            
-            <button
-              onClick={handleSyncLyrics}
-              disabled={isSyncing || lyrics.length === 0}
-              className={`p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all flex items-center space-x-2 group ${isSyncing ? 'animate-pulse' : ''}`}
-              title="Automatically align lyrics to song duration"
-            >
-              <SyncIcon className={`w-6 h-6 ${isSyncing ? 'animate-spin text-neon-blue' : 'text-white'}`} />
-              <span className="text-white text-sm font-medium whitespace-nowrap px-2">
-                {isSyncing ? "Syncing..." : "Auto-Align"}
-              </span>
-            </button>
-
-            <button
-              onClick={toggleSyncMode}
-              className={`p-3 rounded-full transition-all flex items-center space-x-2 ${syncMode ? 'text-neon-blue' : 'text-gray-500'}`}
-              title={syncMode ? "Turn off auto-scroll" : "Turn on auto-scroll"}
-            >
-              <span className="text-xs font-bold uppercase tracking-widest">
-                Auto-Scroll: {syncMode ? 'ON' : 'OFF'}
-              </span>
-            </button>
-          </div>
+                <span>Sync</span>
+              </button>
+            </div>
+          )}
 
           <div 
             className="flex-1 overflow-y-auto p-8 pt-24 space-y-8 text-left scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent relative mb-24"
@@ -345,20 +316,27 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
             {!loading && !error && lyrics.map((line, i) => {
               const isActive = i === activeIndex;
               const isPast = i < activeIndex;
-              const isFuture = i > activeIndex;
 
               return (
                 <motion.p
                   key={i}
-                  ref={isActive ? activeLineRef : null}
+                  ref={(node) => {
+                    if (node) {
+                      lineRefs.current[i] = node;
+                    } else {
+                      delete lineRefs.current[i];
+                    }
+                  }}
                   onClick={() => handleLineClick(line.time)}
                   initial={false}
                   animate={{
-                    scale: isActive ? 1.05 : 1,
-                    opacity: isActive ? 1 : (isPast ? 0.3 : 0.45),
-                    color: isActive ? '#00FFFF' : '#FFFFFF',
-                    filter: isActive ? 'blur(0px)' : (isPast ? 'blur(0.5px)' : 'blur(0.5px)'),
-                    textShadow: isActive ? '0 0 20px rgba(0, 255, 255, 0.5)' : 'none'
+                    scale: isActive ? 1.03 : 1,
+                    opacity: isActive ? 1 : (isPast ? 0.28 : 0.45),
+                    color: isActive ? '#22d3ee' : '#FFFFFF',
+                    backgroundColor: 'rgba(255, 255, 255, 0)',
+                    filter: isActive ? 'blur(0px)' : 'blur(0.4px)',
+                    textShadow: isActive ? '0 0 18px rgba(34, 211, 238, 0.45)' : 'none',
+                    x: isActive ? 10 : 0
                   }}
                   transition={{ duration: 0.4, ease: 'easeOut' }}
                   className={`text-2xl md:text-4xl font-bold cursor-pointer transition-all duration-300 py-4 px-2 hover:opacity-90 line-item select-none`}

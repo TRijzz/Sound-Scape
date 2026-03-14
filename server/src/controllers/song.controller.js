@@ -60,6 +60,11 @@ const buildSongSearchPatterns = (search = '') => {
   }));
 };
 
+const normalizeOptionalText = (value) => {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+};
+
 export const createSong = async (req, res) => {
   try {
     // Validate required fields
@@ -924,5 +929,4 @@ export const populateSongCategories = async (req, res) => {
     res.status(500).json({ message: 'Failed to populate song categories', error: error.message });
   }
 };
-
 

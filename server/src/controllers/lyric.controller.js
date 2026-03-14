@@ -3,6 +3,62 @@ import Song from '../models/Song.js';
 import { parseLRC } from '../utils/lrcParser.js';
 import fs from 'fs';
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicLyricsDir = path.join(__dirname, '../../../public/lyrics');
+
+const normalizeSongTitle = (value = '') => value
+  .toLowerCase()
+  .replace(/\((feat|featuring)[^)]+\)/gi, ' ')
+  .replace(/\[(feat|featuring)[^\]]+\]/gi, ' ')
+  .replace(/\b(feat|featuring)\.?\s+.+$/gi, ' ')
+  .replace(/\s*-\s*feat\.?\s+.+$/gi, ' ')
+  .trim();
+
+const slugifySongName = (value = '') => normalizeSongTitle(value)
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const hasUsableSyncedLines = (lines = []) => {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return false;
+  }
+
+  const numericTimes = lines
+    .map((line) => line?.time)
+    .filter((time) => typeof time === 'number' && Number.isFinite(time));
+
+  if (numericTimes.length === 0) {
+    return false;
+  }
+
+  return Math.max(...numericTimes) > 1000;
+};
+
+const findLocalLyricsFile = (song) => {
+  if (!song?.name || !fs.existsSync(publicLyricsDir)) {
+    return null;
+  }
+
+  const targetSlug = slugifySongName(song.name);
+  const candidates = fs.readdirSync(publicLyricsDir)
+    .filter((fileName) => fileName.toLowerCase().endsWith('.lrc'))
+    .sort((a, b) => a.localeCompare(b));
+
+  const exactMatch = candidates.find((fileName) => slugifySongName(path.basename(fileName, '.lrc')) === targetSlug);
+  if (exactMatch) {
+    return path.join(publicLyricsDir, exactMatch);
+  }
+
+  const prefixMatch = candidates.find((fileName) => {
+    const candidateSlug = slugifySongName(path.basename(fileName, '.lrc'));
+    return candidateSlug.startsWith(targetSlug) || targetSlug.startsWith(candidateSlug);
+  });
+  return prefixMatch ? path.join(publicLyricsDir, prefixMatch) : null;
+};
 
 export const listLyrics = async (req, res) => {
   try {
@@ -29,6 +85,10 @@ export const getLyrics = async (req, res) => {
     }
 
     const objectId = new mongoose.Types.ObjectId(songId);
+    const song = await Song.findById(objectId).lean();
+    if (!song) {
+      return res.status(404).json({ message: 'Song not found' });
+    }
     
     // Try finding by string and objectId to be sure
     let lyrics = await Lyric.findOne({ song: songId });  //Recives Song ID as parameter and tries to find lyrics for that song in the database.
@@ -38,13 +98,30 @@ export const getLyrics = async (req, res) => {
         lyrics = await Lyric.findOne({ song: objectId });
     }
 
+    const localLyricsFile = findLocalLyricsFile(song);
+    const shouldUseLocalFile = !!localLyricsFile && (!lyrics || !lyrics.synced || !hasUsableSyncedLines(lyrics.lines));
+
+    if (shouldUseLocalFile) {
+      const lines = await parseLRC(localLyricsFile);
+      const rawContent = fs.readFileSync(localLyricsFile, 'utf-8');
+
+      const localLyricPayload = {
+        song: song._id,
+        lines,
+        lyrics: rawContent,
+        synced: true,
+        source: 'file'
+      };
+
+      lyrics = await Lyric.findOneAndUpdate(
+        { song: song._id },
+        localLyricPayload,
+        { new: true, upsert: true }
+      );
+    }
+
     if (!lyrics) {
       console.log(`[LyricController] No lyrics found for song: ${songId}`);
-      
-      // Debug: print all lyrics song IDs
-      const allLyrics = await Lyric.find({}, 'song').lean();
-      console.log(`[LyricController] Available lyric song IDs: ${allLyrics.map(l => l.song).join(', ')}`);
-      
       return res.status(404).json({ message: 'Lyrics not found' });
     }
     
@@ -70,13 +147,31 @@ export const createOrUpdateLyrics = async (req, res) => {
       return res.status(404).json({ message: 'Song not found' });
     }
 
+    const estimateLineTimings = (rawLyrics, durationMs = 0) => {
+      const textLines = rawLyrics
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (textLines.length === 0) {
+        return [];
+      }
+
+      const fallbackDurationMs = 5000;
+      const estimatedStepMs = durationMs > 0
+        ? Math.max(1000, Math.floor(durationMs / textLines.length))
+        : fallbackDurationMs;
+
+      return textLines.map((text, idx) => ({
+        time: idx * estimatedStepMs,
+        text
+      }));
+    };
+
     // Basic line splitting if not synced object
     let lines = [];
     if (typeof lyrics === 'string') {
-      lines = lyrics.split('\n').map((line, idx) => ({
-        time: idx * 5, // dummy timing if not provided
-        text: line.trim()
-      })).filter(l => l.text);
+      lines = estimateLineTimings(lyrics, song.duration_ms || song.duration || 0);
     } else {
       lines = lyrics; // assume valid format if array
     }
