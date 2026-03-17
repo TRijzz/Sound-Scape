@@ -341,13 +341,20 @@ class ApiService {
   }
 
   async createVinyl(data) {
-    return this.fetchData('/vinyls', { method: 'POST', body: JSON.stringify(data) });
+    const isFormData = data instanceof FormData;
+    return this.fetchData('/vinyls', {
+      method: 'POST',
+      body: isFormData ? data : JSON.stringify(data)
+    });
   }
 
   async updateVinyl(id, updates) {
-    return this.fetchData(`/vinyls/${id}`, { method: 'PUT', body: JSON.stringify(updates) });
+    const isFormData = updates instanceof FormData;
+    return this.fetchData(`/vinyls/${id}`, {
+      method: 'PUT',
+      body: isFormData ? updates : JSON.stringify(updates)
+    });
   }
-
   async deleteVinyl(id) {
     return this.fetchData(`/vinyls/${id}`, { method: 'DELETE' });
   }

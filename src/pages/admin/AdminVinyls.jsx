@@ -105,16 +105,6 @@ export default function AdminVinyls() {
     }
   };
 
-  const fileToBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result || '';
-      const base64 = String(result).split(',')[1] || '';
-      resolve({ base64, mime: file.type || 'image/png' });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 
   const resetForm = () => {
     setName('');
@@ -135,25 +125,18 @@ export default function AdminVinyls() {
     if (!name.trim() || (!editingId && !imageFile)) return;
     setSubmitting(true);
     try {
-      let imageData = {};
-      if (imageFile) {
-        const { base64, mime } = await fileToBase64(imageFile);
-        imageData = { image_base64: base64, mime_type: mime };
-      }
-
-      const payload = {
-        name: name.trim(),
-        artist: artist.trim(),
-        description: description.trim(),
-        price: parseFloat(price) || 0,
-        release_year: parseInt(releaseYear, 10) || undefined,
-        display_in_store: displayInStore,
-        is_available: isAvailable,
-        is_featured: isFeatured,
-        albumId: albumId.trim() || null,
-        songId: songId.trim() || null,
-        ...imageData,
-      };
+      const payload = new FormData();
+      payload.append('name', name.trim());
+      payload.append('artist', artist.trim());
+      payload.append('description', description.trim());
+      payload.append('price', String(parseFloat(price) || 0));
+      if (releaseYear) payload.append('release_year', String(parseInt(releaseYear, 10) || ''));
+      payload.append('display_in_store', String(displayInStore));
+      payload.append('is_available', String(isAvailable));
+      payload.append('is_featured', String(isFeatured));
+      payload.append('albumId', albumId.trim() || '');
+      payload.append('songId', songId.trim() || '');
+      if (imageFile) payload.append('vinylImage', imageFile);
 
       if (editingId) {
         await apiService.updateVinyl(editingId, payload);

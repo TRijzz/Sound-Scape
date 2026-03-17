@@ -8,6 +8,7 @@ import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import { classifySongTaxonomy, getSongTaxonomyLookups } from '../utils/songTaxonomy.js';
+import { mirrorSongToTaxonomyDbs, removeSongFromTaxonomyDbs } from '../utils/songTaxonomyMirror.js';
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -215,6 +216,8 @@ export const createSong = async (req, res) => {
             { upsert: true }
         );
     }
+
+    await mirrorSongToTaxonomyDbs(song._id);
 
     // Populate relationships for response
     await song.populate('artists', 'name spotify_id images');
@@ -617,6 +620,7 @@ export const searchSongs = async (req, res) => {
 export const updateSong = async (req, res) => {
   try {
     const updateData = { ...req.body };
+    const unsetData = {};
     
     // Remove internal fields if they leaked from body
     delete updateData._id;
@@ -696,7 +700,12 @@ export const updateSong = async (req, res) => {
     ['genre', 'category', 'mood', 'language'].forEach((field) => {
       if (updateData[field] !== undefined) {
         const normalized = normalizeOptionalText(updateData[field]);
-        updateData[field] = normalized === '' ? null : normalized;
+        if (normalized === '') {
+          delete updateData[field];
+          unsetData[field] = 1;
+        } else {
+          updateData[field] = normalized;
+        }
       }
     });
 
@@ -714,7 +723,7 @@ export const updateSong = async (req, res) => {
       }
     } else if (updateData.genre !== undefined) {
       if (updateData.genre === '' || updateData.genre === null) {
-        updateData.genre = null;
+        delete updateData.genre;
         updateData.genres = [];
       } else {
         updateData.genres = [updateData.genre];
@@ -732,9 +741,17 @@ export const updateSong = async (req, res) => {
        } catch {}
     }
 
+    const updateOperations = {};
+    if (Object.keys(updateData).length > 0) {
+      updateOperations.$set = updateData;
+    }
+    if (Object.keys(unsetData).length > 0) {
+      updateOperations.$unset = unsetData;
+    }
+
     const song = await Song.findByIdAndUpdate(
-      req.params.id, 
-      updateData, 
+      req.params.id,
+      updateOperations,
       { new: true }
     )
       .populate('artists', 'name spotify_id images')
@@ -773,6 +790,8 @@ export const updateSong = async (req, res) => {
              { upsert: true }
          );
     }
+
+    await mirrorSongToTaxonomyDbs(song._id);
     
     res.json(song);
   } catch (error) {
@@ -795,6 +814,7 @@ export const deleteSong = async (req, res) => {
 
     // Also delete associated lyrics
     await Lyric.findOneAndDelete({ song: req.params.id });
+    await removeSongFromTaxonomyDbs(song._id);
     
     res.json({ success: true, message: 'Song deleted' });
   } catch (error) {
@@ -929,4 +949,3 @@ export const populateSongCategories = async (req, res) => {
     res.status(500).json({ message: 'Failed to populate song categories', error: error.message });
   }
 };
-

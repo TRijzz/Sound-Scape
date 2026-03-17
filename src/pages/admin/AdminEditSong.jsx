@@ -181,10 +181,10 @@ export default function AdminEditSong() {
       if (tags) formData.append('tags', tags);
       formData.append('disc_number', discNumber);
       formData.append('explicit', explicit);
-      if (category) formData.append('category', category);
-      if (genre) formData.append('genre', genre);
-      if (mood) formData.append('mood', mood);
-      if (language) formData.append('language', language);
+      formData.append('category', category);
+      formData.append('genre', genre);
+      formData.append('mood', mood);
+      formData.append('language', language);
       if (audioFile) formData.append('audio', audioFile);
       if (coverFile) formData.append('cover', coverFile);
       if (lyricsFile) formData.append('lyricsFile', lyricsFile);

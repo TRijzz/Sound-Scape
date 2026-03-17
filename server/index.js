@@ -43,7 +43,8 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for local development and SSE
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(morgan('dev'));
 app.use(passport.initialize());
 

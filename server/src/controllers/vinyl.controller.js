@@ -3,11 +3,34 @@ import Album from '../models/Album.js';
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
 
-const normalizeVinylPayload = (payload = {}) => ({
-  ...payload,
-  albumId: payload.albumId || null,
-  songId: payload.songId || null,
-});
+const normalizeVinylPayload = (payload = {}, files = {}) => {
+  const normalized = {
+    ...payload,
+    albumId: payload.albumId || null,
+    songId: payload.songId || null,
+  };
+
+  if (files?.vinylImage?.[0]) {
+    normalized.image_url = `/images/${files.vinylImage[0].filename}`;
+    normalized.image_base64 = undefined;
+    normalized.mime_type = files.vinylImage[0].mimetype || 'image/png';
+  }
+
+  if (normalized.price !== undefined) normalized.price = Number(normalized.price);
+  if (normalized.release_year !== undefined && normalized.release_year !== '') {
+    normalized.release_year = Number(normalized.release_year);
+  } else if (normalized.release_year === '') {
+    normalized.release_year = undefined;
+  }
+  if (normalized.display_in_store !== undefined) normalized.display_in_store = normalized.display_in_store === 'true' || normalized.display_in_store === true;
+  if (normalized.is_available !== undefined) normalized.is_available = normalized.is_available === 'true' || normalized.is_available === true;
+  if (normalized.is_featured !== undefined) normalized.is_featured = normalized.is_featured === 'true' || normalized.is_featured === true;
+
+  if (!normalized.image_base64) delete normalized.image_base64;
+  if (!normalized.mime_type && !files?.vinylImage?.[0]) delete normalized.mime_type;
+
+  return normalized;
+};
 
 const vinylPopulate = [
   { path: 'albumId' },
@@ -17,7 +40,7 @@ const vinylPopulate = [
 
 export const createVinyl = async (req, res) => {
   try {
-    const vinyl = await Vinyl.create(normalizeVinylPayload(req.body));
+    const vinyl = await Vinyl.create(normalizeVinylPayload(req.body, req.files));
     const hydrated = await Vinyl.findById(vinyl._id).populate(vinylPopulate).lean();
     res.status(201).json(hydrated);
   } catch (error) {
@@ -80,7 +103,7 @@ export const updateVinyl = async (req, res) => {
   try {
     const vinyl = await Vinyl.findByIdAndUpdate(
       req.params.id,
-      normalizeVinylPayload(req.body),
+      normalizeVinylPayload(req.body, req.files),
       { new: true, runValidators: true }
     ).populate(vinylPopulate);
     if (!vinyl) {
