@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAdminOrAuth } from '../middlewares/admin.js';
+import { requireAuth } from '../middlewares/auth.js';
 import { 
   createSong, 
   getSongs, 
@@ -16,7 +17,9 @@ import {
   updateLyrics,
   populateSongCategories,
   playSong,
-  getGenreStats
+  getGenreStats,
+  getPersonalizedRecommendations,
+  getListeningAnalytics
 } from '../controllers/song.controller.js';
 
 import { upload } from '../middlewares/upload.js';
@@ -31,6 +34,8 @@ router.get('/year', getSongsByYear);
 router.get('/search', searchSongs);
 router.get('/spotify/:spotifyId', getSongBySpotifyId);
 router.get('/genre-stats', getGenreStats);
+router.get('/recommendations', requireAuth, getPersonalizedRecommendations);
+router.get('/analytics/me', requireAuth, getListeningAnalytics);
 router.get('/:id', getSong);
 router.get('/:id/lyrics', getLyrics);
 router.post('/:id/play', playSong); // Changed from incrementPlayCount to playSong

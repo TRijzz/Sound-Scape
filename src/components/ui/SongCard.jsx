@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { PlayIcon, MoreIcon, LikeIcon, LikedIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
 const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) => {
   const { playTrack, currentTrack, isPlaying, isLiked: isSongLiked, toggleLike } = useMusic();
@@ -26,6 +27,118 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) 
     const seconds = Math.floor((ms % 60000) / 1000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  const formatDateAdded = (value) => {
+    if (!value) return '--';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '--';
+
+    const now = new Date();
+    const diffDays = Math.floor((now - parsed) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return 'Today';
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+
+    return parsed.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: parsed.getFullYear() === now.getFullYear() ? undefined : 'numeric'
+    });
+  };
+
+  if (showAlbum) {
+    return (
+      <motion.div
+        className={`grid grid-cols-[48px_minmax(0,1fr)_72px] md:grid-cols-[48px_minmax(0,1fr)_minmax(180px,0.5fr)_minmax(140px,0.4fr)_72px] items-center gap-4 px-3 py-3 rounded-xl hover:bg-light-gray transition-all duration-200 group cursor-pointer ${
+          isCurrentTrack ? 'bg-neon-blue/10 border border-neon-blue/30' : ''
+        }`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: index * 0.05 }}
+        whileHover={{ scale: 1.01 }}
+        onClick={handlePlay}
+      >
+        <div className="flex items-center justify-center text-sm text-gray-400">
+          {isCurrentTrack && isPlaying ? (
+            <motion.div
+              className="w-6 h-6 flex items-center justify-center"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              <div className="w-2 h-2 bg-neon-blue rounded-full" />
+            </motion.div>
+          ) : (
+            <>
+              <span className="group-hover:hidden">{index + 1}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePlay();
+                }}
+                className="hidden group-hover:flex items-center justify-center"
+              >
+                <PlayIcon className="w-5 h-5 text-neon-blue" />
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="min-w-0 flex items-center gap-3">
+          <div className="w-12 h-12 shrink-0 rounded-md overflow-hidden bg-black/20 border border-gray-700">
+            <img
+              src={song.album?.images?.[0]?.url || song.cover_art_url || song._vinylImage || albumArtPlaceholder}
+              alt={song.album?.name || song.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="min-w-0">
+            <h4 className={`text-sm font-medium truncate ${isCurrentTrack ? 'text-neon-blue' : 'text-white'}`}>
+              {song.name}
+            </h4>
+            <p className="text-xs text-gray-400 truncate">
+              {song.artists?.map((artist) => artist.name).join(', ')}
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden md:block min-w-0">
+          <p className="text-sm text-gray-300 truncate">
+            {song.album?.name || song.album_name || 'Single'}
+          </p>
+        </div>
+
+        <div className="hidden md:block min-w-0">
+          <p className="text-sm text-gray-400 truncate">
+            {formatDateAdded(song.added_at || song.liked_at || song.createdAt || song.updatedAt)}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLike(song._id || song.id);
+            }}
+            className="hidden group-hover:block transition-colors"
+            style={{ color: (isLiked || isSongLiked(song._id || song.id)) ? '#00ffff' : '#9CA3AF' }}
+          >
+            {(isLiked || isSongLiked(song._id || song.id)) ? (
+              <LikedIcon className="w-4 h-4" />
+            ) : (
+              <LikeIcon className="w-4 h-4" />
+            )}
+          </button>
+          <span className="text-xs text-gray-400">{formatDuration(song.duration_ms || 0)}</span>
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className="hidden group-hover:block text-gray-400 hover:text-white transition-colors"
+          >
+            <MoreIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -63,11 +176,13 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) 
 
       {/* Album Art */}
       {showAlbum && (
-        <img
-          src={song.album?.images?.[0]?.url || '/api/placeholder/40/40'}
-          alt={song.album?.name || song.name}
-          className="w-10 h-10 rounded object-cover"
-        />
+        <div className="w-12 h-12 shrink-0 rounded-md overflow-hidden bg-black/20 border border-gray-700">
+          <img
+            src={song.album?.images?.[0]?.url || song.cover_art_url || song._vinylImage || albumArtPlaceholder}
+            alt={song.album?.name || song.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
       )}
 
       {/* Song Info */}
@@ -92,7 +207,7 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick }) 
       )}
 
       {/* Duration */}
-      <div className="w-16 text-right">
+      <div className="w-16 shrink-0 text-right">
         <span className="text-xs text-gray-400">
           {formatDuration(song.duration_ms || 0)}
         </span>

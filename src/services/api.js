@@ -1,6 +1,47 @@
 // API service for connecting to the MongoDB-based backend
 const API_BASE_URL = '/api';
 
+const normalizeFuzzyText = (value = '') => String(value)
+  .toLowerCase()
+  .replace(/[^a-z0-9\s]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const levenshteinDistance = (left = '', right = '') => {
+  const a = normalizeFuzzyText(left);
+  const b = normalizeFuzzyText(right);
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return dp[a.length][b.length];
+};
+
+const similarityScore = (query = '', candidate = '') => {
+  const normalizedQuery = normalizeFuzzyText(query);
+  const normalizedCandidate = normalizeFuzzyText(candidate);
+  if (!normalizedQuery || !normalizedCandidate) return 0;
+  if (normalizedCandidate.includes(normalizedQuery)) return 1;
+
+  const distance = levenshteinDistance(normalizedQuery, normalizedCandidate);
+  const base = Math.max(normalizedQuery.length, normalizedCandidate.length) || 1;
+  return Math.max(0, 1 - distance / base);
+};
+
 class ApiService {
   constructor() {
     this.authToken = null;
@@ -222,6 +263,14 @@ class ApiService {
     return this.fetchData(`/songs/popular?limit=${limit}`);
   }
 
+  async getPersonalizedRecommendations(limit = 12) {
+    return this.fetchData(`/songs/recommendations?limit=${limit}`);
+  }
+
+  async getListeningAnalytics() {
+    return this.fetchData('/songs/analytics/me');
+  }
+
   async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity', mood = '', language = '', tags = '', category = '') {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -401,10 +450,38 @@ class ApiService {
         console.error('Album search failed:', err);
       }
 
-      return {
+      const normalizedResults = {
         artists: Array.isArray(artistResults) ? artistResults : [],
         songs: Array.isArray(songResults) ? songResults : [],
         albums: Array.isArray(albumResults) ? albumResults : []
+      };
+
+      const totalHits = normalizedResults.artists.length + normalizedResults.songs.length + normalizedResults.albums.length;
+      if (totalHits > 0) {
+        return normalizedResults;
+      }
+
+      // Fuzzy fallback for typo-tolerant search
+      const [songsFallback, artistsFallback, albumsFallback] = await Promise.all([
+        this.getSongs(1, 200).catch(() => ({ songs: [] })),
+        this.getArtists(1, 200).catch(() => ({ artists: [] })),
+        this.getAlbums(1, 200).catch(() => ({ albums: [] })),
+      ]);
+
+      const rankItems = (items, labelGetter) => (Array.isArray(items) ? items : [])
+        .map((item) => ({
+          item,
+          score: similarityScore(formattedQuery, labelGetter(item))
+        }))
+        .filter((entry) => entry.score >= 0.45)
+        .sort((left, right) => right.score - left.score)
+        .slice(0, limit)
+        .map((entry) => entry.item);
+
+      return {
+        songs: rankItems(songsFallback?.songs || songsFallback || [], (song) => song?.name || song?.title || ''),
+        artists: rankItems(artistsFallback?.artists || artistsFallback || [], (artist) => artist?.name || ''),
+        albums: rankItems(albumsFallback?.albums || albumsFallback || [], (album) => album?.name || '')
       };
     } catch (error) {
       console.error('API searchAll error:', error);
@@ -512,14 +589,20 @@ class ApiService {
   async createPlaylist(payload) {
     return this.fetchData('/playlists', {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        ...payload,
+        is_public: payload?.is_public ?? (payload?.visibility === 'public')
+      })
     });
   }
 
   async updatePlaylist(playlistId, updates) {
     return this.fetchData(`/playlists/${playlistId}`, {
       method: 'PUT',
-      body: JSON.stringify(updates)
+      body: JSON.stringify({
+        ...updates,
+        is_public: updates?.is_public ?? (updates?.visibility === 'public')
+      })
     });
   }
 

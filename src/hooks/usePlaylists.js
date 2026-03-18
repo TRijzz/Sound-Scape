@@ -30,6 +30,9 @@ export const usePlaylists = () => {
     const created = await apiService.createPlaylist({
       name: playlistData.name,
       description: playlistData.description || '',
+      color: playlistData.color || '#0B0F1A',
+      image: playlistData.image || '',
+      is_public: playlistData.is_public ?? (playlistData.visibility === 'public'),
     });
     setPlaylists(prev => [...prev, created]);
     return created;

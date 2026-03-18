@@ -72,8 +72,17 @@ const songSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Index for better search performance
-songSchema.index({ name: 'text' });
+// Index for better search performance, including lyric text search
+songSchema.index(
+  { name: 'text', title: 'text', lyrics: 'text' },
+  {
+    weights: {
+      name: 10,
+      title: 8,
+      lyrics: 3
+    }
+  }
+);
 songSchema.index({ popularity: -1 });
 songSchema.index({ 'audio_features.tempo': 1 });
 songSchema.index({ 'audio_features.energy': 1 });

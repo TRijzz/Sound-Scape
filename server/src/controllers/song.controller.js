@@ -4,6 +4,7 @@ import { broadcastNotification } from './notification.controller.js'; // Added n
 import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
 import Lyric from '../models/Lyric.js';
+import LikedSong from '../models/LikedSong.js';
 import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
@@ -64,6 +65,91 @@ const buildSongSearchPatterns = (search = '') => {
 const normalizeOptionalText = (value) => {
   if (value === undefined || value === null) return '';
   return String(value).trim();
+};
+
+const buildLyricsPreview = (lyrics = '', query = '') => {
+  const text = String(lyrics || '');
+  const search = String(query || '').trim();
+  if (!text || !search) return '';
+
+  const lowerText = text.toLowerCase();
+  const lowerSearch = search.toLowerCase();
+  const matchIndex = lowerText.indexOf(lowerSearch);
+  if (matchIndex === -1) {
+    return text.slice(0, 120).trim();
+  }
+
+  const start = Math.max(0, matchIndex - 40);
+  const end = Math.min(text.length, matchIndex + search.length + 60);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < text.length ? '...' : '';
+  return `${prefix}${text.slice(start, end).replace(/\s+/g, ' ').trim()}${suffix}`;
+};
+
+const annotateSongSearchMatch = (song, query, matchedLyrics = '') => {
+  const normalizedQuery = String(query || '').trim().toLowerCase();
+  const name = String(song?.name || '').toLowerCase();
+  const title = String(song?.title || '').toLowerCase();
+  const lyricsSource = matchedLyrics || song?.lyrics || '';
+  const lyrics = String(lyricsSource).toLowerCase();
+
+  let matchType = 'metadata';
+  if (normalizedQuery && lyrics.includes(normalizedQuery) && !name.includes(normalizedQuery) && !title.includes(normalizedQuery)) {
+    matchType = 'lyrics';
+  }
+
+  return {
+    ...song,
+    search_match_type: matchType,
+    lyrics_preview: matchType === 'lyrics' ? buildLyricsPreview(lyricsSource, query) : ''
+  };
+};
+
+const STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'be', 'because', 'for', 'from', 'i', 'in', 'is', 'it', 'me', 'my',
+  'of', 'on', 'or', 'song', 'that', 'the', 'this', 'to', 'track', 'with', 'you', 'your'
+]);
+
+const normalizeToken = (value = '') => String(value)
+  .toLowerCase()
+  .replace(/[^a-z0-9\s]/g, ' ')
+  .split(/\s+/)
+  .map((token) => token.trim())
+  .filter((token) => token && token.length > 2 && !STOP_WORDS.has(token));
+
+const buildSongKeywordSet = (songs = []) => {
+  const keywordSet = new Set();
+  songs.forEach((song) => {
+    normalizeToken(song?.name || song?.title || '').forEach((token) => keywordSet.add(token));
+  });
+  return keywordSet;
+};
+
+const getRecentDayLabels = (days = 7) => {
+  const labels = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - offset);
+    labels.push(date.toISOString().slice(0, 10));
+  }
+  return labels;
+};
+
+const formatReason = ({ basedOnSong, artistNames = [], genreNames = [], moodNames = [] }) => {
+  if (basedOnSong) {
+    return `Because you listened to ${basedOnSong}`;
+  }
+  if (artistNames.length > 0) {
+    return `Because you like ${artistNames.slice(0, 2).join(' and ')}`;
+  }
+  if (genreNames.length > 0) {
+    return `Because you enjoy ${genreNames.slice(0, 2).join(' and ')} songs`;
+  }
+  if (moodNames.length > 0) {
+    return `Because you listen to ${moodNames.slice(0, 2).join(' and ')} moods`;
+  }
+  return 'Recommended for you';
 };
 
 export const createSong = async (req, res) => {
@@ -458,6 +544,292 @@ export const getGenreStats = async (req, res) => {
   }
 };
 
+export const getPersonalizedRecommendations = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 12, 24));
+
+    const [likedEntries, recentHistory] = await Promise.all([
+      LikedSong.find({ user: userId })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .populate({
+          path: 'song',
+          populate: [
+            { path: 'artists', select: 'name genres' },
+            { path: 'album', select: 'name genres' }
+          ]
+        })
+        .lean(),
+      ListeningHistory.find({ user: userId })
+        .sort({ played_at: -1 })
+        .limit(30)
+        .populate({
+          path: 'song',
+          populate: [
+            { path: 'artists', select: 'name genres' },
+            { path: 'album', select: 'name genres' }
+          ]
+        })
+        .lean()
+    ]);
+
+    const historySongs = recentHistory.map((entry) => entry.song).filter(Boolean);
+    const likedSongs = likedEntries.map((entry) => entry.song).filter(Boolean);
+    const seedSongs = [...historySongs, ...likedSongs];
+
+    if (seedSongs.length === 0) {
+      const fallbackSongs = await Song.find({})
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images release_date')
+        .sort({ popularity: -1, play_count: -1 })
+        .limit(limit)
+        .lean();
+
+      return res.json({
+        title: 'Popular right now',
+        reason: 'Recommended from trending songs',
+        based_on: [],
+        tracks: fallbackSongs
+      });
+    }
+
+    const playedSongIds = new Set(historySongs.map((song) => String(song._id)));
+    const likedSongIds = new Set(likedSongs.map((song) => String(song._id)));
+    const excludedSongIds = new Set([...playedSongIds, ...likedSongIds]);
+    const artistIds = new Set();
+    const genres = new Set();
+    const moods = new Set();
+
+    seedSongs.forEach((song) => {
+      (song.artists || []).forEach((artist) => {
+        if (artist?._id) artistIds.add(String(artist._id));
+        (artist?.genres || []).forEach((genre) => {
+          const cleaned = String(genre || '').trim();
+          if (cleaned) genres.add(cleaned);
+        });
+      });
+
+      (song.genres || []).forEach((genre) => {
+        const cleaned = String(genre || '').trim();
+        if (cleaned) genres.add(cleaned);
+      });
+
+      const directGenre = String(song.genre || '').trim();
+      if (directGenre) genres.add(directGenre);
+
+      const mood = String(song.mood || '').trim();
+      if (mood) moods.add(mood);
+    });
+
+    const keywordSet = buildSongKeywordSet(seedSongs);
+    const keywordRegexes = Array.from(keywordSet).slice(0, 8).map((token) => new RegExp(escapeRegex(token), 'i'));
+
+    const candidateQuery = {
+      _id: { $nin: Array.from(excludedSongIds).map((id) => new mongoose.Types.ObjectId(id)) }
+    };
+
+    const orClauses = [];
+    if (artistIds.size > 0) {
+      orClauses.push({ artists: { $in: Array.from(artistIds).map((id) => new mongoose.Types.ObjectId(id)) } });
+    }
+    if (genres.size > 0) {
+      const genreRegexes = Array.from(genres).slice(0, 8).map((genre) => new RegExp(escapeRegex(genre), 'i'));
+      orClauses.push({ genre: { $in: genreRegexes } });
+      orClauses.push({ genres: { $in: genreRegexes } });
+    }
+    if (moods.size > 0) {
+      const moodRegexes = Array.from(moods).slice(0, 5).map((mood) => new RegExp(escapeRegex(mood), 'i'));
+      orClauses.push({ mood: { $in: moodRegexes } });
+    }
+    if (keywordRegexes.length > 0) {
+      orClauses.push({ name: { $in: keywordRegexes } });
+      orClauses.push({ title: { $in: keywordRegexes } });
+    }
+    if (orClauses.length > 0) {
+      candidateQuery.$or = orClauses;
+    }
+
+    const candidates = await Song.find(candidateQuery)
+      .populate('artists', 'name spotify_id images genres')
+      .populate('album', 'name images release_date')
+      .sort({ popularity: -1, play_count: -1 })
+      .limit(120)
+      .lean();
+
+    const scored = candidates.map((song) => {
+      let score = 0;
+      const matchedArtists = [];
+      const matchedGenres = [];
+      const matchedMoods = [];
+      const matchedKeywords = [];
+
+      (song.artists || []).forEach((artist) => {
+        if (artistIds.has(String(artist?._id))) {
+          matchedArtists.push(artist.name);
+          score += 5;
+        }
+      });
+
+      [song.genre, ...(song.genres || [])].filter(Boolean).forEach((genre) => {
+        if (genres.has(String(genre).trim())) {
+          matchedGenres.push(String(genre).trim());
+          score += 3;
+        }
+      });
+
+      if (song.mood && moods.has(String(song.mood).trim())) {
+        matchedMoods.push(String(song.mood).trim());
+        score += 2;
+      }
+
+      normalizeToken(song.name || song.title || '').forEach((token) => {
+        if (keywordSet.has(token)) {
+          matchedKeywords.push(token);
+          score += 1;
+        }
+      });
+
+      score += Math.min(2, Math.round((song.popularity || 0) / 35));
+      score += Math.min(2, Math.round((song.play_count || 0) / 20));
+
+      return {
+        ...song,
+        recommendation_score: score,
+        recommendation_reason: formatReason({
+          basedOnSong: historySongs[0]?.name || likedSongs[0]?.name || '',
+          artistNames: matchedArtists,
+          genreNames: matchedGenres,
+          moodNames: matchedMoods
+        }),
+        recommendation_context: {
+          artists: [...new Set(matchedArtists)],
+          genres: [...new Set(matchedGenres)],
+          moods: [...new Set(matchedMoods)],
+          keywords: [...new Set(matchedKeywords)]
+        }
+      };
+    })
+      .filter((song) => song.recommendation_score > 0)
+      .sort((left, right) => right.recommendation_score - left.recommendation_score)
+      .slice(0, limit);
+
+    const fallbackNeeded = scored.length < limit;
+    if (fallbackNeeded) {
+      const fallbackSongs = await Song.find({ _id: { $nin: Array.from(excludedSongIds).map((id) => new mongoose.Types.ObjectId(id)) } })
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images release_date')
+        .sort({ popularity: -1, play_count: -1 })
+        .limit(limit)
+        .lean();
+
+      fallbackSongs.forEach((song) => {
+        if (scored.length < limit && !scored.some((item) => String(item._id) === String(song._id))) {
+          scored.push({
+            ...song,
+            recommendation_score: 0,
+            recommendation_reason: 'Trending pick for you',
+            recommendation_context: { artists: [], genres: [], moods: [], keywords: [] }
+          });
+        }
+      });
+    }
+
+    res.json({
+      title: 'Because you listened to…',
+      reason: formatReason({
+        basedOnSong: historySongs[0]?.name || likedSongs[0]?.name || '',
+        artistNames: Array.from(artistIds).length > 0 ? (historySongs[0]?.artists || []).map((artist) => artist.name).filter(Boolean) : [],
+        genreNames: Array.from(genres),
+        moodNames: Array.from(moods)
+      }),
+      based_on: seedSongs.slice(0, 3).map((song) => ({
+        _id: song._id,
+        name: song.name,
+      })),
+      tracks: scored
+    });
+  } catch (error) {
+    console.error('Failed to get personalized recommendations:', error);
+    res.status(500).json({ message: 'Failed to get personalized recommendations', error: error.message });
+  }
+};
+
+export const getListeningAnalytics = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const history = await ListeningHistory.find({ user: userId })
+      .sort({ played_at: -1 })
+      .limit(250)
+      .populate({
+        path: 'song',
+        populate: [
+          { path: 'artists', select: 'name' },
+          { path: 'album', select: 'name' }
+        ]
+      })
+      .lean();
+
+    const validHistory = history.filter((entry) => entry.song);
+    const totalPlays = validHistory.length;
+    const totalListeningMinutes = Math.round(validHistory.reduce((sum, entry) => sum + (entry.duration_listened_ms || 0), 0) / 60000);
+
+    const songCounts = new Map();
+    const artistCounts = new Map();
+    const genreCounts = new Map();
+    const trendCounts = new Map(getRecentDayLabels(7).map((label) => [label, 0]));
+
+    validHistory.forEach((entry) => {
+      const song = entry.song;
+      const songId = String(song._id);
+      songCounts.set(songId, { song, count: (songCounts.get(songId)?.count || 0) + 1 });
+
+      (song.artists || []).forEach((artist) => {
+        const artistId = String(artist._id || artist.name);
+        artistCounts.set(artistId, {
+          artist,
+          count: (artistCounts.get(artistId)?.count || 0) + 1
+        });
+      });
+
+      const genreName = String(entry.genre || song.genre || 'Unknown').trim() || 'Unknown';
+      genreCounts.set(genreName, (genreCounts.get(genreName) || 0) + 1);
+
+      const dayKey = new Date(entry.played_at).toISOString().slice(0, 10);
+      if (trendCounts.has(dayKey)) {
+        trendCounts.set(dayKey, (trendCounts.get(dayKey) || 0) + 1);
+      }
+    });
+
+    const topSong = Array.from(songCounts.values()).sort((left, right) => right.count - left.count)[0] || null;
+    const topArtist = Array.from(artistCounts.values()).sort((left, right) => right.count - left.count)[0] || null;
+    const topGenre = Array.from(genreCounts.entries()).sort((left, right) => right[1] - left[1])[0] || null;
+
+    res.json({
+      totalPlays,
+      totalListeningMinutes,
+      favoriteSong: topSong ? {
+        _id: topSong.song._id,
+        name: topSong.song.name,
+        count: topSong.count
+      } : null,
+      favoriteArtist: topArtist ? {
+        _id: topArtist.artist._id,
+        name: topArtist.artist.name,
+        count: topArtist.count
+      } : null,
+      favoriteGenre: topGenre ? {
+        name: topGenre[0],
+        count: topGenre[1]
+      } : null,
+      weeklyTrend: Array.from(trendCounts.entries()).map(([date, plays]) => ({ date, plays }))
+    });
+  } catch (error) {
+    console.error('Failed to fetch listening analytics:', error);
+    res.status(500).json({ message: 'Failed to fetch listening analytics', error: error.message });
+  }
+};
+
 export const getSongBySpotifyId = async (req, res) => {
   try {
     const song = await Song.findOne({ spotify_id: req.params.spotifyId })
@@ -586,7 +958,8 @@ export const searchSongs = async (req, res) => {
       songs = await Song.find({ 
         $or: [
           { name: { $regex: regexQuery, $options: 'i' } },
-          { title: { $regex: regexQuery, $options: 'i' } }
+          { title: { $regex: regexQuery, $options: 'i' } },
+          { lyrics: { $regex: regexQuery, $options: 'i' } }
         ]
       })
         .populate('artists', 'name spotify_id images')
@@ -601,7 +974,8 @@ export const searchSongs = async (req, res) => {
       songs = await Song.find({ 
         $or: [
           { name: { $regex: regexQuery, $options: 'i' } },
-          { title: { $regex: regexQuery, $options: 'i' } }
+          { title: { $regex: regexQuery, $options: 'i' } },
+          { lyrics: { $regex: regexQuery, $options: 'i' } }
         ]
       })
         .populate('artists', 'name spotify_id images')
@@ -610,8 +984,53 @@ export const searchSongs = async (req, res) => {
         .limit(parseInt(limit))
         .lean();
     }
-    
-    res.json(songs);
+
+    const lyricMatches = await Lyric.find({
+      lyrics: { $regex: regexQuery, $options: 'i' }
+    })
+      .select('song lyrics')
+      .limit(Math.max(parseInt(limit, 10) * 3, 20))
+      .lean();
+
+    const lyricTextBySongId = new Map();
+    const lyricSongIds = [];
+    lyricMatches.forEach((entry) => {
+      const songId = String(entry?.song || '');
+      if (!songId) return;
+      if (!lyricTextBySongId.has(songId)) {
+        lyricTextBySongId.set(songId, entry.lyrics || '');
+        lyricSongIds.push(entry.song);
+      }
+    });
+
+    if (lyricSongIds.length > 0) {
+      const existingIds = new Set((songs || []).map((song) => String(song._id)));
+      const missingLyricIds = lyricSongIds.filter((songId) => !existingIds.has(String(songId)));
+
+      if (missingLyricIds.length > 0) {
+        const lyricSongs = await Song.find({
+          _id: { $in: missingLyricIds }
+        })
+          .populate('artists', 'name spotify_id images')
+          .populate('album', 'name images')
+          .sort({ popularity: -1 })
+          .lean();
+
+        songs = [...(songs || []), ...lyricSongs];
+      }
+    }
+
+    const dedupedSongs = [];
+    const seenSongIds = new Set();
+    for (const song of (songs || [])) {
+      const songId = String(song?._id || '');
+      if (!songId || seenSongIds.has(songId)) continue;
+      seenSongIds.add(songId);
+      dedupedSongs.push(song);
+      if (dedupedSongs.length >= parseInt(limit, 10)) break;
+    }
+
+    res.json(dedupedSongs.map((song) => annotateSongSearchMatch(song, q, lyricTextBySongId.get(String(song._id)) || '')));
   } catch (error) {
     res.status(500).json({ message: 'Failed to search songs', error: error.message });
   }

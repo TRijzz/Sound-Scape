@@ -11,6 +11,7 @@ import {
   VinylIcon 
 } from '../ui/Icons';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
+import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
 function Sidebar() {
   const location = useLocation();
@@ -127,8 +128,16 @@ function Sidebar() {
                     to={`/playlist/${playlist._id || playlist.id}`}
                     className="flex items-center space-x-3 px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-light-gray transition-all duration-200"
                   >
-                    <div className="w-8 h-8 rounded bg-gradient-to-br from-neon-blue/30 to-purple-500/30 flex items-center justify-center">
-                      <MusicNoteIcon className="w-4 h-4 text-white" />
+                    <div className="w-8 h-8 rounded overflow-hidden bg-gradient-to-br from-neon-blue/30 to-purple-500/30 flex items-center justify-center border border-gray-700 shrink-0">
+                      {playlist.image ? (
+                        <img
+                          src={playlist.image || albumArtPlaceholder}
+                          alt={playlist.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <MusicNoteIcon className="w-4 h-4 text-white" />
+                      )}
                     </div>
                     <span className="text-sm truncate">{playlist.name}</span>
                     <button 

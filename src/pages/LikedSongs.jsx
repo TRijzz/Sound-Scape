@@ -204,13 +204,25 @@ const LikedSongs = () => {
             <option value="duration">Duration</option>
           </select>
         </div>
+        <div className="mb-3 hidden md:grid grid-cols-[48px_minmax(0,1fr)_minmax(180px,0.5fr)_minmax(140px,0.4fr)_72px] items-center gap-4 border-b border-white/10 px-3 pb-3 text-sm text-gray-400">
+          <div className="text-center">#</div>
+          <div>Title</div>
+          <div>Album</div>
+          <div>Date added</div>
+          <div className="text-right">
+            <svg className="ml-auto w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="9" strokeWidth="2" />
+              <path d="M12 7v5l3 2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
         <div className="space-y-2">
           {filteredSortedSongs.map((song, index) => (
             <SongCard
               key={song._id || song.id}
               song={song}
               index={index}
-              showAlbum={false}
+              showAlbum={true}
               isLiked={true}
               onClick={() => playTrack(song)}
             />

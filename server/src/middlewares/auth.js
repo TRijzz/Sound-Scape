@@ -34,6 +34,32 @@ export const requireAuth = (req, res, next) => {
   }
 };
 
+export const optionalAuth = (req, _res, next) => {
+  let token = null;
+  const header = req.headers.authorization || '';
+
+  if (header.startsWith('Bearer ')) {
+    token = header.substring(7);
+  } else if (req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    req.user = null;
+    next();
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, accessSecret);
+    req.user = decoded;
+  } catch {
+    req.user = null;
+  }
+
+  next();
+};
+
 export const verifyRefreshToken = (token) => {
   try {
     return jwt.verify(token, refreshSecret);

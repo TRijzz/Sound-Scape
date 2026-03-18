@@ -84,7 +84,9 @@ const SearchSuggestions = ({
                         {song.name}
                       </p>
                       <p className="text-xs text-gray-400 truncate">
-                        {song.artists?.map(artist => artist.name).join(', ')}
+                        {song.search_match_type === 'lyrics' && song.lyrics_preview
+                          ? `Lyrics match: ${song.lyrics_preview}`
+                          : song.artists?.map(artist => artist.name).join(', ')}
                       </p>
                     </div>
                   </motion.div>

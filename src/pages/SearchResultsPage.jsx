@@ -217,13 +217,14 @@ const SearchResultsPage = () => {
           return (
             <div className="space-y-2">
               {songsToRender.map((song, index) => (
-                <SongCard
-                  key={song._id || song.id}
-                  song={song}
-                  index={index}
-                  showAlbum={true}
-                  onClick={() => handleTrackSelect(song)}
-                />
+                <div key={song._id || song.id}>
+                  <SongCard
+                    song={song}
+                    index={index}
+                    showAlbum={true}
+                    onClick={() => handleTrackSelect(song)}
+                  />
+                </div>
               ))}
             </div>
           );

@@ -49,6 +49,7 @@ const NowPlayingFooter = () => {
   const [showMore, setShowMore] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
   const { playlists, handleAddToPlaylist, handleCreatePlaylist } = usePlaylistActions();
 
   const formatTime = (seconds) => {
@@ -101,26 +102,31 @@ const NowPlayingFooter = () => {
     if (id) toggleLike(id);
   };
 
-  const handleAddCurrentTrackToPlaylist = (playlistId) => {
+  const closePlaylistModal = () => {
+    setShowAddToPlaylist(false);
+    setShowMore(false);
+    setNewPlaylistName('');
+  };
+
+  const handleAddCurrentTrackToPlaylist = async (playlistId) => {
     if (!currentTrack) return;
     if (!isAuthenticated) {
       setShowAuthPrompt(true);
       return;
     }
-    handleAddToPlaylist(playlistId, [currentTrack]);
-    setShowAddToPlaylist(false);
-    setShowMore(false);
+    await handleAddToPlaylist(playlistId, [currentTrack]);
+    closePlaylistModal();
   };
 
-  const handleCreateDefaultPlaylistAndAdd = () => {
+  const handleCreatePlaylistAndAdd = async () => {
     if (!isAuthenticated) {
       setShowAuthPrompt(true);
       return;
     }
-    const pl = handleCreatePlaylist({ name: 'My Playlist', songs: [] });
-    Promise.resolve(pl).then((created) => {
-      handleAddCurrentTrackToPlaylist(created._id || created.id);
-    });
+
+    const playlistName = newPlaylistName.trim() || 'My Playlist';
+    const created = await handleCreatePlaylist({ name: playlistName, songs: [] });
+    await handleAddCurrentTrackToPlaylist(created._id || created.id);
   };
 
   if (!currentTrack) {
@@ -262,6 +268,7 @@ const NowPlayingFooter = () => {
                 <div className="absolute bottom-10 right-0 bg-dark-gray border border-gray-700 rounded-lg shadow-lg w-56 z-50">
                   <button
                     onClick={() => {
+                      setNewPlaylistName('');
                       setShowAddToPlaylist(true);
                     }}
                     className="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-gray-800"
@@ -346,6 +353,14 @@ const NowPlayingFooter = () => {
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowAddToPlaylist(false)} />
           <motion.div className="relative z-10 w-full max-w-md bg-dark-gray border border-gray-700 rounded-xl p-6" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}>
             <h3 className="text-xl font-semibold text-white mb-3">Add to playlist</h3>
+            <div className="text-sm text-gray-400 mb-2">Create new playlist</div>
+            <input
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              placeholder="Enter playlist name"
+              className="w-full px-1 py-3 bg-transparent text-white border-0 border-b border-gray-600 mb-4 focus:outline-none focus:border-neon-blue placeholder:text-gray-500"
+            />
+            <div className="text-sm text-gray-400 mb-3">Playlists</div>
             {playlists.length > 0 ? (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {playlists.map((pl) => (
@@ -358,8 +373,8 @@ const NowPlayingFooter = () => {
               <p className="text-gray-400 mb-3">No playlists yet.</p>
             )}
             <div className="mt-4 flex justify-end space-x-3">
-              <button onClick={() => setShowAddToPlaylist(false)} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray">Cancel</button>
-              <button onClick={handleCreateDefaultPlaylistAndAdd} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80">Create playlist</button>
+              <button onClick={closePlaylistModal} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray">Cancel</button>
+              <button onClick={handleCreatePlaylistAndAdd} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg hover:bg-neon-blue/80">Create playlist</button>
             </div>
           </motion.div>
         </motion.div>

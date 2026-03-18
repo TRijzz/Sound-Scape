@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
-// Layout Components
 import Navbar from './components/layout/Navbar';
 import Sidebar from './components/layout/Sidebar';
 import NowPlayingFooter from './components/layout/NowPlayingFooter';
@@ -77,18 +76,16 @@ function AuthPromptOverlay() {
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  const hideChrome = location.pathname === '/login' || location.pathname === '/signup';
 
   return (
     <div className="min-h-screen bg-dark-bg text-white font-inter">
       <div className="flex">
-        {/* Sidebar */}
-        {!isAdmin && <Sidebar />}
-        
-        {/* Main Content */}
-        <div className={`flex-1 flex flex-col ${!isAdmin ? 'lg:ml-64' : ''}`}>
-          {/* Navbar */}
-          {!isAdmin && <Navbar />}
-          
+        {!isAdmin && !hideChrome && <Sidebar />}
+
+        <div className={`flex-1 flex flex-col ${!isAdmin && !hideChrome ? 'lg:ml-64' : ''}`}>
+          {!isAdmin && !hideChrome && <Navbar />}
+
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
             <motion.div

@@ -1,52 +1,67 @@
 import Playlist from '../models/Playlist.js';
 
+const playlistPopulate = [
+  {
+    path: 'user',
+    select: 'name username email avatar_url'
+  },
+  {
+    path: 'songs',
+    populate: [
+      { path: 'album', select: 'name images' },
+      { path: 'artists', select: 'name spotify_id images' }
+    ]
+  }
+];
+
+const populatePlaylistQuery = (query) => {
+  let nextQuery = query;
+  for (const config of playlistPopulate) {
+    nextQuery = nextQuery.populate(config);
+  }
+  return nextQuery;
+};
+
+const normalizePlaylistPayload = (body = {}) => {
+  const payload = { ...body };
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'visibility')) {
+    payload.is_public = payload.visibility === 'public';
+    delete payload.visibility;
+  }
+
+  return payload;
+};
+
+const isOwner = (playlist, userId) => String(playlist?.user?._id || playlist?.user || '') === String(userId || '');
+
 export const createPlaylist = async (req, res) => {
-  const body = { ...req.body, user: req.user.id };
+  const body = { ...normalizePlaylistPayload(req.body), user: req.user.id };
   const playlist = await Playlist.create(body);
-  res.status(201).json(playlist);
+  const populated = await populatePlaylistQuery(Playlist.findById(playlist._id)).lean();
+  res.status(201).json(populated || playlist);
 };
 
 export const getMyPlaylists = async (req, res) => {
-  const items = await Playlist.find({ user: req.user.id })
-    .populate({
-      path: 'songs',
-      populate: [
-        { path: 'album', select: 'name images' },
-        { path: 'artists', select: 'name spotify_id images' }
-      ]
-    })
-    .lean();
+  const items = await populatePlaylistQuery(Playlist.find({ user: req.user.id })).lean();
   res.json(items);
 };
 
 export const getPlaylist = async (req, res) => {
-  const item = await Playlist.findById(req.params.id)
-    .populate({
-      path: 'songs',
-      populate: [
-        { path: 'album', select: 'name images' },
-        { path: 'artists', select: 'name spotify_id images' }
-      ]
-    })
-    .lean();
+  const item = await populatePlaylistQuery(Playlist.findById(req.params.id)).lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
+  if (!item.is_public && !isOwner(item, req.user?.id)) {
+    return res.status(403).json({ message: 'This playlist is private' });
+  }
   res.json(item);
 };
 
 export const updatePlaylist = async (req, res) => {
-  const item = await Playlist.findOneAndUpdate(
+  const item = await populatePlaylistQuery(Playlist.findOneAndUpdate(
     { _id: req.params.id, user: req.user.id },
-    req.body,
+    normalizePlaylistPayload(req.body),
     { new: true }
-  )
-    .populate({
-      path: 'songs',
-      populate: [
-        { path: 'album', select: 'name images' },
-        { path: 'artists', select: 'name spotify_id images' }
-      ]
-    })
-    .lean();
+  )).lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);
 };
@@ -58,37 +73,21 @@ export const deletePlaylist = async (req, res) => {
 };
 
 export const addSongToPlaylist = async (req, res) => {
-  const item = await Playlist.findOneAndUpdate(
+  const item = await populatePlaylistQuery(Playlist.findOneAndUpdate(
     { _id: req.params.id, user: req.user.id },
     { $addToSet: { songs: req.body.songId } },
     { new: true }
-  )
-    .populate({
-      path: 'songs',
-      populate: [
-        { path: 'album', select: 'name images' },
-        { path: 'artists', select: 'name spotify_id images' }
-      ]
-    })
-    .lean();
+  )).lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);
 };
 
 export const removeSongFromPlaylist = async (req, res) => {
-  const item = await Playlist.findOneAndUpdate(
+  const item = await populatePlaylistQuery(Playlist.findOneAndUpdate(
     { _id: req.params.id, user: req.user.id },
     { $pull: { songs: req.body.songId } },
     { new: true }
-  )
-    .populate({
-      path: 'songs',
-      populate: [
-        { path: 'album', select: 'name images' },
-        { path: 'artists', select: 'name spotify_id images' }
-      ]
-    })
-    .lean();
+  )).lean();
   if (!item) return res.status(404).json({ message: 'Playlist not found' });
   res.json(item);
 };

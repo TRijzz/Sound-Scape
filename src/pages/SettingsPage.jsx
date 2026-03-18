@@ -1,24 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { UserIcon, LockIcon, PaletteIcon, LogOutIcon } from '../components/ui/Icons';
+import { UserIcon, LockIcon, PaletteIcon, LogOutIcon, MusicNoteIcon } from '../components/ui/Icons';
 import { useMusic } from '../contexts/MusicContext';
+import apiService from '../services/api';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 
 const SettingsPage = ({ defaultTab = 'profile' }) => {
   const { user, logout } = useMusic();
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   
   // Update active tab when defaultTab prop changes (e.g., from route change)
-  React.useEffect(() => {
+  useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadAnalytics = async () => {
+      try {
+        setAnalyticsLoading(true);
+        const data = await apiService.getListeningAnalytics();
+        if (mounted) {
+          setAnalytics(data || null);
+        }
+      } catch (error) {
+        if (mounted) {
+          setAnalytics(null);
+        }
+      } finally {
+        if (mounted) {
+          setAnalyticsLoading(false);
+        }
+      }
+    };
+
+    loadAnalytics();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: UserIcon },
     { id: 'account', label: 'Account', icon: LockIcon },
-    { id: 'theme', label: 'Theme', icon: PaletteIcon }
+    { id: 'theme', label: 'Theme', icon: PaletteIcon },
+    { id: 'listening-data', label: 'Listening Data', icon: MusicNoteIcon }
   ];
+
+  const weeklyPeak = Math.max(...(analytics?.weeklyTrend || []).map((point) => point.plays || 0), 0);
 
   const ProfileTab = () => {
     const [profileData, setProfileData] = useState({
@@ -262,6 +295,62 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
     );
   };
 
+  const ListeningDataTab = () => {
+    if (analyticsLoading) {
+      return (
+        <div className="space-y-4">
+          <h3 className="text-xl font-semibold text-white">Your listening insights</h3>
+          <p className="text-gray-400">Loading your listening data...</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-xl font-semibold text-white mb-2">Your listening insights</h3>
+          <p className="text-gray-400">A quick personal analytics snapshot from your listening history.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-gray-700 bg-black/20 p-5 text-center">
+            <div className="text-sm text-gray-400">Total plays</div>
+            <div className="text-4xl font-bold text-white mt-3">{analytics?.totalPlays || 0}</div>
+            <div className="text-sm text-gray-500 mt-3">{analytics?.totalListeningMinutes || 0} minutes listened</div>
+          </div>
+          <div className="rounded-xl border border-gray-700 bg-black/20 p-5 text-center">
+            <div className="text-sm text-gray-400">Favorite artist</div>
+            <div className="text-3xl font-bold text-white mt-3">{analytics?.favoriteArtist?.name || 'No data yet'}</div>
+            <div className="text-sm text-gray-500 mt-3">Play more music to build this insight</div>
+          </div>
+          <div className="rounded-xl border border-gray-700 bg-black/20 p-5 text-center">
+            <div className="text-sm text-gray-400">Favorite song</div>
+            <div className="text-3xl font-bold text-white mt-3">{analytics?.favoriteSong?.name || 'No data yet'}</div>
+            <div className="text-sm text-gray-500 mt-3">
+              {analytics?.favoriteSong?.count ? `${analytics.favoriteSong.count} plays` : 'Start listening to see your top track'}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-700 bg-black/20 p-5">
+          <div className="text-center text-sm text-gray-400 mb-6">Weekly trend</div>
+          <div className="flex items-end gap-3 h-44">
+            {(analytics?.weeklyTrend || []).map((point) => (
+              <div key={point.date} className="flex-1 flex flex-col items-center justify-end gap-3">
+                <div className="text-sm text-gray-400">{point.plays || 0}</div>
+                <div
+                  className="w-full rounded-md bg-neon-blue"
+                  style={{ height: `${Math.max(24, ((point.plays || 0) / (weeklyPeak || 1)) * 100)}%` }}
+                />
+                <div className="text-sm text-gray-500">{String(point.date || '').slice(5)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'profile':
@@ -270,6 +359,8 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
         return <AccountTab />;
       case 'theme':
         return <ThemeTab />;
+      case 'listening-data':
+        return <ListeningDataTab />;
       default:
         return <ProfileTab />;
     }

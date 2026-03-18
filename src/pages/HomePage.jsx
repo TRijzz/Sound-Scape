@@ -10,10 +10,22 @@ import apiService from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const HomePage = () => {
-  const { playTrack } = useMusic();
+  const { playTrack, isAuthenticated } = useMusic();
   const navigate = useNavigate();
   const [categorySections, setCategorySections] = React.useState([]);
   const [sectionsLoading, setSectionsLoading] = React.useState(false);
+  const [recommendationData, setRecommendationData] = React.useState({ title: '', reason: '', tracks: [] });
+  const [recommendationsLoading, setRecommendationsLoading] = React.useState(false);
+  const [selectedMood, setSelectedMood] = React.useState('Chill');
+  const [moodSongs, setMoodSongs] = React.useState([]);
+  const [moodLoading, setMoodLoading] = React.useState(false);
+
+  const moodOptions = React.useMemo(() => ([
+    { label: 'Happy', accent: 'from-amber-400 to-orange-500', query: 'Happy' },
+    { label: 'Sad', accent: 'from-blue-400 to-indigo-600', query: 'Sad' },
+    { label: 'Workout', accent: 'from-rose-500 to-red-600', query: 'Workout' },
+    { label: 'Chill', accent: 'from-emerald-400 to-cyan-500', query: 'Chill' },
+  ]), []);
   
   // Use API hooks to fetch real data
   const { artists: topArtists, loading: artistsLoading, error: artistsError } = usePopularArtists(6);
@@ -107,6 +119,66 @@ const HomePage = () => {
     loadSections();
   }, []);
 
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadRecommendations = async () => {
+      if (!isAuthenticated) {
+        setRecommendationData({ title: 'Recommended for everyone', reason: 'Popular picks from the catalog', tracks: [] });
+        return;
+      }
+
+      try {
+        setRecommendationsLoading(true);
+        const data = await apiService.getPersonalizedRecommendations(6);
+        if (!cancelled) {
+          setRecommendationData({
+            title: data?.title || 'Because you listened to…',
+            reason: data?.reason || 'Fresh picks for your taste',
+            tracks: Array.isArray(data?.tracks) ? data.tracks : []
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load recommendations:', error);
+        if (!cancelled) {
+          setRecommendationData({ title: 'Because you listened to…', reason: 'Fresh picks for your taste', tracks: [] });
+        }
+      } finally {
+        if (!cancelled) setRecommendationsLoading(false);
+      }
+    };
+
+    loadRecommendations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadMoodSongs = async () => {
+      try {
+        setMoodLoading(true);
+        const response = await apiService.getSongs(1, 6, '', '', '', '', '', '-popularity', selectedMood);
+        if (!cancelled) {
+          setMoodSongs(Array.isArray(response?.songs) ? response.songs : Array.isArray(response) ? response : []);
+        }
+      } catch (error) {
+        console.error('Failed to load mood songs:', error);
+        if (!cancelled) setMoodSongs([]);
+      } finally {
+        if (!cancelled) setMoodLoading(false);
+      }
+    };
+
+    loadMoodSongs();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMood]);
+
   return (
     <div className="p-6 space-y-8">
       {/* Welcome & Vinyl Banner */}
@@ -169,6 +241,90 @@ const HomePage = () => {
           💡 Click the vinyl icon in the player below to experience the immersive vinyl animation
         </p>
       </motion.div>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.12 }}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">{recommendationData.title || 'Because you listened to…'}</h2>
+            <p className="text-sm text-gray-400 mt-1">{recommendationData.reason || 'Fresh picks from your listening behavior'}</p>
+          </div>
+          {!isAuthenticated && (
+            <button
+              onClick={() => navigate('/login')}
+              className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg font-semibold w-fit"
+            >
+              Sign in for smarter picks
+            </button>
+          )}
+        </div>
+        <div className="bg-light-gray/40 rounded-xl p-4">
+          {recommendationsLoading ? (
+            <div className="text-gray-400 py-8 text-center">Building recommendations from your listening history...</div>
+          ) : recommendationData.tracks.length > 0 ? (
+            recommendationData.tracks.map((song, index) => (
+              <SongCard
+                key={song._id || song.id}
+                song={song}
+                index={index}
+                showAlbum={true}
+                onClick={() => handleTrackSelect(song)}
+              />
+            ))
+          ) : (
+            <div className="text-gray-400 py-8 text-center">Play and like a few songs to unlock smarter recommendations.</div>
+          )}
+        </div>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.14 }}
+      >
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Pick a mood</h2>
+            <p className="text-sm text-gray-400 mt-1">Mood-based discovery powered by your song taxonomy.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          {moodOptions.map((mood) => (
+            <motion.button
+              key={mood.label}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSelectedMood(mood.query)}
+              className={`text-left rounded-2xl p-5 border transition-all ${
+                selectedMood === mood.query ? 'border-white/40 shadow-lg' : 'border-gray-800'
+              } bg-gradient-to-br ${mood.accent}`}
+            >
+              <div className="text-sm uppercase tracking-[0.2em] text-black/60 font-bold">Mood</div>
+              <div className="text-2xl font-black text-black mt-2">{mood.label}</div>
+            </motion.button>
+          ))}
+        </div>
+        <div className="bg-light-gray/40 rounded-xl p-4">
+          {moodLoading ? (
+            <div className="text-gray-400 py-8 text-center">Loading {selectedMood.toLowerCase()} songs...</div>
+          ) : moodSongs.length > 0 ? (
+            moodSongs.map((song, index) => (
+              <SongCard
+                key={song._id || song.id}
+                song={song}
+                index={index}
+                showAlbum={true}
+                onClick={() => handleTrackSelect(song)}
+              />
+            ))
+          ) : (
+            <div className="text-gray-400 py-8 text-center">No songs tagged for the {selectedMood.toLowerCase()} mood yet.</div>
+          )}
+        </div>
+      </motion.section>
 
       {/* Featured Playlists */}
       <motion.section
