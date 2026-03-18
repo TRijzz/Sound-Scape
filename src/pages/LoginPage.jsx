@@ -154,7 +154,7 @@ const LoginPage = () => {
         {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-neon-blue font-poppins mb-2">
-            Music Station
+            Sound Scape
           </h1>
           <p className="text-gray-400">Welcome back</p>
         </div>
