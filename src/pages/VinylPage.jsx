@@ -78,22 +78,36 @@ const VinylPage = () => {
   };
 
   const handleTrackPlay = async (track, index = 0, openOverlay = true) => {
+    if (!ownsVinyl) {
+      showToast('Purchase this vinyl before playing it.', 'error');
+      return;
+    }
+
     if (!track) {
       showToast('No tracks available for this vinyl yet.', 'error');
       return;
     }
 
-    await playVinylTrack({
-      track,
-      vinyl,
-      queue: tracks,
-      trackIndex: index,
-      openOverlay,
-      persistActive: ownsVinyl,
-    });
+    try {
+      await playVinylTrack({
+        track,
+        vinyl,
+        queue: tracks,
+        trackIndex: index,
+        openOverlay,
+        persistActive: true,
+      });
+    } catch (err) {
+      showToast(err?.message || 'Unable to play this vinyl.', 'error');
+    }
   };
 
   const handlePreview = async () => {
+    if (!ownsVinyl) {
+      showToast('Purchase this vinyl to unlock playback.', 'error');
+      return;
+    }
+
     if (tracks.length > 0) {
       await handleTrackPlay(tracks[0], 0, true);
     } else {
@@ -151,6 +165,7 @@ const VinylPage = () => {
               transition={{ duration: 0.6 }}
               className="relative aspect-square max-w-md mx-auto block w-full group"
               onClick={handlePreview}
+              disabled={!ownsVinyl}
             >
               <div className="absolute inset-0 rounded-[2rem] bg-[#18181B] shadow-2xl border border-gray-800" />
 
@@ -217,12 +232,17 @@ const VinylPage = () => {
 
                 <button
                   onClick={handlePreview}
-                  className="px-10 py-4 rounded-2xl font-black text-lg bg-white/5 text-white border border-white/10 hover:bg-white/10 transition-all flex items-center backdrop-blur-md"
+                  disabled={!ownsVinyl}
+                  className={`px-10 py-4 rounded-2xl font-black text-lg border transition-all flex items-center backdrop-blur-md ${
+                    ownsVinyl
+                      ? 'bg-white/5 text-white border-white/10 hover:bg-white/10'
+                      : 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed'
+                  }`}
                 >
                   <svg className="w-6 h-6 mr-3 text-neon-blue" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  Preview Experience
+                  {ownsVinyl ? 'Play Vinyl' : 'Buy to Play'}
                 </button>
               </div>
 

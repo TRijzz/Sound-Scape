@@ -20,3 +20,17 @@ export const requireAdminOrAuth = (req, res, next) => {
   return requireAuth(req, res, next);
 };
 
+export const requireAdmin = (req, res, next) => {
+  const headerVal = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
+  const bodyVal = req.body && req.body.admin_code;
+  const queryVal = req.query && req.query.admin_code;
+  const adminCode = headerVal || bodyVal || queryVal;
+  const expected = process.env.ADMIN_ACCESS_CODE;
+
+  if (adminCode && expected && String(adminCode) === String(expected)) {
+    req.isAdmin = true;
+    return next();
+  }
+
+  return res.status(403).json({ message: 'Admin access required' });
+};

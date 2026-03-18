@@ -34,6 +34,7 @@ import AdminEditAlbum from './pages/admin/AdminEditAlbum';
 import AdminCategories from './pages/admin/AdminCategories';
 import AdminLyrics from './pages/admin/AdminLyrics';
 import AdminVinyls from './pages/admin/AdminVinyls';
+import AdminUsers from './pages/admin/AdminUsers';
 import AdminGuard from './pages/admin/AdminGuard';
 import NotFound from './pages/NotFound';
 import VinylStore from './pages/VinylStore';
@@ -126,6 +127,7 @@ function AppContent() {
                 <Route path="/admin/categories" element={<AdminGuard><AdminCategories /></AdminGuard>} />
                 <Route path="/admin/lyrics" element={<AdminGuard><AdminLyrics /></AdminGuard>} />
                 <Route path="/admin/vinyls" element={<AdminGuard><AdminVinyls /></AdminGuard>} />
+                <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </motion.div>

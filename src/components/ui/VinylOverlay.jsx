@@ -3,8 +3,6 @@ import ReactDOM from 'react-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import vinylSvg from '../../assets/vinyl.svg';
-import divideVinyl from '../../assets/Divide_Vinyl.svg';
-import godDidVinyl from '../../assets/GOD_DID_VINYL.svg';
 import { ReactComponent as Tonearm } from '../../assets/tonearm.svg';
 import { useMusic } from '../../contexts/MusicContext';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
@@ -36,20 +34,6 @@ function VinylOverlay({ isOpen, onClose }) {
     const matchedVinylImage = getVinylForSong(currentTrack);
     if (matchedVinylImage) {
       return matchedVinylImage;
-    }
-
-    if (!currentTrack) return vinylSvg;
-
-    const albumName = currentTrack.album?.name?.toLowerCase() || '';
-    const artistNames = currentTrack.artists?.map((artist) => artist.name.toLowerCase()).join(' ') || '';
-    const songName = currentTrack.name?.toLowerCase() || '';
-
-    if (((albumName.includes('divide') || albumName.includes('÷')) && artistNames.includes('ed sheeran')) || (songName.includes('shape of you') && artistNames.includes('ed sheeran'))) {
-      return divideVinyl;
-    }
-
-    if (albumName.includes('god did') && (artistNames.includes('dj khaled') || albumName === 'god did')) {
-      return godDidVinyl;
     }
 
     return vinylSvg;
@@ -326,3 +310,4 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
 }
 
 export default VinylOverlay;
+

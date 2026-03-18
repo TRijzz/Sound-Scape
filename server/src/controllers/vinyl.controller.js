@@ -2,6 +2,7 @@ import Vinyl from '../models/Vinyl.js';
 import Album from '../models/Album.js';
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+const normalizeSearchValue = (value = '') => String(value).trim().toLowerCase().replace(/\s+/g, ' ');
 
 const normalizeVinylPayload = (payload = {}, files = {}) => {
   const normalized = {
@@ -55,15 +56,24 @@ export const getVinyls = async (req, res) => {
 
     if (search) {
       const searchRegex = new RegExp(escapeRegex(search), 'i');
-      const matchingAlbums = await Album.find({ name: searchRegex }).select('_id').lean();
-      const matchingAlbumIds = matchingAlbums.map((album) => album._id);
+      const normalizedSearch = normalizeSearchValue(search);
+      const albums = await Album.find({ name: searchRegex }).select('_id name').lean();
+      const exactAlbumIds = albums
+        .filter((album) => normalizeSearchValue(album.name) === normalizedSearch)
+        .map((album) => album._id);
 
-      query.$or = [
-        { name: searchRegex },
-        { artist: searchRegex },
-        { description: searchRegex },
-        ...(matchingAlbumIds.length > 0 ? [{ albumId: { $in: matchingAlbumIds } }] : []),
-      ];
+      if (exactAlbumIds.length > 0) {
+        query.albumId = { $in: exactAlbumIds };
+      } else {
+        const matchingAlbumIds = albums.map((album) => album._id);
+
+        query.$or = [
+          { name: searchRegex },
+          { artist: searchRegex },
+          { description: searchRegex },
+          ...(matchingAlbumIds.length > 0 ? [{ albumId: { $in: matchingAlbumIds } }] : []),
+        ];
+      }
     }
     if (display_in_store !== undefined) {
       query.display_in_store = display_in_store === 'true';

@@ -17,6 +17,7 @@ export default function AdminLayout({ children }) {
           <NavLink to="/admin/albums" className={({isActive})=>`px-3 py-2 rounded ${isActive?'bg-neon-blue/20 text-neon-blue':'text-gray-300 hover:text-white hover:bg-light-gray'}`}>Albums</NavLink>
           <NavLink to="/admin/songs" className={({isActive})=>`px-3 py-2 rounded ${isActive?'bg-neon-blue/20 text-neon-blue':'text-gray-300 hover:text-white hover:bg-light-gray'}`}>Songs</NavLink>
           <NavLink to="/admin/vinyls" className={({isActive})=>`px-3 py-2 rounded ${isActive?'bg-neon-blue/20 text-neon-blue':'text-gray-300 hover:text-white hover:bg-light-gray'}`}>Vinyls</NavLink>
+          <NavLink to="/admin/users" className={({isActive})=>`px-3 py-2 rounded ${isActive?'bg-neon-blue/20 text-neon-blue':'text-gray-300 hover:text-white hover:bg-light-gray'}`}>Users</NavLink>
           <NavLink to="/admin/lyrics" className={({isActive})=>`px-3 py-2 rounded ${isActive?'bg-neon-blue/20 text-neon-blue':'text-gray-300 hover:text-white hover:bg-light-gray'}`}>Lyrics</NavLink>
           <NavLink to="/admin/categories" className={({isActive})=>`px-3 py-2 rounded ${isActive?'bg-neon-blue/20 text-neon-blue':'text-gray-300 hover:text-white hover:bg-light-gray'}`}>Categories</NavLink>
         </div>

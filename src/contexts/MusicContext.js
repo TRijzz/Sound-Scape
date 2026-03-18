@@ -45,7 +45,8 @@ function musicReducer(state, action) {
         isAuthenticated: !!action.payload,
         likedSongs: action.payload?.likedSongs ? new Set(action.payload.likedSongs) : new Set(),
         purchasedVinyls: action.payload?.purchased_vinyls || [],
-        activeVinyl: action.payload?.active_vinyl || state.activeVinyl,
+        activeVinyl: action.payload?.active_vinyl || null,
+        showVinylOverlay: false,
       };
     case 'SET_ACTIVE_VINYL':
       return { ...state, activeVinyl: action.payload };
@@ -72,6 +73,12 @@ export function MusicProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const player = useAudioPlayer();
+
+  const userOwnsVinyl = (vinyl) => {
+    if (!vinyl) return false;
+    const vinylId = String(vinyl._id || vinyl.id || '');
+    return state.purchasedVinyls.some((ownedVinyl) => String(ownedVinyl?._id || ownedVinyl?.id || ownedVinyl) === vinylId);
+  };
 
   const syncCurrentUser = async () => {
     try {
@@ -190,23 +197,46 @@ export function MusicProvider({ children }) {
   };
 
   const setActiveVinyl = async (vinyl, { persist = true } = {}) => {
-    dispatch({ type: 'SET_ACTIVE_VINYL', payload: vinyl || null });
+    if (!vinyl) {
+      dispatch({ type: 'SET_ACTIVE_VINYL', payload: null });
+
+      if (!persist || !state.isAuthenticated) {
+        return null;
+      }
+
+      try {
+        await apiService.setActiveVinyl(null);
+      } catch (error) {
+        console.error('Failed to clear active vinyl:', error);
+      }
+
+      return null;
+    }
+
+    if (!userOwnsVinyl(vinyl)) {
+      const error = new Error('You must purchase this vinyl before using it.');
+      error.status = 403;
+      throw error;
+    }
+
+    dispatch({ type: 'SET_ACTIVE_VINYL', payload: vinyl });
 
     if (!persist || !state.isAuthenticated) {
-      return vinyl || null;
+      return vinyl;
     }
 
     try {
-      const vinylId = vinyl?._id || vinyl?.id || null;
+      const vinylId = vinyl._id || vinyl.id || null;
       const response = await apiService.setActiveVinyl(vinylId);
       if (response?.active_vinyl) {
         dispatch({ type: 'SET_ACTIVE_VINYL', payload: response.active_vinyl });
         return response.active_vinyl;
       }
-      return vinyl || null;
+      return vinyl;
     } catch (error) {
       console.error('Failed to persist active vinyl:', error);
-      return vinyl || null;
+      dispatch({ type: 'SET_ACTIVE_VINYL', payload: state.activeVinyl || null });
+      throw error;
     }
   };
 

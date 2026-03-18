@@ -42,7 +42,9 @@ export const me = async (req, res) => {
 };
 
 export const getUsers = async (req, res) => {
-  const users = await User.find().lean();
+  const users = await User.find()
+    .populate(vinylPopulate)
+    .lean();
   res.json(users);
 };
 
@@ -51,7 +53,9 @@ export const getUser = async (req, res) => {
   if (!id || (typeof id === 'string' && id.length !== 24)) {
     return res.status(400).json({ message: 'Invalid user id' });
   }
-  const user = await User.findById(id).lean();
+  const user = await User.findById(id)
+    .populate(vinylPopulate)
+    .lean();
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json(user);
 };
@@ -191,5 +195,51 @@ export const setActiveVinyl = async (req, res) => {
     res.json({ message: 'Active vinyl set successfully', active_vinyl: hydratedUser?.active_vinyl || null });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+export const updateUserVinyls = async (req, res) => {
+  const { id } = req.params;
+  const { purchased_vinyls = [], active_vinyl = null } = req.body || {};
+
+  if (!id || (typeof id === 'string' && id.length !== 24)) {
+    return res.status(400).json({ message: 'Invalid user id' });
+  }
+
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const normalizedVinylIds = Array.from(
+      new Set((Array.isArray(purchased_vinyls) ? purchased_vinyls : []).map((vinylId) => String(vinylId)).filter(Boolean))
+    );
+
+    if (normalizedVinylIds.length > 0) {
+      const existingVinyls = await Vinyl.find({ _id: { $in: normalizedVinylIds } }).select('_id').lean();
+      const existingVinylIds = new Set(existingVinyls.map((vinyl) => String(vinyl._id)));
+      const missingVinylIds = normalizedVinylIds.filter((vinylId) => !existingVinylIds.has(vinylId));
+      if (missingVinylIds.length > 0) {
+        return res.status(400).json({ message: 'Some vinyl IDs are invalid', invalid_vinyl_ids: missingVinylIds });
+      }
+    }
+
+    let normalizedActiveVinyl = active_vinyl ? String(active_vinyl) : null;
+    if (normalizedActiveVinyl && !normalizedVinylIds.includes(normalizedActiveVinyl)) {
+      normalizedActiveVinyl = null;
+    }
+
+    user.purchased_vinyls = normalizedVinylIds;
+    user.active_vinyl = normalizedActiveVinyl;
+    await user.save();
+
+    const hydratedUser = await buildUserPayload(id);
+    return res.json({
+      message: 'User vinyl ownership updated successfully',
+      user: hydratedUser,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to update user vinyl ownership', error: error.message });
   }
 };

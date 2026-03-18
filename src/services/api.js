@@ -363,6 +363,13 @@ class ApiService {
     return this.fetchData('/users/purchase-vinyl', { method: 'POST', body: JSON.stringify({ vinylId }) });
   }
 
+  async setActiveVinyl(vinylId) {
+    return this.fetchData('/users/set-active-vinyl', {
+      method: 'POST',
+      body: JSON.stringify({ vinylId })
+    });
+  }
+
   // PlaylistsSearch API
   async searchAll(query, limit = 20) {
     try {
@@ -709,6 +716,17 @@ class ApiService {
     return this.fetchData(`/users/id/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates)
+    });
+  }
+
+  async getUsers() {
+    return this.fetchData('/users');
+  }
+
+  async updateUserVinyls(id, payload) {
+    return this.fetchData(`/users/id/${id}/vinyls`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
     });
   }
 

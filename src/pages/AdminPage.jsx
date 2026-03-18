@@ -312,6 +312,10 @@ function AdminPage() {
             <div className="text-xl font-semibold mb-1">Vinyls</div>
             <div className="text-gray-300 text-sm">Manage vinyl records</div>
           </button>
+          <button onClick={() => navigate('/admin/users')} className="text-left rounded-xl border border-gray-800 bg-dark-gray/60 hover:bg-dark-gray/80 transition p-5">
+            <div className="text-xl font-semibold mb-1">Users</div>
+            <div className="text-gray-300 text-sm">Manage user vinyl ownership</div>
+          </button>
         </div>
       </motion.div>
     </div>

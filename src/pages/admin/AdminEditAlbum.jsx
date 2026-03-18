@@ -70,7 +70,7 @@ export default function AdminEditAlbum() {
       // Handle Vinyls
       const allVinyls = vinylsRes?.vinyls || (Array.isArray(vinylsRes) ? vinylsRes : []);
       const albumVinyls = allVinyls.filter(v => {
-          const vAlbumId = typeof v.album === 'object' ? v.album?._id : v.album;
+          const vAlbumId = typeof v.albumId === 'object' ? v.albumId?._id || v.albumId?.id : v.albumId;
           return vAlbumId === id;
       });
       setVinyls(albumVinyls);
