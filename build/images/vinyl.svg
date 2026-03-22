@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <defs>
+    <linearGradient id="vinylGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#333" />
+      <stop offset="100%" stop-color="#000" />
+    </linearGradient>
+    <radialGradient id="highlight" cx="30%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#000" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <circle cx="150" cy="150" r="100" fill="url(#vinylGradient)" />
+  <circle cx="150" cy="150" r="90" fill="none" stroke="#222" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="80" fill="none" stroke="#222" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="70" fill="none" stroke="#222" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="60" fill="none" stroke="#222" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="50" fill="none" stroke="#222" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="40" fill="none" stroke="#222" stroke-width="0.5" />
+  <circle cx="150" cy="150" r="30" fill="red" />
+  <circle cx="150" cy="150" r="5" fill="#000" />
+  <circle cx="150" cy="150" r="100" fill="url(#highlight)" />
+</svg>

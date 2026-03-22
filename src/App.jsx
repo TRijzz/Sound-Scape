@@ -28,6 +28,7 @@ import AdminPage from './pages/AdminPage';
 import AdminArtists from './pages/admin/AdminArtists';
 import AdminAlbums from './pages/admin/AdminAlbums';
 import AdminSongs from './pages/admin/AdminSongs';
+import AdminCreateSong from './pages/admin/AdminCreateSong';
 import AdminEditSong from './pages/admin/AdminEditSong';
 import AdminEditAlbum from './pages/admin/AdminEditAlbum';
 import AdminCategories from './pages/admin/AdminCategories';
@@ -119,6 +120,7 @@ function AppContent() {
                 <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
                 <Route path="/admin/albums" element={<AdminGuard><AdminAlbums /></AdminGuard>} />
                 <Route path="/admin/songs" element={<AdminGuard><AdminSongs /></AdminGuard>} />
+                <Route path="/admin/songs/create" element={<AdminGuard><AdminCreateSong /></AdminGuard>} />
                 <Route path="/admin/songs/edit/:id" element={<AdminGuard><AdminEditSong /></AdminGuard>} />
                 <Route path="/admin/albums/edit/:id" element={<AdminGuard><AdminEditAlbum /></AdminGuard>} />
                 <Route path="/admin/categories" element={<AdminGuard><AdminCategories /></AdminGuard>} />
