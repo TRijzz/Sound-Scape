@@ -208,6 +208,10 @@ class ApiService {
     return this.fetchData(`/artists/popular?limit=${limit}`);
   }
 
+  async getArtistGenres(limit = 100) {
+    const response = await this.fetchData(`/artists/genres?limit=${limit}`);
+    return Array.isArray(response?.genres) ? response.genres : [];
+  }
 
   async getArtists(page = 1, limit = 20, search = '', genre = '') {
     const params = new URLSearchParams({

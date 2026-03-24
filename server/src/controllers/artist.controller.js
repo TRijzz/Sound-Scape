@@ -2,6 +2,142 @@ import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
 import Song from '../models/Song.js';
 
+const toTrimmedString = (value) => {
+  if (value === undefined || value === null) return undefined;
+  const next = String(value).trim();
+  return next || '';
+};
+
+const toStringArray = (value) => {
+  if (value === undefined || value === null) return undefined;
+  const items = Array.isArray(value) ? value : String(value).split(',');
+  return items
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+};
+
+const toBoolean = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return Boolean(value);
+};
+
+const normalizeImages = (value) => {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((item) => {
+      if (typeof item === 'string') return { url: item.trim() };
+      if (!item || !item.url) return null;
+      return {
+        url: String(item.url).trim(),
+        height: item.height,
+        width: item.width
+      };
+    })
+    .filter((item) => item && item.url);
+};
+
+const normalizeLinkMap = (value, keys = []) => {
+  if (!value || typeof value !== 'object') return undefined;
+  return keys.reduce((acc, key) => {
+    if (value[key] === undefined) return acc;
+    acc[key] = toTrimmedString(value[key]);
+    return acc;
+  }, {});
+};
+
+const booleanFields = ['is_featured', 'is_visible', 'is_verified'];
+const stringFields = [
+  'name',
+  'display_name',
+  'bio',
+  'image_url',
+  'cover_image_url',
+  'language',
+  'country',
+  'region',
+  'hidden_reason',
+  'publish_status',
+  'spotify_id'
+];
+const numberFields = ['popularity', 'priority_score'];
+const arrayFields = ['genres', 'tags', 'mood_tags'];
+
+const buildArtistPayload = (body = {}) => {
+  const payload = {};
+
+  stringFields.forEach((field) => {
+    if (body[field] !== undefined) payload[field] = toTrimmedString(body[field]);
+  });
+
+  numberFields.forEach((field) => {
+    if (body[field] === undefined || body[field] === null || body[field] === '') return;
+    const parsed = Number(body[field]);
+    if (!Number.isNaN(parsed)) payload[field] = parsed;
+  });
+
+  booleanFields.forEach((field) => {
+    if (body[field] !== undefined) payload[field] = toBoolean(body[field]);
+  });
+
+  arrayFields.forEach((field) => {
+    const value = toStringArray(body[field]);
+    if (value !== undefined) payload[field] = value;
+  });
+
+  const images = normalizeImages(body.images);
+  if (images !== undefined) payload.images = images;
+
+  const socialLinks = normalizeLinkMap(body.social_links, ['instagram', 'x', 'tiktok', 'youtube', 'website']);
+  if (socialLinks && Object.keys(socialLinks).length > 0) payload.social_links = socialLinks;
+
+  const externalIds = normalizeLinkMap(body.external_ids, ['spotify', 'apple_music', 'musicbrainz']);
+  if (externalIds && Object.keys(externalIds).length > 0) payload.external_ids = externalIds;
+
+  const externalUrls = normalizeLinkMap(body.external_urls, ['spotify']);
+  if (externalUrls && Object.keys(externalUrls).length > 0) payload.external_urls = externalUrls;
+
+  if (body.followers && typeof body.followers === 'object') {
+    payload.followers = {
+      href: toTrimmedString(body.followers.href),
+      total: Number(body.followers.total) || 0
+    };
+  }
+
+  return payload;
+};
+
+const normalizeArtist = (artist) => ({
+  ...artist,
+  images: artist.images && Array.isArray(artist.images) && artist.images.length > 0
+    ? artist.images
+    : artist.image_url
+      ? [{ url: artist.image_url }]
+      : []
+});
+
+const applyUploadedArtistImages = (payload, files = {}) => {
+  const profileFile = files?.profileImage?.[0];
+  const coverFile = files?.coverImage?.[0];
+
+  if (profileFile) {
+    payload.image_url = `/images/${profileFile.filename}`;
+    payload.images = [{
+      url: payload.image_url,
+      height: 640,
+      width: 640
+    }];
+  }
+
+  if (coverFile) {
+    payload.cover_image_url = `/images/${coverFile.filename}`;
+  }
+};
+
 export const createArtist = async (req, res) => {
   try {
     // Validate required fields
@@ -9,25 +145,17 @@ export const createArtist = async (req, res) => {
       return res.status(400).json({ message: 'Artist name is required' });
     }
 
-    const artistData = {
-      name: req.body.name.trim(),
-    };
-    
-    // Only add optional fields if they exist
-    if (req.body.bio) artistData.bio = req.body.bio;
-    if (req.body.image_url) artistData.image_url = req.body.image_url;
-    if (req.body.images) artistData.images = req.body.images;
-    if (req.body.genres) {
-      artistData.genres = Array.isArray(req.body.genres) ? req.body.genres : [req.body.genres];
+    const artistData = buildArtistPayload(req.body);
+    applyUploadedArtistImages(artistData, req.files);
+    artistData.name = req.body.name.trim();
+    if (req.user?.id) {
+      artistData.created_by = req.user.id;
+      artistData.last_edited_by = req.user.id;
     }
-    if (req.body.popularity !== undefined) artistData.popularity = req.body.popularity;
-    // Only include spotify_id if it's provided and not empty/null - this prevents null from being set
-    if (req.body.spotify_id && typeof req.body.spotify_id === 'string' && req.body.spotify_id.trim()) {
-      artistData.spotify_id = req.body.spotify_id.trim();
-    }
+    artistData.last_edited_at = new Date();
 
     const artist = await Artist.create(artistData);
-    res.status(201).json(artist);
+    res.status(201).json(normalizeArtist(artist.toObject()));
   } catch (error) {
     console.error('Error creating artist:', error);
     res.status(400).json({ 
@@ -79,14 +207,7 @@ export const getArtists = async (req, res) => {
     const total = await Artist.countDocuments(query);
 
     // Normalize images for all artists
-    const normalizedArtists = artists.map(artist => ({
-      ...artist,
-      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
-        ? artist.images 
-        : artist.image_url 
-          ? [{ url: artist.image_url }] 
-          : []
-    }));
+    const normalizedArtists = artists.map(normalizeArtist);
 
     res.json({
       artists: normalizedArtists,
@@ -110,15 +231,7 @@ export const getArtist = async (req, res) => {
     }
     
     // Normalize images
-    const normalizedArtist = {
-      ...artist,
-      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
-        ? artist.images 
-        : artist.image_url 
-          ? [{ url: artist.image_url }] 
-          : []
-    };
-    res.json(normalizedArtist);
+    res.json(normalizeArtist(artist));
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch artist', error: error.message });
   }
@@ -213,14 +326,7 @@ export const getPopularArtists = async (req, res) => {
       .lean();
     
     // Ensure images field is always included and properly formatted
-    const normalizedArtists = artists.map(artist => ({
-      ...artist,
-      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
-        ? artist.images 
-        : artist.image_url 
-          ? [{ url: artist.image_url }] 
-          : []
-    }));
+    const normalizedArtists = artists.map(normalizeArtist);
     
     res.json(normalizedArtists);
   } catch (error) {
@@ -267,14 +373,7 @@ export const getArtistsByGenre = async (req, res) => {
       .lean();
     
     // Normalize images
-    const normalizedArtists = artists.map(artist => ({
-      ...artist,
-      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
-        ? artist.images 
-        : artist.image_url 
-          ? [{ url: artist.image_url }] 
-          : []
-    }));
+    const normalizedArtists = artists.map(normalizeArtist);
     
     res.json(normalizedArtists);
   } catch (error) {
@@ -284,9 +383,14 @@ export const getArtistsByGenre = async (req, res) => {
 
 export const updateArtist = async (req, res) => {
   try {
+    const updates = buildArtistPayload(req.body);
+    applyUploadedArtistImages(updates, req.files);
+    if (req.user?.id) updates.last_edited_by = req.user.id;
+    updates.last_edited_at = new Date();
+
     const artist = await Artist.findByIdAndUpdate(
       req.params.id, 
-      req.body, 
+      updates, 
       { new: true, runValidators: true }
     ).lean();
     
@@ -295,16 +399,7 @@ export const updateArtist = async (req, res) => {
     }
     
     // Normalize images
-    const normalizedArtist = {
-      ...artist,
-      images: artist.images && Array.isArray(artist.images) && artist.images.length > 0 
-        ? artist.images 
-        : artist.image_url 
-          ? [{ url: artist.image_url }] 
-          : []
-    };
-    
-    res.json(normalizedArtist);
+    res.json(normalizeArtist(artist));
   } catch (error) {
     res.status(400).json({ message: 'Failed to update artist', error: error.message });
   }
