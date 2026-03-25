@@ -7,6 +7,7 @@ import AlbumCard from '../components/ui/AlbumCard';
 import { useMusic } from '../contexts/MusicContext';
 import { useArtist } from '../hooks/useMusicData';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
+import apiService from '../services/api';
 
 const ArtistPage = () => {
   const { id } = useParams();
@@ -80,9 +81,9 @@ const ArtistPage = () => {
           <motion.img
             src={
               (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
-                ? artist.images[0].url
+                ? apiService.resolveMediaUrl(artist.images[0].url)
                 : artist.image_url
-                ? artist.image_url
+                ? apiService.resolveMediaUrl(artist.image_url)
                 : albumArtPlaceholder
             }
             alt={artist.name}

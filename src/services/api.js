@@ -232,14 +232,14 @@ class ApiService {
   async createArtist(payload) {
     return this.fetchData(`/artists`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: payload instanceof FormData ? payload : JSON.stringify(payload)
     });
   }
 
   async updateArtist(id, updates) {
     return this.fetchData(`/artists/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updates)
+      body: updates instanceof FormData ? updates : JSON.stringify(updates)
     });
   }
 
@@ -495,6 +495,21 @@ class ApiService {
   }
 
   // Utility methods
+  resolveMediaUrl(url = '') {
+    if (!url) return '';
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('/src/')) return url;
+
+    if (typeof window !== 'undefined' && /^\/(images|songs|lyrics)\//.test(url)) {
+      const { protocol, hostname, port } = window.location;
+      if (port === '3000') {
+        return `${protocol}//${hostname}:5000${url}`;
+      }
+    }
+
+    return url;
+  }
+
   getImageUrl(images, size = 'medium') {
     if (!images || images.length === 0) {
       return '/src/assets/album_art_placeholder.svg';
@@ -510,7 +525,7 @@ class ApiService {
     const targetSize = sizeMap[size] || 300;
     const bestImage = images.find(img => img.width >= targetSize) || images[0];
     
-    return bestImage.url;
+    return this.resolveMediaUrl(bestImage.url);
   }
 
   // Lyrics: list existing

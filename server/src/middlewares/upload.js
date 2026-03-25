@@ -15,7 +15,12 @@ const storage = multer.diskStorage({
     let folder = 'misc';
     if (file.fieldname === 'audio') {
       folder = 'songs';
-    } else if (file.fieldname === 'cover' || file.fieldname === 'vinylImage') {
+    } else if (
+      file.fieldname === 'cover'
+      || file.fieldname === 'vinylImage'
+      || file.fieldname === 'profileImage'
+      || file.fieldname === 'coverImage'
+    ) {
       folder = 'images'; // or 'album-art'
     } else if (file.fieldname === 'lyrics') {
       folder = 'lyrics';
@@ -52,7 +57,12 @@ const fileFilter = (req, file, cb) => {
     } else {
       cb(new Error('Invalid audio file type'), false);
     }
-  } else if (file.fieldname === 'cover' || file.fieldname === 'vinylImage') {
+  } else if (
+    file.fieldname === 'cover'
+    || file.fieldname === 'vinylImage'
+    || file.fieldname === 'profileImage'
+    || file.fieldname === 'coverImage'
+  ) {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {

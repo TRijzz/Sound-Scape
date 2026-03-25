@@ -75,7 +75,10 @@ const artistSchema = new mongoose.Schema(
 );
 
 // Index for better search performance
-artistSchema.index({ name: 'text', genres: 'text' });
+artistSchema.index(
+  { name: 'text', genres: 'text' },
+  { language_override: 'search_language' }
+);
 artistSchema.index({ popularity: -1 });
 artistSchema.index({ 'followers.total': -1 });
 artistSchema.index({ is_visible: 1, is_featured: 1, priority_score: -1 });

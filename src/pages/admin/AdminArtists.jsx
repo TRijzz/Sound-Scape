@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
@@ -15,7 +16,7 @@ const emptyForm = () => ({
 });
 
 const idOf = (artist) => artist?._id || artist?.id;
-const imageOf = (artist) => artist?.image_url || artist?.images?.[0]?.url || '';
+const imageOf = (artist) => apiService.resolveMediaUrl(artist?.image_url || artist?.images?.[0]?.url || '');
 const tagText = (list = []) => list.join(', ');
 const parseTags = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
 const previewName = (artist) => artist?.display_name || artist?.name || 'Untitled artist';
@@ -31,6 +32,7 @@ const statusMeta = (artist) => {
 };
 const validUrl = (value) => {
   if (!value) return true;
+  if (value.startsWith('/')) return true;
   try {
     const url = new URL(value);
     return url.protocol === 'http:' || url.protocol === 'https:';
@@ -64,14 +66,30 @@ const normalize = (artist = {}) => ({
     musicbrainz: artist.external_ids?.musicbrainz || ''
   }
 });
-const payloadFrom = (form) => ({
-  name: form.name.trim(), display_name: form.display_name.trim(), bio: form.bio.trim(),
-  image_url: form.image_url.trim(), cover_image_url: form.cover_image_url.trim(),
-  genres: form.genres, tags: form.tags, mood_tags: form.mood_tags,
-  language: form.language.trim(), country: form.country.trim(), region: form.region.trim(),
-  is_featured: form.is_featured, is_visible: form.publish_status !== 'hidden', is_verified: form.is_verified,
-  publish_status: form.publish_status, hidden_reason: form.hidden_reason.trim(), spotify_id: form.spotify_id.trim()
-});
+const payloadFrom = (form) => {
+  const payload = {
+    name: form.name.trim(),
+    display_name: form.display_name.trim(),
+    bio: form.bio.trim(),
+    genres: form.genres,
+    tags: form.tags,
+    mood_tags: form.mood_tags,
+    language: form.language.trim(),
+    country: form.country.trim(),
+    region: form.region.trim(),
+    is_featured: form.is_featured,
+    is_visible: form.publish_status !== 'hidden',
+    is_verified: form.is_verified,
+    publish_status: form.publish_status,
+    hidden_reason: form.hidden_reason.trim()
+  };
+
+  if (form.image_url.trim()) payload.image_url = form.image_url.trim();
+  if (form.cover_image_url.trim()) payload.cover_image_url = form.cover_image_url.trim();
+  if (form.spotify_id.trim()) payload.spotify_id = form.spotify_id.trim();
+
+  return payload;
+};
 
 export default function AdminArtists() {
   const navigate = useNavigate();
@@ -96,6 +114,7 @@ export default function AdminArtists() {
   const [profilePreview, setProfilePreview] = useState('');
   const [coverPreview, setCoverPreview] = useState('');
   const [toasts, setToasts] = useState([]);
+  const [drawerNotice, setDrawerNotice] = useState(null);
 
   const toast = (message, type = 'error', duration = 3500) => setToasts((prev) => [...prev, { id: Date.now() + Math.random(), message, type, duration }]);
   const removeToast = (id) => setToasts((prev) => prev.filter((toast) => toast.id !== id));
@@ -137,6 +156,15 @@ export default function AdminArtists() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawerOpen]);
+
   const regions = useMemo(() => Array.from(new Set(artists.map((artist) => artist.region || artist.country).filter(Boolean))).sort(), [artists]);
   const stats = useMemo(() => ({
     total: artists.length,
@@ -171,12 +199,14 @@ export default function AdminArtists() {
     if (dirty && !window.confirm('Discard unsaved artist changes?')) return;
     setDrawerOpen(false); setDirty(false); setErrors({}); setActiveId(null);
     setProfileImageFile(null); setCoverImageFile(null); setProfilePreview(''); setCoverPreview('');
+    setDrawerNotice(null);
   };
-  const updateForm = (field, value) => { setForm((prev) => ({ ...prev, [field]: value })); setDirty(true); };
+  const updateForm = (field, value) => { setForm((prev) => ({ ...prev, [field]: value })); setDirty(true); setDrawerNotice(null); };
 
   const openDrawer = async (mode, artist = null) => {
     setDrawerMode(mode); setActiveId(idOf(artist)); setForm(artist ? normalize(artist) : emptyForm()); setDirty(false); setErrors({}); setDrawerOpen(true);
     setProfileImageFile(null); setCoverImageFile(null); setProfilePreview(''); setCoverPreview('');
+    setDrawerNotice(null);
     if (!artist) { setLinks({ albums: [], tracks: [], loading: false }); return; }
     setLinks({ albums: [], tracks: [], loading: true });
     try {
@@ -200,8 +230,14 @@ export default function AdminArtists() {
   };
 
   const saveArtist = async () => {
-    if (!validate()) { toast('Please resolve the highlighted fields before saving.'); return; }
+    if (!validate()) {
+      const message = 'Please resolve the highlighted fields before saving.';
+      setDrawerNotice({ type: 'error', message });
+      toast(message);
+      return;
+    }
     setSaving(true);
+    setDrawerNotice(null);
     try {
       const payload = new FormData();
       Object.entries(payloadFrom(form)).forEach(([key, value]) => {
@@ -216,9 +252,17 @@ export default function AdminArtists() {
       if (coverImageFile) payload.append('coverImage', coverImageFile);
       const saved = drawerMode === 'create' ? await apiService.createArtist(payload) : await apiService.updateArtist(activeId, payload);
       patchArtist(saved);
-      setDirty(false); setDrawerOpen(false); setProfileImageFile(null); setCoverImageFile(null); setProfilePreview(''); setCoverPreview(''); toast(drawerMode === 'create' ? 'Artist created successfully.' : 'Artist updated successfully.', 'success');
+      setDrawerNotice({ type: 'success', message: drawerMode === 'create' ? 'Artist created successfully.' : 'Artist updated successfully.' });
+      setDirty(false);
+      setProfileImageFile(null);
+      setCoverImageFile(null);
+      setProfilePreview('');
+      setCoverPreview('');
+      toast(drawerMode === 'create' ? 'Artist created successfully.' : 'Artist updated successfully.', 'success');
     } catch (error) {
-      toast(`Failed to save artist: ${error?.message || 'Unknown error'}`);
+      const detailsMessage = error?.details?.error || error?.details?.message || error?.message || 'Unknown error';
+      setDrawerNotice({ type: 'error', message: detailsMessage });
+      toast(`Failed to save artist: ${detailsMessage}`);
     } finally { setSaving(false); }
   };
 
@@ -283,10 +327,11 @@ export default function AdminArtists() {
       setCoverPreview(preview);
     }
     setDirty(true);
+    setDrawerNotice(null);
   };
 
-  const profileImageSrc = profilePreview || form.image_url;
-  const coverImageSrc = coverPreview || form.cover_image_url;
+  const profileImageSrc = profilePreview || apiService.resolveMediaUrl(form.image_url);
+  const coverImageSrc = coverPreview || apiService.resolveMediaUrl(form.cover_image_url);
 
   return (
     <AdminLayout>
@@ -395,14 +440,20 @@ export default function AdminArtists() {
         </div>
       </motion.section>
 
-      <AnimatePresence>
-        {drawerOpen ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm">
-            <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 280 }} className="absolute right-0 top-0 h-full w-full max-w-[1080px] overflow-y-auto border-l border-white/10 bg-[#0b0d14] p-5">
+      {createPortal(
+        <AnimatePresence>
+          {drawerOpen ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[220] bg-black/72 backdrop-blur-md">
+              <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 280 }} className="absolute right-0 top-0 z-[221] h-screen w-full max-w-[1080px] overflow-y-auto border-l border-white/10 bg-[#0b0d14] p-5 shadow-[-24px_0_80px_rgba(0,0,0,0.55)]">
               <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
                 <div><p className="text-xs font-semibold uppercase tracking-[0.3em] text-neon-blue/80">{drawerMode === 'create' ? 'Add artist' : 'Edit artist'}</p><h3 className="mt-2 text-2xl font-semibold text-white">{drawerMode === 'create' ? 'New artist profile' : previewName(form)}</h3><p className="mt-1 text-sm text-gray-400">Use quick row toggles for tiny changes; use this drawer for deeper edits and previewing.</p></div>
                 <button onClick={closeDrawer} className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">Close</button>
               </div>
+              {drawerNotice ? (
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${drawerNotice.type === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-red-400/40 bg-red-500/10 text-red-100'}`}>
+                  {drawerNotice.message}
+                </div>
+              ) : null}
               <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_340px]">
                 <div className="space-y-6">
                   <section className="rounded-[28px] border border-white/10 bg-white/5 p-5">
@@ -410,25 +461,43 @@ export default function AdminArtists() {
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Name</span><input value={form.name} onChange={(e) => updateForm('name', e.target.value)} className={`w-full rounded-2xl border px-4 py-3 text-sm text-white outline-none ${errors.name ? 'border-red-400 bg-red-500/5' : 'border-white/10 bg-white/5 focus:border-neon-blue/60'}`} placeholder="Artist name" />{errors.name ? <p className="text-xs text-red-300">{errors.name}</p> : null}</label>
                       <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Display name</span><input value={form.display_name} onChange={(e) => updateForm('display_name', e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60" placeholder="Public-facing name" /></label>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Profile image</span>
-                        <div className="flex items-center gap-3">
-                          <label className="inline-flex cursor-pointer items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10">
-                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelection('profile', e.target.files?.[0])} />
-                            Upload profile image
-                          </label>
-                          <input value={form.image_url} onChange={(e) => updateForm('image_url', e.target.value)} className={`min-w-0 flex-1 rounded-2xl border px-4 py-3 text-sm text-white outline-none ${errors.image_url ? 'border-red-400 bg-red-500/5' : 'border-white/10 bg-white/5 focus:border-neon-blue/60'}`} placeholder="https://..." />
+                        <div className={`rounded-[24px] border p-4 ${errors.image_url ? 'border-red-400 bg-red-500/5' : 'border-white/10 bg-black/20'}`}>
+                          <div className="flex items-center gap-4">
+                            <div className="h-20 w-20 overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+                              {profileImageSrc ? <img src={profileImageSrc} alt={previewName(form)} className="h-full w-full object-cover" /> : null}
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <label className="inline-flex cursor-pointer items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10">
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelection('profile', e.target.files?.[0])} />
+                                {profileImageSrc ? 'Replace profile image' : 'Upload profile image'}
+                              </label>
+                              <p className="text-xs text-gray-400">
+                                {profileImageSrc ? 'Current uploaded image will be used for this artist.' : 'No profile image uploaded yet.'}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                         {errors.image_url ? <p className="text-xs text-red-300">{errors.image_url}</p> : null}
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Cover image</span>
-                        <div className="flex items-center gap-3">
-                          <label className="inline-flex cursor-pointer items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10">
-                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelection('cover', e.target.files?.[0])} />
-                            Upload cover image
-                          </label>
-                          <input value={form.cover_image_url} onChange={(e) => updateForm('cover_image_url', e.target.value)} className={`min-w-0 flex-1 rounded-2xl border px-4 py-3 text-sm text-white outline-none ${errors.cover_image_url ? 'border-red-400 bg-red-500/5' : 'border-white/10 bg-white/5 focus:border-neon-blue/60'}`} placeholder="https://..." />
+                        <div className={`rounded-[24px] border p-4 ${errors.cover_image_url ? 'border-red-400 bg-red-500/5' : 'border-white/10 bg-black/20'}`}>
+                          <div className="flex items-center gap-4">
+                            <div className="h-20 w-28 overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+                              {coverImageSrc ? <img src={coverImageSrc} alt="" className="h-full w-full object-cover" /> : null}
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <label className="inline-flex cursor-pointer items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10">
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelection('cover', e.target.files?.[0])} />
+                                {coverImageSrc ? 'Replace cover image' : 'Upload cover image'}
+                              </label>
+                              <p className="text-xs text-gray-400">
+                                {coverImageSrc ? 'Current uploaded image will be used for the artist header.' : 'No cover image uploaded yet.'}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                         {errors.cover_image_url ? <p className="text-xs text-red-300">{errors.cover_image_url}</p> : null}
                       </div>
@@ -451,8 +520,8 @@ export default function AdminArtists() {
                   <section className="rounded-[28px] border border-white/10 bg-white/5 p-5">
                     <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-300">Linked releases</h4>
                     <div className="mt-5 grid gap-4 md:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked albums</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading albums...</p> : links.albums.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked albums yet.</p> : <div className="mt-3 space-y-2">{links.albums.map((album) => <div key={album._id || album.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{album.name}</div><div className="mt-1 text-xs text-gray-400">{album.release_date || 'Release date unknown'}</div><button onClick={() => navigate(`/admin/albums/edit/${album._id || album.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit album</button></div>)}</div>}</div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked songs</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading songs...</p> : links.tracks.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked songs yet.</p> : <div className="mt-3 space-y-2">{links.tracks.map((track) => <div key={track._id || track.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{track.name}</div><div className="mt-1 text-xs text-gray-400">Popularity {track.popularity || 0}</div><button onClick={() => navigate(`/admin/songs/edit/${track._id || track.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit song</button></div>)}</div>}</div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked albums</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading albums...</p> : links.albums.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked albums yet.</p> : <div className="mt-3 space-y-2">{links.albums.map((album) => <div key={album._id || album.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{album.name}</div><div className="mt-1 text-xs text-gray-400">{album.release_date || 'Release date unknown'}</div><button onClick={() => navigate(`/admin/albums/edit/${album._id || album.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit album</button></div>)}</div>}<button onClick={() => navigate('/admin/albums')} className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Add album</button></div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked songs</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading songs...</p> : links.tracks.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked songs yet.</p> : <div className="mt-3 space-y-2">{links.tracks.map((track) => <div key={track._id || track.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{track.name}</div><div className="mt-1 text-xs text-gray-400">Popularity {track.popularity || 0}</div><button onClick={() => navigate(`/admin/songs/edit/${track._id || track.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit song</button></div>)}</div>}<button onClick={() => navigate('/admin/songs/create')} className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Add song</button></div>
                     </div>
                   </section>
                 </div>
@@ -480,10 +549,12 @@ export default function AdminArtists() {
                   </section>
                 </div>
               </div>
-            </motion.aside>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+              </motion.aside>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>,
+        document.body
+      )}
     </AdminLayout>
   );
 }

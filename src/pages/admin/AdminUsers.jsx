@@ -14,7 +14,6 @@ export default function AdminUsers() {
   const [savingUserId, setSavingUserId] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedVinylIds, setSelectedVinylIds] = useState([]);
-  const [selectedActiveVinylId, setSelectedActiveVinylId] = useState('');
   const [search, setSearch] = useState('');
   const [toasts, setToasts] = useState([]);
 
@@ -44,7 +43,6 @@ export default function AdminUsers() {
         const firstUserId = String(nextUsers[0]._id || nextUsers[0].id);
         setSelectedUserId(firstUserId);
         setSelectedVinylIds((nextUsers[0].purchased_vinyls || []).map((vinyl) => getVinylId(vinyl)));
-        setSelectedActiveVinylId(getVinylId(nextUsers[0].active_vinyl));
       }
     } catch (error) {
       console.error('Failed to load users/vinyls:', error);
@@ -79,33 +77,20 @@ export default function AdminUsers() {
   useEffect(() => {
     if (!selectedUser) return;
     setSelectedVinylIds((selectedUser.purchased_vinyls || []).map((vinyl) => getVinylId(vinyl)));
-    setSelectedActiveVinylId(getVinylId(selectedUser.active_vinyl));
   }, [selectedUser]);
 
-  const ownedVinyls = useMemo(() => {
-    const ownedSet = new Set(selectedVinylIds);
-    return vinyls.filter((vinyl) => ownedSet.has(getVinylId(vinyl)));
-  }, [vinyls, selectedVinylIds]);
-
   const handleToggleVinyl = (vinylId) => {
-    setSelectedVinylIds((prev) => {
-      const next = prev.includes(vinylId)
+    setSelectedVinylIds((prev) => (
+      prev.includes(vinylId)
         ? prev.filter((id) => id !== vinylId)
-        : [...prev, vinylId];
-
-      if (!next.includes(selectedActiveVinylId)) {
-        setSelectedActiveVinylId('');
-      }
-
-      return next;
-    });
+        : [...prev, vinylId]
+    ));
   };
 
   const handleSelectUser = (user) => {
     const userId = String(user._id || user.id);
     setSelectedUserId(userId);
     setSelectedVinylIds((user.purchased_vinyls || []).map((vinyl) => getVinylId(vinyl)));
-    setSelectedActiveVinylId(getVinylId(user.active_vinyl));
   };
 
   const handleSave = async () => {
@@ -115,7 +100,7 @@ export default function AdminUsers() {
     try {
       const response = await apiService.updateUserVinyls(selectedUser._id || selectedUser.id, {
         purchased_vinyls: selectedVinylIds,
-        active_vinyl: selectedActiveVinylId || null,
+        active_vinyl: null,
       });
 
       const updatedUser = response?.user;
@@ -172,9 +157,6 @@ export default function AdminUsers() {
                       <div className="text-xs text-gray-400 truncate">{user.email}</div>
                       <div className="mt-2 flex items-center justify-between text-xs">
                         <span className="text-neon-blue">{userVinylCount} vinyl{userVinylCount === 1 ? '' : 's'}</span>
-                        <span className="text-gray-500 truncate max-w-[50%]">
-                          {user.active_vinyl?.name || 'No active vinyl'}
-                        </span>
                       </div>
                     </button>
                   );
@@ -200,9 +182,6 @@ export default function AdminUsers() {
                       <div className="px-3 py-2 rounded-lg bg-light-gray/30 border border-gray-700 text-white">
                         Owns {selectedVinylIds.length} vinyl{selectedVinylIds.length === 1 ? '' : 's'}
                       </div>
-                      <div className="px-3 py-2 rounded-lg bg-light-gray/30 border border-gray-700 text-white">
-                        Active: {ownedVinyls.find((vinyl) => getVinylId(vinyl) === selectedActiveVinylId)?.name || 'None'}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -220,22 +199,6 @@ export default function AdminUsers() {
                     >
                       {savingUserId === selectedUserId ? 'Saving...' : 'Save Ownership'}
                     </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs text-gray-400">Active Vinyl</label>
-                    <select
-                      value={selectedActiveVinylId}
-                      onChange={(e) => setSelectedActiveVinylId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none"
-                    >
-                      <option value="">None</option>
-                      {ownedVinyls.map((vinyl) => (
-                        <option key={getVinylId(vinyl)} value={getVinylId(vinyl)}>
-                          {vinyl.name} by {vinyl.artist}
-                        </option>
-                      ))}
-                    </select>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

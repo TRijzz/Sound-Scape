@@ -108,6 +108,10 @@ const buildArtistPayload = (body = {}) => {
     };
   }
 
+  if (payload.spotify_id === '') delete payload.spotify_id;
+  if (payload.image_url === '') delete payload.image_url;
+  if (payload.cover_image_url === '') delete payload.cover_image_url;
+
   return payload;
 };
 
@@ -388,9 +392,30 @@ export const updateArtist = async (req, res) => {
     if (req.user?.id) updates.last_edited_by = req.user.id;
     updates.last_edited_at = new Date();
 
+    const unset = {};
+    [
+      'display_name',
+      'bio',
+      'image_url',
+      'cover_image_url',
+      'language',
+      'country',
+      'region',
+      'hidden_reason',
+      'spotify_id'
+    ].forEach((field) => {
+      if (updates[field] === '') {
+        delete updates[field];
+        unset[field] = 1;
+      }
+    });
+
     const artist = await Artist.findByIdAndUpdate(
-      req.params.id, 
-      updates, 
+      req.params.id,
+      {
+        ...(Object.keys(updates).length ? { $set: updates } : {}),
+        ...(Object.keys(unset).length ? { $unset: unset } : {})
+      },
       { new: true, runValidators: true }
     ).lean();
     

@@ -19,18 +19,12 @@ import {
   MicIcon
 } from '../ui/Icons';
 import LyricsOverlay from './LyricsOverlay';
-import { getVinylImageSrc } from '../../utils/vinyl';
 
 function VinylOverlay({ isOpen, onClose }) {
-  const { isPlaying, currentTrack, activeVinyl, getVinylForSong } = useMusic();
+  const { isPlaying, currentTrack, getVinylForSong } = useMusic();
   const [showLyrics, setShowLyrics] = useState(false);
 
   const getVinylSrc = () => {
-    const activeVinylImage = getVinylImageSrc(activeVinyl, null);
-    if (activeVinylImage) {
-      return activeVinylImage;
-    }
-
     const matchedVinylImage = getVinylForSong(currentTrack);
     if (matchedVinylImage) {
       return matchedVinylImage;
