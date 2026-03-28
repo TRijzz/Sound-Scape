@@ -1,5 +1,6 @@
 import Album from '../models/Album.js';
 import Song from '../models/Song.js';
+import { ensureMoodsExist } from '../utils/moodRegistry.js';
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -89,6 +90,17 @@ export const createAlbum = async (req, res) => {
        }
        albumData.genres = Array.isArray(genres) ? genres : [genres];
     }
+    if (req.body.moods) {
+      let moods = req.body.moods;
+      if (typeof moods === 'string') {
+        if (moods.startsWith('[')) {
+          try { moods = JSON.parse(moods); } catch {}
+        } else {
+          moods = moods.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      albumData.moods = Array.isArray(moods) ? moods : [moods];
+    }
     
     if (req.body.popularity !== undefined) albumData.popularity = Number(req.body.popularity);
     if (req.body.label) albumData.label = req.body.label;
@@ -96,6 +108,10 @@ export const createAlbum = async (req, res) => {
     // Only include spotify_id if it's provided and not empty/null - this prevents null from being set
     if (req.body.spotify_id && typeof req.body.spotify_id === 'string' && req.body.spotify_id.trim()) {
       albumData.spotify_id = req.body.spotify_id.trim();
+    }
+
+    if (Array.isArray(albumData.moods) && albumData.moods.length > 0) {
+      await ensureMoodsExist(albumData.moods);
     }
 
     const album = await Album.create(albumData);
@@ -309,6 +325,17 @@ export const updateAlbum = async (req, res) => {
         }
         updates.genres = Array.isArray(genres) ? genres : [genres];
     }
+    if (updates.moods) {
+      let moods = updates.moods;
+      if (typeof moods === 'string') {
+        if (moods.startsWith('[')) {
+          try { moods = JSON.parse(moods); } catch {}
+        } else {
+          moods = moods.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      updates.moods = Array.isArray(moods) ? moods : [moods];
+    }
     
     if (updates.total_tracks) updates.total_tracks = Number(updates.total_tracks);
     if (updates.popularity) updates.popularity = Number(updates.popularity);
@@ -329,6 +356,10 @@ export const updateAlbum = async (req, res) => {
       if (typeof updates.copyrights === 'string') {
         try { updates.copyrights = JSON.parse(updates.copyrights); } catch {}
       }
+    }
+
+    if (Array.isArray(updates.moods) && updates.moods.length > 0) {
+      await ensureMoodsExist(updates.moods);
     }
 
     const album = await Album.findByIdAndUpdate(

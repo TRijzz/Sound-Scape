@@ -21,6 +21,12 @@ export default function AdminLyrics() {
   const [isSearching, setIsSearching] = useState(false);
   const [songSearch, setSongSearch] = useState('');
   // const [showSuggestions, setShowSuggestions] = useState(false); // Removed dropdown logic
+  const stats = {
+    total: items.length,
+    synced: items.filter((item) => Array.isArray(item.lines) && item.lines.length > 0).length,
+    drafts: items.filter((item) => !Array.isArray(item.lines) || item.lines.length === 0).length,
+    editing: isAdding ? 1 : 0
+  };
 
   const showToast = (message, type = 'success', duration = 3000) => {
     const id = Date.now();
@@ -148,6 +154,44 @@ export default function AdminLyrics() {
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,180,255,0.18),_transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-neon-blue/80">Lyrics Console</p>
+              <h2 className="text-3xl font-semibold text-white">List, search, edit, sync</h2>
+              <p className="max-w-2xl text-sm text-gray-300">Manage synced lyrics, upload new LRC files, and clean up song lyric coverage without leaving the admin flow.</p>
+            </div>
+            <button
+              onClick={() => {
+                setIsAdding(!isAdding);
+                if (!isAdding) {
+                  setSelectedSongId('');
+                  setSongSearch('');
+                  setLyricsContent('');
+                  setLyricsFile(null);
+                  setInputType('text');
+                }
+              }}
+              className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85"
+            >
+              {isAdding ? 'Close editor' : 'Add lyrics'}
+            </button>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            {[
+              ['Total lyrics', stats.total],
+              ['Synced lines', stats.synced],
+              ['Needs review', stats.drafts],
+              ['Editor open', stats.editing]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             value={search}
@@ -159,7 +203,6 @@ export default function AdminLyrics() {
             onClick={() => {
               setIsAdding(!isAdding);
               if (!isAdding) {
-                // Reset form when opening "Add" mode
                 setSelectedSongId('');
                 setSongSearch('');
                 setLyricsContent('');

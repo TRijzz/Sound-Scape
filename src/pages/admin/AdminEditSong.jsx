@@ -5,7 +5,6 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 
-const DEFAULT_MOODS = ['Chill', 'Happy', 'Sad', 'Energetic', 'Romantic', 'Focus', 'Party'];
 const DEFAULT_LANGUAGES = ['English', 'Nepali', 'Hindi', 'Spanish', 'French', 'Korean'];
 
 const toDisplayGenre = (value) => {
@@ -32,7 +31,7 @@ export default function AdminEditSong() {
   const [allAlbums, setAllAlbums] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [genreOptions, setGenreOptions] = useState([]);
-  const [moodOptions, setMoodOptions] = useState(DEFAULT_MOODS);
+  const [moodOptions, setMoodOptions] = useState([]);
   const [languageOptions, setLanguageOptions] = useState(DEFAULT_LANGUAGES);
 
   const [name, setName] = useState('');
@@ -54,6 +53,7 @@ export default function AdminEditSong() {
   const [currentAudioUrl, setCurrentAudioUrl] = useState('');
   const [currentCoverUrl, setCurrentCoverUrl] = useState('');
   const [audioFile, setAudioFile] = useState(null);
+  const [removeCurrentAudio, setRemoveCurrentAudio] = useState(false);
   const [coverFile, setCoverFile] = useState(null);
   const [lyricsFile, setLyricsFile] = useState(null);
 
@@ -92,13 +92,14 @@ export default function AdminEditSong() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [songRes, artistsRes, albumsRes, categoriesRes, genresRes, songsRes] = await Promise.all([
+        const [songRes, artistsRes, albumsRes, categoriesRes, genresRes, songsRes, moodsRes] = await Promise.all([
           apiService.getSong(id),
           apiService.getArtists(1, 1000),
           apiService.getAlbums(1, 1000),
           apiService.getCategories(),
           apiService.getGenres(200),
-          apiService.getSongs(1, 1000)
+          apiService.getSongs(1, 1000),
+          apiService.getSongMoods().catch(() => ({ moods: [] }))
         ]);
 
         const song = songRes.song || songRes;
@@ -121,12 +122,12 @@ export default function AdminEditSong() {
 
         const categoryNames = categoriesList.map((item) => item.name || item.collectionName || '').filter(Boolean);
         const genreNames = genresList.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean).map(toDisplayGenre);
-        const moodNames = songsList.map((item) => item.mood).filter(Boolean);
+        const moodNames = (moodsRes?.moods || []).concat(songsList.map((item) => item.mood).filter(Boolean));
         const languageNames = songsList.map((item) => item.language).filter(Boolean);
 
         setCategoryOptions(mergeOption(categoryNames, song.category || ''));
         setGenreOptions(mergeOption(genreNames, toDisplayGenre(song.genre?.name || song.genre || '')));
-        setMoodOptions(mergeOption([...DEFAULT_MOODS, ...moodNames], song.mood || ''));
+        setMoodOptions(mergeOption(moodNames, song.mood || ''));
         setLanguageOptions(mergeOption([...DEFAULT_LANGUAGES, ...languageNames], song.language || ''));
 
         setName(song.name || '');
@@ -147,6 +148,7 @@ export default function AdminEditSong() {
         setLanguage(song.language || '');
         setCurrentAudioUrl(song.audio_url || '');
         setCurrentCoverUrl(song.cover_art_url || song.album?.images?.[0]?.url || '');
+        setRemoveCurrentAudio(false);
       } catch (error) {
         console.error('Error loading data:', error);
         showToast('Error loading song details', 'error');
@@ -185,6 +187,7 @@ export default function AdminEditSong() {
       formData.append('genre', genre);
       formData.append('mood', mood);
       formData.append('language', language);
+      if (removeCurrentAudio && !audioFile) formData.append('remove_audio', 'true');
       if (audioFile) formData.append('audio', audioFile);
       if (coverFile) formData.append('cover', coverFile);
       if (lyricsFile) formData.append('lyricsFile', lyricsFile);
@@ -354,16 +357,20 @@ export default function AdminEditSong() {
 
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Mood</label>
-                <select
-                  value={mood}
-                  onChange={(e) => setMood(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none appearance-none"
-                >
-                  <option value="">Select Mood</option>
-                  {moodOptions.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
+                <div>
+                  <input
+                    list="admin-edit-song-moods"
+                    value={mood}
+                    onChange={(e) => setMood(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
+                    placeholder="Type or select mood"
+                  />
+                  <datalist id="admin-edit-song-moods">
+                    {moodOptions.map((option) => (
+                      <option key={option} value={option} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
 
               <div>
@@ -396,17 +403,44 @@ export default function AdminEditSong() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-sm text-gray-400">Audio File</label>
-                    {currentAudioUrl ? (
+                    {currentAudioUrl && !removeCurrentAudio ? (
                       <span className="text-[10px] text-green-400 border border-green-400/50 px-1 rounded flex items-center gap-1">
                         <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         Already Uploaded
                       </span>
+                    ) : removeCurrentAudio ? (
+                      <span className="text-[10px] text-red-400 border border-red-400/50 px-1 rounded">Will Remove</span>
                     ) : (
                       <span className="text-[10px] text-orange-400 border border-orange-400/50 px-1 rounded">No Audio</span>
                     )}
                   </div>
-                  <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files[0])} className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20" />
-                  {currentAudioUrl && <div className="mt-1 text-xs text-gray-500 truncate max-w-xs">Current: {currentAudioUrl.split('/').pop()}</div>}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const nextFile = e.target.files[0] || null;
+                      setAudioFile(nextFile);
+                      if (nextFile) setRemoveCurrentAudio(false);
+                    }}
+                    className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20"
+                  />
+                  {currentAudioUrl ? (
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="text-xs text-gray-500 truncate max-w-xs">
+                        Current: {currentAudioUrl.split('/').pop()}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoveCurrentAudio((prev) => !prev);
+                          setAudioFile(null);
+                        }}
+                        className={`rounded-lg border px-3 py-1 text-xs ${removeCurrentAudio ? 'border-gray-600 text-gray-300 hover:bg-white/5' : 'border-red-500/40 text-red-300 hover:bg-red-500/10'}`}
+                      >
+                        {removeCurrentAudio ? 'Keep audio' : 'Remove audio'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">

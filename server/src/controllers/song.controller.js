@@ -8,8 +8,15 @@ import LikedSong from '../models/LikedSong.js';
 import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { classifySongTaxonomy, getSongTaxonomyLookups } from '../utils/songTaxonomy.js';
 import { mirrorSongToTaxonomyDbs, removeSongFromTaxonomyDbs } from '../utils/songTaxonomyMirror.js';
+import { ensureMoodsExist, getRegisteredMoods } from '../utils/moodRegistry.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicSongsDir = path.resolve(__dirname, '../../../public/songs');
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -65,6 +72,73 @@ const buildSongSearchPatterns = (search = '') => {
 const normalizeOptionalText = (value) => {
   if (value === undefined || value === null) return '';
   return String(value).trim();
+};
+
+const audioFilePattern = /\.(mp3|wav|ogg|m4a|flac)$/i;
+
+const buildSongFileCandidates = (song = {}) => {
+  const candidates = [];
+  const filePath = normalizeOptionalText(song?.file_path);
+  const audioUrl = normalizeOptionalText(song?.audio_url);
+
+  if (filePath) {
+    candidates.push(path.isAbsolute(filePath) ? filePath : path.resolve(filePath));
+  }
+
+  if (audioUrl && audioUrl.startsWith('/songs/')) {
+    const relativeAudioPath = audioUrl.replace(/^\/songs\//, '').split('/').join(path.sep);
+    candidates.push(path.join(publicSongsDir, relativeAudioPath));
+  }
+
+  return Array.from(new Set(candidates));
+};
+
+const getExistingSongAudioPath = (song = {}) => {
+  const candidates = buildSongFileCandidates(song);
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate);
+    } catch {
+      return false;
+    }
+  }) || '';
+};
+
+const annotateSongAudioState = (song = {}) => {
+  const existingAudioPath = getExistingSongAudioPath(song);
+  return {
+    ...song,
+    has_uploaded_audio: Boolean(existingAudioPath),
+    existing_audio_path: existingAudioPath || undefined
+  };
+};
+
+const collectAudioFilesFromDisk = async () => {
+  const files = [];
+
+  if (!fs.existsSync(publicSongsDir)) {
+    return files;
+  }
+
+  async function* walk(dir) {
+    const dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const dirent of dirents) {
+      const result = path.resolve(dir, dirent.name);
+      if (dirent.isDirectory()) {
+        yield* walk(result);
+      } else {
+        yield result;
+      }
+    }
+  }
+
+  for await (const filePath of walk(publicSongsDir)) {
+    if (audioFilePattern.test(filePath)) {
+      files.push(filePath);
+    }
+  }
+
+  return files;
 };
 
 const buildLyricsPreview = (lyrics = '', query = '') => {
@@ -269,6 +343,10 @@ export const createSong = async (req, res) => {
       songData.spotify_id = req.body.spotify_id.trim();
     }
 
+    if (songData.mood) {
+      await ensureMoodsExist([songData.mood]);
+    }
+
     const song = await Song.create(songData);
 
     // Handle Lyrics File Upload
@@ -333,7 +411,8 @@ export const getSongs = async (req, res) => {
       category,
       mood,
       language,
-      tags
+      tags,
+      has_audio
     } = req.query;
 
     const query = {};
@@ -403,25 +482,49 @@ export const getSongs = async (req, res) => {
       }
     }
 
-    const skip = (page - 1) * limit;
-    const limitNum = parseInt(limit);
-    // Allow high limits for admin pages (up to 1000)
+    const limitNum = parseInt(limit, 10);
+    const requestedPage = parseInt(page, 10) || 1;
     const actualLimit = limitNum > 1000 ? 1000 : limitNum;
-    
-    const songs = await Song.find(query)
-      .populate('artists', 'name spotify_id images')
-      .populate('album', 'name images release_date')
-      .sort(sort)
-      .skip(skip)
-      .limit(actualLimit)
-      .lean();
+    const uploadedOnly = has_audio === 'true' || has_audio === '1';
 
-    const total = await Song.countDocuments(query);
+    let songsWithAudioState = [];
+    let total = 0;
+
+    if (uploadedOnly) {
+      const candidateSongs = await Song.find({
+        ...query,
+        $or: [
+          { audio_url: { $exists: true, $nin: ['', null] } },
+          { file_path: { $exists: true, $nin: ['', null] } }
+        ]
+      })
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images release_date')
+        .sort(sort)
+        .lean();
+
+      const uploadedSongs = candidateSongs.filter((song) => annotateSongAudioState(song).has_uploaded_audio);
+      total = uploadedSongs.length;
+      const skip = Math.max(0, (requestedPage - 1) * actualLimit);
+      songsWithAudioState = uploadedSongs.slice(skip, skip + actualLimit).map((song) => annotateSongAudioState(song));
+    } else {
+      const skip = Math.max(0, (requestedPage - 1) * actualLimit);
+      const songs = await Song.find(query)
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images release_date')
+        .sort(sort)
+        .skip(skip)
+        .limit(actualLimit)
+        .lean();
+
+      songsWithAudioState = songs.map((song) => annotateSongAudioState(song));
+      total = await Song.countDocuments(query);
+    }
 
     res.json({
-      songs,
+      songs: songsWithAudioState,
       pagination: {
-        page: parseInt(page),
+        page: requestedPage,
         limit: actualLimit,
         total,
         pages: Math.ceil(total / actualLimit)
@@ -429,6 +532,65 @@ export const getSongs = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch songs', error: error.message });
+  }
+};
+
+export const getSongMoods = async (req, res) => {
+  try {
+    const [songMoods, artistMoodLists, albumMoodLists] = await Promise.all([
+      Song.distinct('mood', { mood: { $exists: true, $nin: ['', null] } }),
+      Artist.distinct('mood_tags'),
+      Album.distinct('moods')
+    ]);
+
+    await ensureMoodsExist([
+      ...songMoods,
+      ...artistMoodLists,
+      ...albumMoodLists
+    ]);
+
+    const normalized = await getRegisteredMoods();
+
+    res.json({
+      moods: normalized,
+      total: normalized.length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch moods', error: error.message });
+  }
+};
+
+export const getAudioInventory = async (req, res) => {
+  try {
+    const [diskFiles, songs] = await Promise.all([
+      collectAudioFilesFromDisk(),
+      Song.find({})
+        .select('name file_path audio_url')
+        .sort({ updatedAt: -1 })
+        .lean()
+    ]);
+
+    const linkedSongs = songs
+      .map((song) => annotateSongAudioState(song))
+      .filter((song) => song.has_uploaded_audio);
+
+    const linkedFilePathSet = new Set(
+      linkedSongs
+        .map((song) => normalizeOptionalText(song.existing_audio_path))
+        .filter(Boolean)
+        .map((filePath) => path.resolve(filePath))
+    );
+
+    const normalizedDiskFiles = diskFiles.map((filePath) => path.resolve(filePath));
+    const orphanFiles = normalizedDiskFiles.filter((filePath) => !linkedFilePathSet.has(filePath));
+
+    res.json({
+      total_files: normalizedDiskFiles.length,
+      linked_song_count: linkedSongs.length,
+      orphan_file_count: orphanFiles.length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch audio inventory', error: error.message });
   }
 };
 
@@ -1040,6 +1202,11 @@ export const updateSong = async (req, res) => {
   try {
     const updateData = { ...req.body };
     const unsetData = {};
+    const existingSong = await Song.findById(req.params.id).select('file_path audio_url');
+
+    if (!existingSong) {
+      return res.status(404).json({ message: 'Song not found' });
+    }
     
     // Remove internal fields if they leaked from body
     delete updateData._id;
@@ -1050,12 +1217,37 @@ export const updateSong = async (req, res) => {
     // Handle file uploads
     if (req.files) {
       if (req.files.audio) {
+        if (existingSong.file_path && fs.existsSync(existingSong.file_path)) {
+          try {
+            fs.unlinkSync(existingSong.file_path);
+          } catch (unlinkError) {
+            console.error('Failed to remove previous audio file:', unlinkError);
+          }
+        }
         updateData.audio_url = `/songs/${req.files.audio[0].filename}`;
         updateData.file_path = req.files.audio[0].path;
       }
       if (req.files.cover) {
         updateData.cover_art_url = `/images/${req.files.cover[0].filename}`;
       }
+    }
+
+    if (updateData.remove_audio === 'true' || updateData.remove_audio === true) {
+      delete updateData.remove_audio;
+      delete updateData.audio_url;
+      delete updateData.file_path;
+      unsetData.audio_url = 1;
+      unsetData.file_path = 1;
+
+      if (existingSong.file_path && fs.existsSync(existingSong.file_path)) {
+        try {
+          fs.unlinkSync(existingSong.file_path);
+        } catch (unlinkError) {
+          console.error('Failed to remove audio file:', unlinkError);
+        }
+      }
+    } else {
+      delete updateData.remove_audio;
     }
 
     // Handle numeric/boolean fields from FormData
@@ -1128,6 +1320,10 @@ export const updateSong = async (req, res) => {
       }
     });
 
+    if (updateData.mood) {
+      await ensureMoodsExist([updateData.mood]);
+    }
+
     // Improved Genre handling - Map text names to ObjectId references
     if (updateData.genres !== undefined) {
       if (typeof updateData.genres === 'string') {
@@ -1177,10 +1373,6 @@ export const updateSong = async (req, res) => {
       .populate('album', 'name images')
       .lean();
     
-    if (!song) {
-      return res.status(404).json({ message: 'Song not found' });
-    }
-
     // Handle Lyrics File Upload (Update)
     if (req.files && req.files.lyricsFile) {
       try {
@@ -1230,6 +1422,17 @@ export const deleteSong = async (req, res) => {
     if (!song) {
       return res.status(404).json({ message: 'Song not found' });
     }
+
+    const audioCandidates = buildSongFileCandidates(song);
+    audioCandidates.forEach((candidatePath) => {
+      try {
+        if (fs.existsSync(candidatePath)) {
+          fs.unlinkSync(candidatePath);
+        }
+      } catch (unlinkError) {
+        console.error('Failed to remove deleted song audio file:', unlinkError);
+      }
+    });
 
     // Also delete associated lyrics
     await Lyric.findOneAndDelete({ song: req.params.id });

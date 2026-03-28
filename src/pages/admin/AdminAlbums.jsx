@@ -32,12 +32,20 @@ export default function AdminAlbums() {
   const [releaseDate, setReleaseDate] = useState('');
   const [selectedArtists, setSelectedArtists] = useState([]);
   const [genres, setGenres] = useState('');
+  const [moods, setMoods] = useState('');
   const [popularity, setPopularity] = useState('');
   const [spotifyId, setSpotifyId] = useState('');
   const [coverFile, setCoverFile] = useState(null);
+  const [moodOptions, setMoodOptions] = useState([]);
   
   const [toasts, setToasts] = useState([]);
   const canCreate = useMemo(()=>name.trim().length>0 && !creating, [name, creating]);
+  const stats = useMemo(() => ({
+    total: albums.length,
+    withAudio: Object.values(trackCounts).filter((count) => count > 0).length,
+    singles: albums.filter((album) => album.album_type === 'single').length,
+    upcoming: albums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length
+  }), [albums, trackCounts]);
 
   const showToast = (message, type = 'error', duration = 4000) => {
     const id = Date.now();
@@ -55,10 +63,11 @@ export default function AdminAlbums() {
       // Note: Fetching all songs might be heavy for large datasets. 
       // Ideally, the backend album list should return track counts.
       // For this demo, we'll fetch a large batch of songs to compute counts client-side.
-      const [res, artistsRes, songsRes] = await Promise.all([
+      const [res, artistsRes, songsRes, moodsRes] = await Promise.all([
         apiService.getAlbums(1, 1000, search),
         apiService.getArtists(1, 1000),
-        apiService.getSongs(1, 2000) 
+        apiService.getSongs(1, 2000),
+        apiService.getSongMoods().catch(() => ({ moods: [] }))
       ]);
       
       const list = Array.isArray(res?.albums) ? res.albums : Array.isArray(res) ? res : [];
@@ -77,6 +86,7 @@ export default function AdminAlbums() {
         }
       });
       setTrackCounts(counts);
+      setMoodOptions(Array.isArray(moodsRes?.moods) ? moodsRes.moods : []);
 
     } catch (error) {
       console.error('Error loading albums:', error);
@@ -113,6 +123,7 @@ export default function AdminAlbums() {
       if (totalTracks) formData.append('total_tracks', totalTracks);
       if (releaseDate) formData.append('release_date', releaseDate);
       if (genres) formData.append('genres', genres); // Comma separated string is fine, backend handles it
+      if (moods) formData.append('moods', moods);
       if (popularity) formData.append('popularity', popularity);
       if (spotifyId) formData.append('spotify_id', spotifyId);
       
@@ -129,7 +140,7 @@ export default function AdminAlbums() {
       
       // Reset
       setName(''); setAlbumType('album'); setTotalTracks(''); setReleaseDate('');
-      setSelectedArtists([]); setGenres(''); setPopularity(''); setSpotifyId(''); setCoverFile(null);
+      setSelectedArtists([]); setGenres(''); setMoods(''); setPopularity(''); setSpotifyId(''); setCoverFile(null);
       
       // Reset file input
       const fileInputs = document.querySelectorAll('input[type="file"]');
@@ -170,6 +181,29 @@ export default function AdminAlbums() {
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-4">
+        <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,180,255,0.18),_transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-neon-blue/80">Album Console</p>
+              <h2 className="text-3xl font-semibold text-white">List, create, edit, release</h2>
+              <p className="max-w-2xl text-sm text-gray-300">Manage album metadata, covers, release dates, and linked audio inventory from one place.</p>
+            </div>
+            <button onClick={() => document.querySelector('input[placeholder="Album Name *"]')?.focus()} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add album</button>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            {[
+              ['Total albums', stats.total],
+              ['With audio', stats.withAudio],
+              ['Singles', stats.singles],
+              ['Upcoming', stats.upcoming]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
         
         {/* Search */}
         <div className="flex items-center gap-2">
@@ -202,6 +236,14 @@ export default function AdminAlbums() {
             />
             
             <input value={genres} onChange={e=>setGenres(e.target.value)} placeholder="Genres (comma separated)" className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
+            <div>
+              <input list="admin-album-moods" value={moods} onChange={e=>setMoods(e.target.value)} placeholder="Moods (comma separated)" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
+              <datalist id="admin-album-moods">
+                {moodOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
 
           </div>
           <button onClick={createAlbum} disabled={!canCreate} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg disabled:opacity-50 font-medium mt-2">

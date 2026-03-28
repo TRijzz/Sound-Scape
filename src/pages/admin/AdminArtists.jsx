@@ -6,6 +6,8 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 
+const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
+
 const emptyForm = () => ({
   name: '', display_name: '', bio: '', image_url: '', cover_image_url: '',
   genres: [], tags: [], mood_tags: [], language: '', country: '', region: '',
@@ -98,7 +100,7 @@ export default function AdminArtists() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ status: 'all', verified: 'all', genre: 'all', region: 'all' });
+  const [filters, setFilters] = useState({ status: 'all', verified: 'all', genre: 'all', region: 'all', sort: 'recent' });
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkGenre, setBulkGenre] = useState('');
   const [bulkTag, setBulkTag] = useState('');
@@ -173,21 +175,34 @@ export default function AdminArtists() {
     hidden: artists.filter((artist) => !artist.is_visible || artist.publish_status === 'hidden').length
   }), [artists]);
 
-  const filtered = useMemo(() => artists.filter((artist) => {
-    const q = search.trim().toLowerCase();
-    const matchesSearch = !q || [artist.name, artist.display_name].filter(Boolean).some((value) => value.toLowerCase().includes(q));
-    const label = statusMeta(artist).label.toLowerCase();
-    const matchesStatus = filters.status === 'all'
-      || (filters.status === 'active' && label === 'active')
-      || (filters.status === 'inactive' && label !== 'active')
-      || label === filters.status;
-    const matchesVerified = filters.verified === 'all'
-      || (filters.verified === 'verified' && artist.is_verified)
-      || (filters.verified === 'unverified' && !artist.is_verified);
-    const matchesGenre = filters.genre === 'all' || artist.genres.some((genre) => genre.toLowerCase() === filters.genre.toLowerCase());
-    const matchesRegion = filters.region === 'all' || String(artist.region || artist.country || '').toLowerCase() === filters.region.toLowerCase();
-    return matchesSearch && matchesStatus && matchesVerified && matchesGenre && matchesRegion;
-  }), [artists, filters, search]);
+  const filtered = useMemo(() => {
+    const visible = artists.filter((artist) => {
+      const q = search.trim().toLowerCase();
+      const matchesSearch = !q || [artist.name, artist.display_name].filter(Boolean).some((value) => value.toLowerCase().includes(q));
+      const label = statusMeta(artist).label.toLowerCase();
+      const matchesStatus = filters.status === 'all'
+        || (filters.status === 'active' && label === 'active')
+        || (filters.status === 'inactive' && label !== 'active')
+        || label === filters.status;
+      const matchesVerified = filters.verified === 'all'
+        || (filters.verified === 'verified' && artist.is_verified)
+        || (filters.verified === 'unverified' && !artist.is_verified);
+      const matchesGenre = filters.genre === 'all' || artist.genres.some((genre) => genre.toLowerCase() === filters.genre.toLowerCase());
+      const matchesRegion = filters.region === 'all' || String(artist.region || artist.country || '').toLowerCase() === filters.region.toLowerCase();
+      return matchesSearch && matchesStatus && matchesVerified && matchesGenre && matchesRegion;
+    });
+
+    const sorted = [...visible];
+    if (filters.sort === 'az') {
+      sorted.sort((left, right) => previewName(left).localeCompare(previewName(right), undefined, { sensitivity: 'base' }));
+    } else if (filters.sort === 'za') {
+      sorted.sort((left, right) => previewName(right).localeCompare(previewName(left), undefined, { sensitivity: 'base' }));
+    } else {
+      sorted.sort((left, right) => new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime());
+    }
+
+    return sorted;
+  }, [artists, filters, search]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((artist) => selectedIds.includes(idOf(artist)));
   const patchArtist = (nextArtist) => setArtists((prev) => {
@@ -362,12 +377,13 @@ export default function AdminArtists() {
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(4,minmax(0,1fr))]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Search</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by artist name" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60" /></label>
-            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Status</span><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option value="all">All statuses</option><option value="active">Active</option><option value="draft">Draft</option><option value="hidden">Hidden</option><option value="inactive">Inactive</option></select></label>
-            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Verified</span><select value={filters.verified} onChange={(e) => setFilters((prev) => ({ ...prev, verified: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option value="all">All artists</option><option value="verified">Verified</option><option value="unverified">Unverified</option></select></label>
-            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Genre</span><select value={filters.genre} onChange={(e) => setFilters((prev) => ({ ...prev, genre: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option value="all">All genres</option>{genres.map((genre) => <option key={genre} value={genre}>{genre}</option>)}</select></label>
-            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Region</span><select value={filters.region} onChange={(e) => setFilters((prev) => ({ ...prev, region: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option value="all">All regions</option>{regions.map((region) => <option key={region} value={region}>{region}</option>)}</select></label>
+            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Status</span><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All statuses</option><option style={selectOptionStyle} value="active">Active</option><option style={selectOptionStyle} value="draft">Draft</option><option style={selectOptionStyle} value="hidden">Hidden</option><option style={selectOptionStyle} value="inactive">Inactive</option></select></label>
+            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Verified</span><select value={filters.verified} onChange={(e) => setFilters((prev) => ({ ...prev, verified: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All artists</option><option style={selectOptionStyle} value="verified">Verified</option><option style={selectOptionStyle} value="unverified">Unverified</option></select></label>
+            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Genre</span><select value={filters.genre} onChange={(e) => setFilters((prev) => ({ ...prev, genre: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All genres</option>{genres.map((genre) => <option style={selectOptionStyle} key={genre} value={genre}>{genre}</option>)}</select></label>
+            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Region</span><select value={filters.region} onChange={(e) => setFilters((prev) => ({ ...prev, region: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All regions</option>{regions.map((region) => <option style={selectOptionStyle} key={region} value={region}>{region}</option>)}</select></label>
+            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Sort</span><select value={filters.sort} onChange={(e) => setFilters((prev) => ({ ...prev, sort: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="recent">Recently added</option><option style={selectOptionStyle} value="az">Artist name A-Z</option><option style={selectOptionStyle} value="za">Artist name Z-A</option></select></label>
           </div>
         </div>
 
@@ -375,8 +391,6 @@ export default function AdminArtists() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap gap-2">
               <button onClick={toggleFilteredSelection} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">{allFilteredSelected ? 'Clear page selection' : 'Select filtered'}</button>
-              <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_visible: false, publish_status: 'hidden' }), 'Selected artists hidden.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Bulk hide</button>
-              <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate((artist) => ({ is_visible: true, publish_status: artist.publish_status === 'hidden' ? 'published' : artist.publish_status }), 'Selected artists shown.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Bulk show</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_featured: true }), 'Selected artists featured.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Feature</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_featured: false }), 'Selected artists unfeatured.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Unfeature</button>
             </div>

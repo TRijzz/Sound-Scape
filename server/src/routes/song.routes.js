@@ -19,7 +19,9 @@ import {
   playSong,
   getGenreStats,
   getPersonalizedRecommendations,
-  getListeningAnalytics
+  getListeningAnalytics,
+  getAudioInventory,
+  getSongMoods
 } from '../controllers/song.controller.js';
 
 import { upload } from '../middlewares/upload.js';
@@ -34,6 +36,8 @@ router.get('/year', getSongsByYear);
 router.get('/search', searchSongs);
 router.get('/spotify/:spotifyId', getSongBySpotifyId);
 router.get('/genre-stats', getGenreStats);
+router.get('/moods', getSongMoods);
+router.get('/audio-inventory', requireAdminOrAuth, getAudioInventory);
 router.get('/recommendations', requireAuth, getPersonalizedRecommendations);
 router.get('/analytics/me', requireAuth, getListeningAnalytics);
 router.get('/:id', getSong);

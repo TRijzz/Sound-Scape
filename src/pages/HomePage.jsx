@@ -9,6 +9,19 @@ import { PlayIcon, SearchIcon, HeartIcon, VinylIcon } from '../components/ui/Ico
 import apiService from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
+const moodAccent = (mood = '', index = 0) => {
+  const palettes = [
+    'from-amber-400 to-orange-500',
+    'from-blue-400 to-indigo-600',
+    'from-rose-500 to-red-600',
+    'from-emerald-400 to-cyan-500',
+    'from-fuchsia-500 to-pink-600',
+    'from-lime-400 to-green-500'
+  ];
+  const seed = Array.from(String(mood)).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return palettes[(seed + index) % palettes.length];
+};
+
 const HomePage = () => {
   const { playTrack, isAuthenticated } = useMusic();
   const navigate = useNavigate();
@@ -16,16 +29,10 @@ const HomePage = () => {
   const [sectionsLoading, setSectionsLoading] = React.useState(false);
   const [recommendationData, setRecommendationData] = React.useState({ title: '', reason: '', tracks: [] });
   const [recommendationsLoading, setRecommendationsLoading] = React.useState(false);
-  const [selectedMood, setSelectedMood] = React.useState('Chill');
+  const [moodOptions, setMoodOptions] = React.useState([]);
+  const [selectedMood, setSelectedMood] = React.useState('');
   const [moodSongs, setMoodSongs] = React.useState([]);
   const [moodLoading, setMoodLoading] = React.useState(false);
-
-  const moodOptions = React.useMemo(() => ([
-    { label: 'Happy', accent: 'from-amber-400 to-orange-500', query: 'Happy' },
-    { label: 'Sad', accent: 'from-blue-400 to-indigo-600', query: 'Sad' },
-    { label: 'Workout', accent: 'from-rose-500 to-red-600', query: 'Workout' },
-    { label: 'Chill', accent: 'from-emerald-400 to-cyan-500', query: 'Chill' },
-  ]), []);
   
   // Use API hooks to fetch real data
   const { artists: topArtists, loading: artistsLoading, error: artistsError } = usePopularArtists(6);
@@ -158,7 +165,38 @@ const HomePage = () => {
   React.useEffect(() => {
     let cancelled = false;
 
+    const loadMoods = async () => {
+      try {
+        const response = await apiService.getSongMoods();
+        const moods = Array.isArray(response?.moods) ? response.moods : [];
+        if (cancelled) return;
+        const nextMoods = moods.map((mood, index) => ({
+          label: mood,
+          query: mood,
+          accent: moodAccent(mood, index)
+        }));
+        setMoodOptions(nextMoods);
+        setSelectedMood((current) => current || nextMoods[0]?.query || '');
+      } catch (error) {
+        console.error('Failed to load moods:', error);
+        if (!cancelled) setMoodOptions([]);
+      }
+    };
+
+    loadMoods();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
     const loadMoodSongs = async () => {
+      if (!selectedMood) {
+        setMoodSongs([]);
+        return;
+      }
       try {
         setMoodLoading(true);
         const response = await apiService.getSongs(1, 6, '', '', '', '', '', '-popularity', selectedMood);
@@ -290,6 +328,12 @@ const HomePage = () => {
             <h2 className="text-xl font-bold text-white">Pick a mood</h2>
             <p className="text-sm text-gray-400 mt-1">Mood-based discovery powered by your song taxonomy.</p>
           </div>
+          <button
+            onClick={() => navigate('/moods')}
+            className="rounded-xl border border-neon-blue/40 bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue hover:bg-neon-blue/15"
+          >
+            Browse by mood
+          </button>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
           {moodOptions.map((mood) => (
@@ -307,6 +351,12 @@ const HomePage = () => {
             </motion.button>
           ))}
         </div>
+        {moodOptions.length === 0 ? (
+          <div className="bg-light-gray/40 rounded-xl p-4 text-gray-400 text-center">
+            No moods have been added to the system yet.
+          </div>
+        ) : null}
+        {moodOptions.length > 0 ? (
         <div className="bg-light-gray/40 rounded-xl p-4">
           {moodLoading ? (
             <div className="text-gray-400 py-8 text-center">Loading {selectedMood.toLowerCase()} songs...</div>
@@ -324,6 +374,7 @@ const HomePage = () => {
             <div className="text-gray-400 py-8 text-center">No songs tagged for the {selectedMood.toLowerCase()} mood yet.</div>
           )}
         </div>
+        ) : null}
       </motion.section>
 
       {/* Featured Playlists */}

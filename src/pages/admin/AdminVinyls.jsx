@@ -40,6 +40,12 @@ export default function AdminVinyls() {
   const [editingId, setEditingId] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [vinylToDelete, setVinylToDelete] = useState(null);
+  const stats = useMemo(() => ({
+    total: vinyls.length,
+    visible: vinyls.filter((vinyl) => vinyl.display_in_store).length,
+    featured: vinyls.filter((vinyl) => vinyl.is_featured).length,
+    available: vinyls.filter((vinyl) => vinyl.is_available !== false).length
+  }), [vinyls]);
 
   const showToast = (message, type = 'success', duration = 3000) => {
     const id = Date.now();
@@ -194,16 +200,36 @@ export default function AdminVinyls() {
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-white">Vinyl Management</h2>
-            <p className="text-sm text-gray-400 mt-1">Create, update, publish, feature, and delete shop vinyls from one place.</p>
+        <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,180,255,0.18),_transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-neon-blue/80">Vinyl Console</p>
+              <h2 className="text-3xl font-semibold text-white">List, create, publish, feature</h2>
+              <p className="max-w-2xl text-sm text-gray-300">Manage store visibility, pricing, availability, and featured vinyl releases from one focused panel.</p>
+            </div>
+            {editingId ? (
+              <button onClick={resetForm} className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/5">
+                Cancel editing
+              </button>
+            ) : (
+              <button onClick={() => document.querySelector('input[placeholder="e.g. God Did"]')?.focus()} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">
+                Add vinyl
+              </button>
+            )}
           </div>
-          {editingId && (
-            <button onClick={resetForm} className="text-sm text-gray-400 hover:text-white underline">
-              Cancel Editing
-            </button>
-          )}
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            {[
+              ['Total vinyls', stats.total],
+              ['In store', stats.visible],
+              ['Featured', stats.featured],
+              ['Available', stats.available]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="p-6 bg-dark-gray/40 rounded-xl border border-gray-800 space-y-4">

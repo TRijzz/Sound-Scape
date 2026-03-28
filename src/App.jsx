@@ -12,6 +12,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import ArtistPage from './pages/ArtistPage';
 import AlbumPage from './pages/AlbumPage';
 import GenrePage from './pages/GenrePage';
+import MoodBrowsePage from './pages/MoodBrowsePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import SettingsPage from './pages/SettingsPage';
@@ -100,6 +101,7 @@ function AppContent() {
                 <Route path="/artist/:id" element={<ArtistPage />} />
                 <Route path="/album/:id" element={<AlbumPage />} />
                 <Route path="/genre/:name" element={<GenrePage />} />
+                <Route path="/moods" element={<MoodBrowsePage />} />
                 <Route path="/store" element={<VinylStore />} />
                 <Route path="/vinyl/:id" element={<VinylPage />} />
                 <Route path="/login" element={<LoginPage />} />

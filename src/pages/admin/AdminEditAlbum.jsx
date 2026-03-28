@@ -14,6 +14,7 @@ export default function AdminEditAlbum() {
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [allArtists, setAllArtists] = useState([]);
+  const [moodOptions, setMoodOptions] = useState([]);
 
   // Form State
   const [name, setName] = useState('');
@@ -21,6 +22,7 @@ export default function AdminEditAlbum() {
   const [totalTracks, setTotalTracks] = useState('');
   const [releaseDate, setReleaseDate] = useState('');
   const [genres, setGenres] = useState('');
+  const [moods, setMoods] = useState('');
   const [popularity, setPopularity] = useState('');
   const [spotifyId, setSpotifyId] = useState('');
   const [externalSpotifyUrl, setExternalSpotifyUrl] = useState('');
@@ -56,11 +58,12 @@ export default function AdminEditAlbum() {
 
   const loadData = async () => {
     try {
-      const [albumRes, artistsRes, songsRes, vinylsRes] = await Promise.all([
+      const [albumRes, artistsRes, songsRes, vinylsRes, moodsRes] = await Promise.all([
         apiService.getAlbum(id),
         apiService.getArtists(1, 1000),
         apiService.getSongs(1, 1000, '', '', '', '', id), // Fetch songs for this album to get count
-        apiService.getVinyls()
+        apiService.getVinyls(),
+        apiService.getSongMoods().catch(() => ({ moods: [] }))
       ]);
 
       const album = albumRes.album || albumRes;
@@ -87,9 +90,11 @@ export default function AdminEditAlbum() {
       setTotalTracks(album.total_tracks || '');
       setReleaseDate(album.release_date || '');
       setGenres(Array.isArray(album.genres) ? album.genres.join(', ') : (album.genres || ''));
+      setMoods(Array.isArray(album.moods) ? album.moods.join(', ') : (album.moods || ''));
       setPopularity(album.popularity || '');
       setSpotifyId(album.spotify_id || '');
       setExternalSpotifyUrl(album.external_urls?.spotify || '');
+      setMoodOptions(Array.isArray(moodsRes?.moods) ? moodsRes.moods : []);
       
       // Handle artists
       if (Array.isArray(album.artists)) {
@@ -131,6 +136,7 @@ export default function AdminEditAlbum() {
       if (totalTracks) formData.append('total_tracks', totalTracks);
       if (releaseDate) formData.append('release_date', releaseDate);
       if (genres) formData.append('genres', genres);
+      if (moods) formData.append('moods', moods);
       if (popularity) formData.append('popularity', popularity);
       if (spotifyId) formData.append('spotify_id', spotifyId);
       if (externalSpotifyUrl) formData.append('external_urls.spotify', externalSpotifyUrl);
@@ -398,6 +404,21 @@ export default function AdminEditAlbum() {
                   className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none" 
                   placeholder="Pop, Rock, Indie"
                 />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Moods (comma separated)</label>
+                <input
+                  list="admin-edit-album-moods"
+                  value={moods}
+                  onChange={e => setMoods(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
+                  placeholder="Chill, Romantic"
+                />
+                <datalist id="admin-edit-album-moods">
+                  {moodOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
               </div>
 
             </div>

@@ -21,6 +21,7 @@ function AdminPage() {
   const [artists, setArtists] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [songs, setSongs] = useState([]);
+  const [overview, setOverview] = useState({ artists: 0, audios: 0, vinyls: 0 });
   const [categories, setCategories] = useState([]);
   const [adminVerified, setAdminVerified] = useState(() => {
     try {
@@ -73,18 +74,26 @@ function AdminPage() {
           return;
         }
 
-        const [artistsRes, albumsRes, songsRes, myCats] = await Promise.all([
+        const [artistsRes, albumsRes, songsRes, vinylsRes, myCats, audioInventoryRes] = await Promise.all([
           apiService.getArtists(1, 20, ''),
           apiService.getAlbums(1, 20, ''),
-          apiService.getSongs(1, 20, ''),
+          apiService.getSongs(1, 5000, ''),
+          apiService.getVinyls(1, 1),
           apiService.getMyCategories().catch(err => {
             console.warn('Failed to load categories, might not be logged in fully:', err.message);
             return [];
-          })
+          }),
+          apiService.getAudioInventory()
         ]);
         setArtists(Array.isArray(artistsRes?.artists) ? artistsRes.artists : Array.isArray(artistsRes) ? artistsRes : []);
         setAlbums(Array.isArray(albumsRes?.albums) ? albumsRes.albums : Array.isArray(albumsRes) ? albumsRes : []);
         setSongs(Array.isArray(songsRes?.songs) ? songsRes.songs : Array.isArray(songsRes) ? songsRes : []);
+
+        setOverview({
+          artists: Number(artistsRes?.pagination?.total) || (Array.isArray(artistsRes?.artists) ? artistsRes.artists.length : 0),
+          audios: Number(audioInventoryRes?.total_files) || 0,
+          vinyls: Number(vinylsRes?.total) || Number(vinylsRes?.pagination?.total) || (Array.isArray(vinylsRes?.vinyls) ? vinylsRes.vinyls.length : 0)
+        });
         setCategories(Array.isArray(myCats) ? myCats : []);
       } finally {
         setLoading(false);
@@ -291,6 +300,31 @@ function AdminPage() {
         <h1 className="text-2xl font-bold">Admin</h1>
       </div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+        <div className="mb-4">
+          <div className="rounded-xl border border-gray-800 bg-dark-gray/60 p-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {[
+                { label: 'Total artists', value: overview.artists },
+                { label: 'Total audios', value: overview.audios, onClick: () => navigate('/admin/songs?uploaded=1') },
+                { label: 'Total vinyls', value: overview.vinyls },
+              ].map(({ label, value, onClick }) => {
+                const clickable = typeof onClick === 'function';
+                const Tag = clickable ? 'button' : 'div';
+                return (
+                  <Tag
+                    key={label}
+                    onClick={onClick}
+                    className={`rounded-xl border border-gray-800 bg-black/20 p-5 text-left ${clickable ? 'transition hover:border-neon-blue/40 hover:bg-neon-blue/5' : ''}`}
+                  >
+                    <div className="text-sm text-gray-300">{label}</div>
+                    <div className="mt-2 text-3xl font-semibold text-white">{loading ? '...' : value}</div>
+                    {clickable ? <div className="mt-2 text-xs text-neon-blue">View uploaded audios</div> : null}
+                  </Tag>
+                );
+              })}
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button onClick={() => navigate('/admin/artists')} className="text-left rounded-xl border border-gray-800 bg-dark-gray/60 hover:bg-dark-gray/80 transition p-5">
             <div className="text-xl font-semibold mb-1">Artists</div>

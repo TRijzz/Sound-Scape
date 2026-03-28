@@ -5,7 +5,6 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 
-const DEFAULT_MOODS = ['Chill', 'Happy', 'Sad', 'Energetic', 'Romantic', 'Focus', 'Party'];
 const DEFAULT_LANGUAGES = ['English', 'Nepali', 'Hindi', 'Spanish', 'French', 'Korean'];
 
 const toDisplayGenre = (value) => {
@@ -27,7 +26,7 @@ export default function AdminCreateSong() {
   const [albums, setAlbums] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [genreOptions, setGenreOptions] = useState([]);
-  const [moodOptions, setMoodOptions] = useState(DEFAULT_MOODS);
+  const [moodOptions, setMoodOptions] = useState([]);
   const [languageOptions, setLanguageOptions] = useState(DEFAULT_LANGUAGES);
 
   const [creating, setCreating] = useState(false);
@@ -68,12 +67,13 @@ export default function AdminCreateSong() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [songsRes, artistsRes, albumsRes, categoriesRes, genresRes] = await Promise.all([
+        const [songsRes, artistsRes, albumsRes, categoriesRes, genresRes, moodsRes] = await Promise.all([
           apiService.getSongs(1, 1000),
           apiService.getArtists(1, 1000),
           apiService.getAlbums(1, 1000),
           apiService.getCategories(),
-          apiService.getGenres(200)
+          apiService.getGenres(200),
+          apiService.getSongMoods().catch(() => ({ moods: [] }))
         ]);
 
         const songList = Array.isArray(songsRes?.songs) ? songsRes.songs : Array.isArray(songsRes) ? songsRes : [];
@@ -86,7 +86,7 @@ export default function AdminCreateSong() {
         setAlbums(albumsList);
         setCategoryOptions(uniqueSorted(categoriesList.map((item) => item.name || item.collectionName || '')));
         setGenreOptions(uniqueSorted(genresList.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean).map(toDisplayGenre)));
-        setMoodOptions(uniqueSorted([...DEFAULT_MOODS, ...songList.map((song) => song.mood)]));
+        setMoodOptions(uniqueSorted((moodsRes?.moods || []).concat(songList.map((song) => song.mood))));
         setLanguageOptions(uniqueSorted([...DEFAULT_LANGUAGES, ...songList.map((song) => song.language)]));
       } catch (error) {
         console.error('Error loading create song data:', error);
@@ -216,12 +216,14 @@ export default function AdminCreateSong() {
               ))}
             </select>
 
-            <select value={mood} onChange={(e) => setMood(e.target.value)} className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700">
-              <option value="">Select Mood</option>
-              {moodOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            <div>
+              <input list="admin-song-moods" value={mood} onChange={(e) => setMood(e.target.value)} placeholder="Type or select mood" className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700" />
+              <datalist id="admin-song-moods">
+                {moodOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
 
             <select value={language} onChange={(e) => setLanguage(e.target.value)} className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700">
               <option value="">Select Language</option>

@@ -275,7 +275,7 @@ class ApiService {
     return this.fetchData('/songs/analytics/me');
   }
 
-  async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity', mood = '', language = '', tags = '', category = '') {
+  async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity', mood = '', language = '', tags = '', category = '', hasAudio = false) {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -291,6 +291,7 @@ class ApiService {
     if (language) params.append('language', language);
     if (tags) params.append('tags', Array.isArray(tags) ? tags.join(',') : tags);
     if (category) params.append('category', category);
+    if (hasAudio) params.append('has_audio', 'true');
     
     return this.fetchData(`/songs?${params}`);
   }
@@ -305,6 +306,14 @@ class ApiService {
 
   async getSong(id) {
     return this.fetchData(`/songs/${id}`);
+  }
+
+  async getSongMoods() {
+    return this.fetchData('/songs/moods');
+  }
+
+  async getAudioInventory() {
+    return this.fetchData('/songs/audio-inventory');
   }
 
   async playSong(songId) {

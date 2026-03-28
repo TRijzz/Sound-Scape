@@ -27,6 +27,7 @@ const albumSchema = new mongoose.Schema(
     
     // Genres and popularity
     genres: [String],
+    moods: [String],
     popularity: { type: Number, min: 0, max: 100 },
     
     // Additional metadata

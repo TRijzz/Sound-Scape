@@ -1,6 +1,18 @@
 import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
 import Song from '../models/Song.js';
+import { ensureMoodsExist } from '../utils/moodRegistry.js';
+
+const isAdminRequest = (req) => {
+  const adminCode = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
+  const expected = process.env.ADMIN_ACCESS_CODE;
+  return Boolean(req.isAdmin || (adminCode && expected && String(adminCode) === String(expected)));
+};
+
+const visibleArtistQuery = {
+  is_visible: { $ne: false },
+  publish_status: { $ne: 'hidden' }
+};
 
 const toTrimmedString = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -152,6 +164,9 @@ export const createArtist = async (req, res) => {
     const artistData = buildArtistPayload(req.body);
     applyUploadedArtistImages(artistData, req.files);
     artistData.name = req.body.name.trim();
+    if (Array.isArray(artistData.mood_tags) && artistData.mood_tags.length > 0) {
+      await ensureMoodsExist(artistData.mood_tags);
+    }
     if (req.user?.id) {
       artistData.created_by = req.user.id;
       artistData.last_edited_by = req.user.id;
@@ -180,7 +195,7 @@ export const getArtists = async (req, res) => {
       search
     } = req.query;
 
-    const query = {};
+    const query = isAdminRequest(req) ? {} : { ...visibleArtistQuery };
     
     // Add genre filter
     if (genre) {
@@ -229,7 +244,10 @@ export const getArtists = async (req, res) => {
 
 export const getArtist = async (req, res) => {
   try {
-    const artist = await Artist.findById(req.params.id).lean();
+    const artist = await Artist.findOne({
+      _id: req.params.id,
+      ...(isAdminRequest(req) ? {} : visibleArtistQuery)
+    }).lean();
     if (!artist) {
       return res.status(404).json({ message: 'Artist not found' });
     }
@@ -243,7 +261,10 @@ export const getArtist = async (req, res) => {
 
 export const getArtistBySpotifyId = async (req, res) => {
   try {
-    const artist = await Artist.findOne({ spotify_id: req.params.spotifyId }).lean();
+    const artist = await Artist.findOne({
+      spotify_id: req.params.spotifyId,
+      ...(isAdminRequest(req) ? {} : visibleArtistQuery)
+    }).lean();
     if (!artist) {
       return res.status(404).json({ message: 'Artist not found' });
     }
@@ -258,7 +279,10 @@ export const getArtistAlbums = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
 
-    const artist = await Artist.findById(req.params.id);
+    const artist = await Artist.findOne({
+      _id: req.params.id,
+      ...(isAdminRequest(req) ? {} : visibleArtistQuery)
+    });
     if (!artist) {
       return res.status(404).json({ message: 'Artist not found' });
     }
@@ -295,7 +319,10 @@ export const getArtistTopTracks = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
-    const artist = await Artist.findById(req.params.id);
+    const artist = await Artist.findOne({
+      _id: req.params.id,
+      ...(isAdminRequest(req) ? {} : visibleArtistQuery)
+    });
     if (!artist) {
       return res.status(404).json({ message: 'Artist not found' });
     }
@@ -324,7 +351,10 @@ export const getPopularArtists = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    const artists = await Artist.find({ popularity: { $gt: 0 } })
+    const artists = await Artist.find({
+      popularity: { $gt: 0 },
+      ...(isAdminRequest(req) ? {} : visibleArtistQuery)
+    })
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
       .lean();
@@ -370,7 +400,8 @@ export const getArtistsByGenre = async (req, res) => {
     }
     
     const artists = await Artist.find({ 
-      genres: { $in: [new RegExp(genre, 'i')] }
+      genres: { $in: [new RegExp(genre, 'i')] },
+      ...(isAdminRequest(req) ? {} : visibleArtistQuery)
     })
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
@@ -389,6 +420,9 @@ export const updateArtist = async (req, res) => {
   try {
     const updates = buildArtistPayload(req.body);
     applyUploadedArtistImages(updates, req.files);
+    if (Array.isArray(updates.mood_tags) && updates.mood_tags.length > 0) {
+      await ensureMoodsExist(updates.mood_tags);
+    }
     if (req.user?.id) updates.last_edited_by = req.user.id;
     updates.last_edited_at = new Date();
 
