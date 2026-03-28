@@ -13,9 +13,16 @@ export default function MoodBrowsePage() {
   const [loadingMoods, setLoadingMoods] = React.useState(false);
   const [loadingSongs, setLoadingSongs] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [moodSearch, setMoodSearch] = React.useState('');
   const selectedMood = searchParams.get('mood') || '';
   const pickerRef = React.useRef(null);
   const songsPanelRef = React.useRef(null);
+
+  const filteredMoods = React.useMemo(() => {
+    const query = moodSearch.trim().toLowerCase();
+    if (!query) return moods;
+    return moods.filter((mood) => String(mood || '').toLowerCase().includes(query));
+  }, [moods, moodSearch]);
 
   React.useEffect(() => {
     const handleOutside = (event) => {
@@ -128,7 +135,13 @@ export default function MoodBrowsePage() {
               </div>
               <button
                 type="button"
-                onClick={() => setPickerOpen((current) => !current)}
+                onClick={() => {
+                  setPickerOpen((current) => {
+                    const next = !current;
+                    if (!next) setMoodSearch('');
+                    return next;
+                  });
+                }}
                 className="group inline-flex min-w-[220px] items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-5 py-4 text-left text-white shadow-[0_18px_50px_rgba(0,0,0,0.25)] transition hover:border-neon-blue/40 hover:bg-white/10"
               >
                 <div>
@@ -158,8 +171,32 @@ export default function MoodBrowsePage() {
                     <p className="text-sm font-semibold text-white">All moods</p>
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{moods.length} total</p>
                   </div>
+                  <div className="mb-4 flex flex-col gap-3 lg:flex-row">
+                    <label className="flex-1">
+                      <span className="sr-only">Search moods</span>
+                      <input
+                        type="text"
+                        value={moodSearch}
+                        onChange={(event) => setMoodSearch(event.target.value)}
+                        placeholder="Search moods"
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-neon-blue/50 focus:bg-white/10"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMoodSearch('')}
+                      className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-semibold text-gray-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="mb-4 text-sm text-gray-400">
+                    {filteredMoods.length === moods.length
+                      ? `Showing all ${moods.length} moods`
+                      : `Showing ${filteredMoods.length} of ${moods.length} moods`}
+                  </div>
                   <div className="grid max-h-[360px] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
-                    {moods.map((mood) => {
+                    {filteredMoods.map((mood) => {
                       const active = mood === selectedMood;
                       return (
                         <button
@@ -167,6 +204,7 @@ export default function MoodBrowsePage() {
                           type="button"
                           onClick={() => {
                             setSearchParams({ mood });
+                            setMoodSearch('');
                             setPickerOpen(false);
                           }}
                           className={`rounded-2xl border px-4 py-4 text-left transition ${
@@ -181,6 +219,11 @@ export default function MoodBrowsePage() {
                       );
                     })}
                   </div>
+                  {filteredMoods.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-6 text-center text-sm text-gray-400">
+                      No moods match "{moodSearch}".
+                    </div>
+                  ) : null}
                 </motion.div>
               ) : null}
             </AnimatePresence>
