@@ -29,7 +29,6 @@ export default function AdminEditSong() {
 
   const [allArtists, setAllArtists] = useState([]);
   const [allAlbums, setAllAlbums] = useState([]);
-  const [categoryOptions, setCategoryOptions] = useState([]);
   const [genreOptions, setGenreOptions] = useState([]);
   const [moodOptions, setMoodOptions] = useState([]);
   const [languageOptions, setLanguageOptions] = useState(DEFAULT_LANGUAGES);
@@ -37,15 +36,10 @@ export default function AdminEditSong() {
   const [name, setName] = useState('');
   const [artistNamesInput, setArtistNamesInput] = useState('');
   const [album, setAlbum] = useState('');
-  const [trackNumber, setTrackNumber] = useState('');
-  const [duration, setDuration] = useState('');
   const [spotifyId, setSpotifyId] = useState('');
   const [externalSpotifyUrl, setExternalSpotifyUrl] = useState('');
-  const [popularity, setPopularity] = useState('');
-  const [tags, setTags] = useState('');
   const [discNumber, setDiscNumber] = useState('1');
   const [explicit, setExplicit] = useState(false);
-  const [category, setCategory] = useState('');
   const [genre, setGenre] = useState('');
   const [albumGenres, setAlbumGenres] = useState([]);
   const [mood, setMood] = useState('');
@@ -92,11 +86,10 @@ export default function AdminEditSong() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [songRes, artistsRes, albumsRes, categoriesRes, genresRes, songsRes, moodsRes] = await Promise.all([
+        const [songRes, artistsRes, albumsRes, genresRes, songsRes, moodsRes] = await Promise.all([
           apiService.getSong(id),
           apiService.getArtists(1, 1000),
           apiService.getAlbums(1, 1000),
-          apiService.getCategories(),
           apiService.getGenres(200),
           apiService.getSongs(1, 1000),
           apiService.getSongMoods().catch(() => ({ moods: [] }))
@@ -105,7 +98,6 @@ export default function AdminEditSong() {
         const song = songRes.song || songRes;
         const artistsList = artistsRes.artists || (Array.isArray(artistsRes) ? artistsRes : []);
         const albumsList = albumsRes.albums || (Array.isArray(albumsRes) ? albumsRes : []);
-        const categoriesList = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.categories || []);
         const genresList = Array.isArray(genresRes) ? genresRes : (genresRes?.genres || []);
         const songsList = songsRes?.songs || (Array.isArray(songsRes) ? songsRes : []);
 
@@ -120,12 +112,10 @@ export default function AdminEditSong() {
           .filter(Boolean)
           .join(', ');
 
-        const categoryNames = categoriesList.map((item) => item.name || item.collectionName || '').filter(Boolean);
         const genreNames = genresList.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean).map(toDisplayGenre);
         const moodNames = (moodsRes?.moods || []).concat(songsList.map((item) => item.mood).filter(Boolean));
         const languageNames = songsList.map((item) => item.language).filter(Boolean);
 
-        setCategoryOptions(mergeOption(categoryNames, song.category || ''));
         setGenreOptions(mergeOption(genreNames, toDisplayGenre(song.genre?.name || song.genre || '')));
         setMoodOptions(mergeOption(moodNames, song.mood || ''));
         setLanguageOptions(mergeOption([...DEFAULT_LANGUAGES, ...languageNames], song.language || ''));
@@ -134,15 +124,10 @@ export default function AdminEditSong() {
         setArtistNamesInput(artistNames);
         setAlbum(song.album ? (song.album._id || song.album) : '');
         setAlbumGenres((song.album?.genres || []).map(toDisplayGenre));
-        setTrackNumber(song.track_number || '');
-        setDuration(song.duration_ms ? Math.round(song.duration_ms / 1000) : '');
         setSpotifyId(song.spotify_id || '');
         setExternalSpotifyUrl(song.external_urls?.spotify || '');
-        setPopularity(song.popularity || '');
-        setTags(Array.isArray(song.tags) ? song.tags.join(', ') : (song.tags || ''));
         setDiscNumber(song.disc_number || '1');
         setExplicit(song.explicit || false);
-        setCategory(song.category || '');
         setGenre(toDisplayGenre(song.genre?.name || song.genre || ''));
         setMood(song.mood || '');
         setLanguage(song.language || '');
@@ -175,15 +160,10 @@ export default function AdminEditSong() {
 
       if (artistIds.length > 0) formData.append('artists', JSON.stringify(artistIds));
       if (album) formData.append('album', album);
-      if (trackNumber) formData.append('track_number', trackNumber);
-      if (duration) formData.append('duration', duration);
       if (spotifyId) formData.append('spotify_id', spotifyId);
       if (externalSpotifyUrl) formData.append('external_urls.spotify', externalSpotifyUrl);
-      if (popularity) formData.append('popularity', popularity);
-      if (tags) formData.append('tags', tags);
       formData.append('disc_number', discNumber);
       formData.append('explicit', explicit);
-      formData.append('category', category);
       formData.append('genre', genre);
       formData.append('mood', mood);
       formData.append('language', language);
@@ -274,70 +254,9 @@ export default function AdminEditSong() {
                 <p className="text-xs text-gray-500 mt-2">Use commas for multiple artists. New names will be created automatically.</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Track Number</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={trackNumber}
-                    onChange={(e) => setTrackNumber(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
-                    placeholder="1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Duration (seconds)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
-                    placeholder="215"
-                  />
-                </div>
-              </div>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Popularity</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={popularity}
-                  onChange={(e) => setPopularity(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
-                  placeholder="0-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Tags (comma separated)</label>
-                <input
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none"
-                  placeholder="hit, single, acoustic"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue focus:outline-none appearance-none"
-                >
-                  <option value="">Select Category</option>
-                  {categoryOptions.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
-              </div>
-
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Genre</label>
                 <select
