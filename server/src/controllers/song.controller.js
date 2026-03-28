@@ -465,7 +465,22 @@ export const getSongs = async (req, res) => {
 
     // Add mood filter
     if (mood) {
-      query.mood = { $regex: mood, $options: 'i' };
+      const moodRegex = new RegExp(escapeRegex(mood), 'i');
+      const albumsWithMood = await Album.find({
+        moods: { $in: [moodRegex] }
+      }).select('_id');
+
+      const moodClauses = [{ mood: moodRegex }];
+      if (albumsWithMood.length > 0) {
+        moodClauses.push({ album: { $in: albumsWithMood.map((item) => item._id) } });
+      }
+
+      if (query.$or) {
+        query.$and = [...(query.$and || []), { $or: query.$or }, { $or: moodClauses }];
+        delete query.$or;
+      } else {
+        query.$or = moodClauses;
+      }
     }
 
     // Add language filter
