@@ -27,6 +27,7 @@ const fmtDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Unknown' : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 };
+const isHiddenOrDraft = (artist) => !artist.is_visible || artist.publish_status === 'hidden' || artist.publish_status === 'draft';
 const statusMeta = (artist) => {
   if (!artist.is_visible || artist.publish_status === 'hidden') return { label: 'Hidden', tone: 'bg-red-500/15 text-red-200 border-red-500/30' };
   if (artist.publish_status === 'draft') return { label: 'Draft', tone: 'bg-amber-500/15 text-amber-200 border-amber-500/30' };
@@ -172,7 +173,7 @@ export default function AdminArtists() {
     total: artists.length,
     live: artists.filter((artist) => artist.is_visible && artist.publish_status === 'published').length,
     featured: artists.filter((artist) => artist.is_featured).length,
-    hidden: artists.filter((artist) => !artist.is_visible || artist.publish_status === 'hidden').length
+    hidden: artists.filter(isHiddenOrDraft).length
   }), [artists]);
 
   const filtered = useMemo(() => {
@@ -183,6 +184,7 @@ export default function AdminArtists() {
       const matchesStatus = filters.status === 'all'
         || (filters.status === 'active' && label === 'active')
         || (filters.status === 'inactive' && label !== 'active')
+        || (filters.status === 'hidden_or_draft' && isHiddenOrDraft(artist))
         || label === filters.status;
       const matchesVerified = filters.verified === 'all'
         || (filters.verified === 'verified' && artist.is_verified)
@@ -363,15 +365,24 @@ export default function AdminArtists() {
           </div>
           <div className="mt-6 grid gap-3 md:grid-cols-4">
             {[
-              ['Total artists', stats.total],
-              ['Published', stats.live],
-              ['Featured', stats.featured],
-              ['Hidden or draft', stats.hidden]
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              ['Total artists', stats.total, 'all'],
+              ['Published', stats.live, 'active'],
+              ['Featured', stats.featured, 'all'],
+              ['Hidden or draft', stats.hidden, 'hidden_or_draft']
+            ].map(([label, value, nextStatus]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, status: nextStatus }))}
+                className={`rounded-2xl border p-4 text-left transition ${
+                  filters.status === nextStatus
+                    ? 'border-neon-blue/50 bg-neon-blue/10'
+                    : 'border-white/10 bg-black/20 hover:bg-white/5'
+                }`}
+              >
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
                 <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -379,7 +390,7 @@ export default function AdminArtists() {
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Search</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by artist name" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60" /></label>
-            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Status</span><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All statuses</option><option style={selectOptionStyle} value="active">Active</option><option style={selectOptionStyle} value="draft">Draft</option><option style={selectOptionStyle} value="hidden">Hidden</option><option style={selectOptionStyle} value="inactive">Inactive</option></select></label>
+            <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Status</span><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All statuses</option><option style={selectOptionStyle} value="active">Active</option><option style={selectOptionStyle} value="hidden_or_draft">Hidden or draft</option><option style={selectOptionStyle} value="draft">Draft</option><option style={selectOptionStyle} value="hidden">Hidden</option><option style={selectOptionStyle} value="inactive">Inactive</option></select></label>
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Verified</span><select value={filters.verified} onChange={(e) => setFilters((prev) => ({ ...prev, verified: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All artists</option><option style={selectOptionStyle} value="verified">Verified</option><option style={selectOptionStyle} value="unverified">Unverified</option></select></label>
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Genre</span><select value={filters.genre} onChange={(e) => setFilters((prev) => ({ ...prev, genre: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All genres</option>{genres.map((genre) => <option style={selectOptionStyle} key={genre} value={genre}>{genre}</option>)}</select></label>
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Region</span><select value={filters.region} onChange={(e) => setFilters((prev) => ({ ...prev, region: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All regions</option>{regions.map((region) => <option style={selectOptionStyle} key={region} value={region}>{region}</option>)}</select></label>

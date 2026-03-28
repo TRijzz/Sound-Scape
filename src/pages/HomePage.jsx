@@ -33,6 +33,7 @@ const HomePage = () => {
   const [selectedMood, setSelectedMood] = React.useState('');
   const [moodSongs, setMoodSongs] = React.useState([]);
   const [moodLoading, setMoodLoading] = React.useState(false);
+  const featuredMoodOptions = React.useMemo(() => moodOptions.slice(0, 4), [moodOptions]);
   
   // Use API hooks to fetch real data
   const { artists: topArtists, loading: artistsLoading, error: artistsError } = usePopularArtists(6);
@@ -335,12 +336,12 @@ const HomePage = () => {
             Browse by mood
           </button>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-          {moodOptions.map((mood) => (
-            <motion.button
-              key={mood.label}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            {featuredMoodOptions.map((mood) => (
+              <motion.button
+                key={mood.label}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               onClick={() => setSelectedMood(mood.query)}
               className={`text-left rounded-2xl p-5 border transition-all ${
                 selectedMood === mood.query ? 'border-white/40 shadow-lg' : 'border-gray-800'
@@ -352,10 +353,10 @@ const HomePage = () => {
           ))}
         </div>
         {moodOptions.length === 0 ? (
-          <div className="bg-light-gray/40 rounded-xl p-4 text-gray-400 text-center">
-            No moods have been added to the system yet.
-          </div>
-        ) : null}
+            <div className="bg-light-gray/40 rounded-xl p-4 text-gray-400 text-center">
+              No moods have been added to the system yet.
+            </div>
+          ) : null}
         {moodOptions.length > 0 ? (
         <div className="bg-light-gray/40 rounded-xl p-4">
           {moodLoading ? (
