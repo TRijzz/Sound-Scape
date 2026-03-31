@@ -7,6 +7,8 @@ import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import DatePicker from '../../components/ui/DatePicker';
 
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
+
 export default function AdminEditAlbum() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -32,10 +34,7 @@ export default function AdminEditAlbum() {
   const [coverFile, setCoverFile] = useState(null);
 
   // Audio Upload State
-  const [uploadedTracksCount, setUploadedTracksCount] = useState(0);
   const [albumSongs, setAlbumSongs] = useState([]);
-  const [audioFiles, setAudioFiles] = useState(null);
-  const [uploading, setUploading] = useState(false);
   const [uploadingTrackId, setUploadingTrackId] = useState(null);
 
   const [vinyls, setVinyls] = useState([]);
@@ -68,7 +67,8 @@ export default function AdminEditAlbum() {
 
       const album = albumRes.album || albumRes;
       const artistsList = artistsRes.artists || (Array.isArray(artistsRes) ? artistsRes : []);
-      setAllArtists(artistsList);
+      const visibleArtists = artistsList.filter(isAdminVisibleArtist);
+      setAllArtists(visibleArtists);
 
       // Handle Vinyls
       const allVinyls = vinylsRes?.vinyls || (Array.isArray(vinylsRes) ? vinylsRes : []);
@@ -82,7 +82,6 @@ export default function AdminEditAlbum() {
       const songsList = songsRes?.songs || (Array.isArray(songsRes) ? songsRes : []);
       // Sort by track number if available
       songsList.sort((a, b) => (a.track_number || 0) - (b.track_number || 0));
-      setUploadedTracksCount(songsList.filter(s => s.audio_url).length);
       setAlbumSongs(songsList);
 
       setName(album.name || '');
@@ -98,12 +97,15 @@ export default function AdminEditAlbum() {
       
       // Handle artists
       if (Array.isArray(album.artists)) {
-          setSelectedArtists(album.artists.map(a => typeof a === 'object' ? a._id : a));
+          const visibleSelectedArtistIds = album.artists
+            .filter((artist) => typeof artist === 'object' ? isAdminVisibleArtist(artist) : visibleArtists.some((candidate) => candidate._id === artist || candidate.id === artist))
+            .map((artist) => typeof artist === 'object' ? artist._id : artist);
+          setSelectedArtists(visibleSelectedArtistIds);
 
           // Set artist names for display
           const aNames = album.artists.map(a => {
-             if (typeof a === 'object' && a.name) return a.name;
-             const found = artistsList.find(ar => ar._id === a);
+             if (typeof a === 'object' && isAdminVisibleArtist(a) && a.name) return a.name;
+             const found = visibleArtists.find(ar => ar._id === a || ar.id === a);
              return found ? found.name : '';
           }).filter(Boolean).join(', ');
           setArtistNames(aNames);
@@ -155,63 +157,6 @@ export default function AdminEditAlbum() {
       console.error('Error updating album:', error);
       showToast(error.message || 'Failed to update album', 'error');
       setSaving(false);
-    }
-  };
-
-  const handleUploadAudio = async () => {
-    if (!audioFiles || audioFiles.length === 0) return;
-    
-    setUploading(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    try {
-        for (let i = 0; i < audioFiles.length; i++) {
-            const file = audioFiles[i];
-            const formData = new FormData();
-            // Use filename as song name, removing extension
-            const songName = file.name.replace(/\.[^/.]+$/, "");
-            
-            formData.append('name', songName);
-            formData.append('album', id);
-            if (selectedArtists.length > 0) {
-                formData.append('artists', JSON.stringify(selectedArtists));
-            }
-            formData.append('audio', file);
-            
-            // Default fields to avoid validation errors if any
-            formData.append('disc_number', '1');
-            formData.append('explicit', 'false');
-
-            try {
-                await apiService.createSong(formData);
-                successCount++;
-            } catch (err) {
-                console.error(`Failed to upload ${file.name}:`, err);
-                failCount++;
-            }
-        }
-
-        if (successCount > 0) {
-            showToast(`Successfully uploaded ${successCount} tracks`, 'success');
-            // Reset file input
-            setAudioFiles(null);
-            const fileInput = document.getElementById('audio-upload-input');
-            if (fileInput) fileInput.value = '';
-            
-            // Refresh count
-            loadData();
-        }
-        
-        if (failCount > 0) {
-            showToast(`Failed to upload ${failCount} tracks`, 'error');
-        }
-
-    } catch (error) {
-        console.error('Upload error:', error);
-        showToast('Error during upload process', 'error');
-    } finally {
-        setUploading(false);
     }
   };
 
@@ -460,32 +405,6 @@ export default function AdminEditAlbum() {
                     className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20" 
                   />
                 </div>
-              </div>
-
-              {/* Audio Uploader Section */}
-              <div className="pt-4 space-y-4 border-t border-gray-800 mt-4 bg-dark-gray/20 p-4 rounded-lg">
-                <h3 className="text-md font-medium text-white">Upload New Tracks</h3>
-                
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Batch Upload</label>
-                  <input 
-                    id="audio-upload-input"
-                    type="file" 
-                    accept="audio/*" 
-                    multiple
-                    onChange={e => setAudioFiles(e.target.files)} 
-                    className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20" 
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Select multiple files to upload new songs to this album.</p>
-                </div>
-
-                <button 
-                  onClick={handleUploadAudio}
-                  disabled={uploading || !audioFiles || audioFiles.length === 0}
-                  className="w-full px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {uploading ? 'Uploading...' : 'Upload Selected Tracks'}
-                </button>
               </div>
 
               {/* Vinyl Management Section */}

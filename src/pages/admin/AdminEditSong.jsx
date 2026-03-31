@@ -19,6 +19,7 @@ const toDisplayGenre = (value) => {
 
 const uniqueSorted = (values) => Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
   .sort((left, right) => left.localeCompare(right));
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
 
 export default function AdminEditSong() {
   const { id } = useParams();
@@ -51,7 +52,7 @@ export default function AdminEditSong() {
   const [coverFile, setCoverFile] = useState(null);
   const [lyricsFile, setLyricsFile] = useState(null);
 
-  const artistSuggestions = useMemo(() => uniqueSorted(allArtists.map((artist) => artist.name)), [allArtists]);
+  const artistSuggestions = useMemo(() => uniqueSorted(allArtists.filter(isAdminVisibleArtist).map((artist) => artist.name)), [allArtists]);
   const selectedAlbum = useMemo(() => allAlbums.find((item) => item._id === album || item.id === album), [allAlbums, album]);
 
   const showToast = (message, type = 'error', duration = 4000) => {
@@ -101,13 +102,13 @@ export default function AdminEditSong() {
         const genresList = Array.isArray(genresRes) ? genresRes : (genresRes?.genres || []);
         const songsList = songsRes?.songs || (Array.isArray(songsRes) ? songsRes : []);
 
-        setAllArtists(artistsList);
+        setAllArtists(artistsList.filter(isAdminVisibleArtist));
         setAllAlbums(albumsList);
 
         const artistNames = (Array.isArray(song.artists) ? song.artists : [])
           .map((artist) => {
             if (typeof artist === 'object' && artist?.name) return artist.name;
-            return artistsList.find((item) => item._id === artist || item.id === artist)?.name || '';
+            return artistsList.filter(isAdminVisibleArtist).find((item) => item._id === artist || item.id === artist)?.name || '';
           })
           .filter(Boolean)
           .join(', ');

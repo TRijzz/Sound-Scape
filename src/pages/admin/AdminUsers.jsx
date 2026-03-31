@@ -14,6 +14,7 @@ export default function AdminUsers() {
   const [savingUserId, setSavingUserId] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedVinylIds, setSelectedVinylIds] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [search, setSearch] = useState('');
   const [toasts, setToasts] = useState([]);
 
@@ -93,6 +94,14 @@ export default function AdminUsers() {
     setSelectedVinylIds((user.purchased_vinyls || []).map((vinyl) => getVinylId(vinyl)));
   };
 
+  const toggleUserSelection = (userId) => {
+    setSelectedUserIds((prev) => (
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    ));
+  };
+
   const handleSave = async () => {
     if (!selectedUser) return;
 
@@ -123,6 +132,7 @@ export default function AdminUsers() {
         <div>
           <h2 className="text-2xl font-bold text-white">User Vinyl Ownership</h2>
           <p className="text-sm text-gray-400 mt-1">See how many vinyls each user owns, inspect their collection, and update ownership stored in the database.</p>
+          <p className="mt-2 text-sm text-gray-300">{selectedUserIds.length ? `${selectedUserIds.length} users selected` : 'No users selected'}</p>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -153,6 +163,9 @@ export default function AdminUsers() {
                         selectedUserId === userId ? 'bg-neon-blue/10' : 'hover:bg-white/5'
                       }`}
                     >
+                      <div className="mb-2">
+                        <input type="checkbox" checked={selectedUserIds.includes(userId)} onChange={(e) => { e.stopPropagation(); toggleUserSelection(userId); }} />
+                      </div>
                       <div className="font-semibold text-white truncate">{getUserLabel(user)}</div>
                       <div className="text-xs text-gray-400 truncate">{user.email}</div>
                       <div className="mt-2 flex items-center justify-between text-xs">

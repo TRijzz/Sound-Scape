@@ -20,6 +20,7 @@ const initialState = {
   purchasedVinyls: [],
   activeVinyl: null,
   showVinylOverlay: false,
+  previewSession: null,
 };
 
 function musicReducer(state, action) {
@@ -52,6 +53,8 @@ function musicReducer(state, action) {
       return { ...state, activeVinyl: action.payload };
     case 'SET_VINYL_OVERLAY':
       return { ...state, showVinylOverlay: action.payload };
+    case 'SET_PREVIEW_SESSION':
+      return { ...state, previewSession: action.payload };
     case 'TOGGLE_LIKE': {
       const newLikedSongs = new Set(state.likedSongs);
       if (newLikedSongs.has(action.payload)) {
@@ -115,6 +118,17 @@ export function MusicProvider({ children }) {
   };
 
   const pauseTrack = async () => {
+    if (state.previewSession) {
+      dispatch({
+        type: 'SET_PREVIEW_SESSION',
+        payload: {
+          ...state.previewSession,
+          isPlaying: false,
+        }
+      });
+      return;
+    }
+
     try {
       player.pauseTrack();
       dispatch({ type: 'SET_PLAYING', payload: false });
@@ -124,6 +138,17 @@ export function MusicProvider({ children }) {
   };
 
   const resumeTrack = async () => {
+    if (state.previewSession) {
+      dispatch({
+        type: 'SET_PREVIEW_SESSION',
+        payload: {
+          ...state.previewSession,
+          isPlaying: true,
+        }
+      });
+      return;
+    }
+
     try {
       await player.resumeTrack();
       dispatch({ type: 'SET_PLAYING', payload: true });
@@ -138,6 +163,24 @@ export function MusicProvider({ children }) {
   };
 
   const nextTrack = async () => {
+    if (state.previewSession?.queue?.length) {
+      const nextIndex = state.previewSession.currentIndex < state.previewSession.queue.length - 1
+        ? state.previewSession.currentIndex + 1
+        : 0;
+      const nextPreviewTrack = state.previewSession.queue[nextIndex];
+      dispatch({
+        type: 'SET_PREVIEW_SESSION',
+        payload: {
+          ...state.previewSession,
+          currentIndex: nextIndex,
+          currentTrack: nextPreviewTrack,
+          progress: 0,
+          duration: Number(nextPreviewTrack?.duration_seconds || nextPreviewTrack?.duration || 0),
+        }
+      });
+      return;
+    }
+
     if (!state.queue.length) {
       player.nextTrack && player.nextTrack();
       return;
@@ -149,6 +192,24 @@ export function MusicProvider({ children }) {
   };
 
   const previousTrack = async () => {
+    if (state.previewSession?.queue?.length) {
+      const prevIndex = state.previewSession.currentIndex > 0
+        ? state.previewSession.currentIndex - 1
+        : state.previewSession.queue.length - 1;
+      const prevPreviewTrack = state.previewSession.queue[prevIndex];
+      dispatch({
+        type: 'SET_PREVIEW_SESSION',
+        payload: {
+          ...state.previewSession,
+          currentIndex: prevIndex,
+          currentTrack: prevPreviewTrack,
+          progress: 0,
+          duration: Number(prevPreviewTrack?.duration_seconds || prevPreviewTrack?.duration || 0),
+        }
+      });
+      return;
+    }
+
     if (!state.queue.length) {
       player.previousTrack && player.previousTrack();
       return;
@@ -160,6 +221,17 @@ export function MusicProvider({ children }) {
   };
 
   const setProgress = (progress) => {
+    if (state.previewSession) {
+      dispatch({
+        type: 'SET_PREVIEW_SESSION',
+        payload: {
+          ...state.previewSession,
+          progress,
+        }
+      });
+      return;
+    }
+
     dispatch({ type: 'SET_PROGRESS', payload: progress });
     player.seekTo(progress);
   };
@@ -194,6 +266,7 @@ export function MusicProvider({ children }) {
 
   const closeVinylOverlay = () => {
     dispatch({ type: 'SET_VINYL_OVERLAY', payload: false });
+    dispatch({ type: 'SET_PREVIEW_SESSION', payload: null });
   };
 
   const setActiveVinyl = async (vinyl, { persist = true } = {}) => {
@@ -249,6 +322,8 @@ export function MusicProvider({ children }) {
       return;
     }
 
+    dispatch({ type: 'SET_PREVIEW_SESSION', payload: null });
+
     if (playbackQueue.length > 0) {
       setQueue(playbackQueue, safeIndex);
     }
@@ -274,10 +349,18 @@ export function MusicProvider({ children }) {
     }
 
     player.pauseTrack();
-    dispatch({ type: 'SET_QUEUE', payload: previewQueue });
-    dispatch({ type: 'SET_CURRENT_INDEX', payload: safeIndex });
-    dispatch({ type: 'SET_CURRENT_TRACK', payload: selectedTrack });
-    dispatch({ type: 'SET_PLAYING', payload: false });
+    dispatch({
+      type: 'SET_PREVIEW_SESSION',
+      payload: {
+        queue: previewQueue,
+        currentIndex: safeIndex,
+        currentTrack: selectedTrack,
+        vinyl,
+        isPlaying: false,
+        progress: 0,
+        duration: Number(selectedTrack?.duration_seconds || selectedTrack?.duration || 0),
+      }
+    });
 
     if (vinyl) {
       dispatch({ type: 'SET_ACTIVE_VINYL', payload: vinyl });
@@ -400,6 +483,7 @@ export function MusicProvider({ children }) {
     openVinylOverlay,
     closeVinylOverlay,
     setActiveVinyl,
+    previewSession: state.previewSession,
   };
 
   return (

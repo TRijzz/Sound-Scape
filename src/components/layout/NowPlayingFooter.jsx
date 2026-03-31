@@ -43,6 +43,7 @@ const NowPlayingFooter = () => {
     showVinylOverlay,
     openVinylOverlay,
     closeVinylOverlay,
+    previewSession,
   } = useMusic();
 
   const [isShuffle, setIsShuffle] = useState(false);
@@ -51,6 +52,7 @@ const NowPlayingFooter = () => {
   const [showLyrics, setShowLyrics] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const { playlists, handleAddToPlaylist, handleCreatePlaylist } = usePlaylistActions();
+  const displayTrack = previewSession?.currentTrack || currentTrack;
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -97,8 +99,8 @@ const NowPlayingFooter = () => {
   };
 
   const handleToggleLike = () => {
-    if (!currentTrack) return;
-    const id = currentTrack._id || currentTrack.id;
+    if (!displayTrack) return;
+    const id = displayTrack._id || displayTrack.id;
     if (id) toggleLike(id);
   };
 
@@ -129,8 +131,13 @@ const NowPlayingFooter = () => {
     await handleAddCurrentTrackToPlaylist(created._id || created.id);
   };
 
-  if (!currentTrack) {
-    return null;
+  if (!displayTrack && !previewSession) {
+    return (
+      <VinylOverlay
+        isOpen={showVinylOverlay}
+        onClose={closeVinylOverlay}
+      />
+    );
   }
 
   return (
@@ -145,24 +152,24 @@ const NowPlayingFooter = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4 w-1/4">
               <img
-                src={currentTrack.album?.images?.[0]?.url || currentTrack._vinylImage || albumArtPlaceholder}
-                alt={currentTrack.name}
+                src={displayTrack?.album?.images?.[0]?.url || displayTrack?.cover_art_url || displayTrack?._vinylImage || albumArtPlaceholder}
+                alt={displayTrack?.name || 'Preview track'}
                 className="w-14 h-14 rounded object-cover"
               />
               <div className="min-w-0">
                 <h4 className="text-sm font-medium text-white truncate">
-                  {currentTrack.name}
+                  {displayTrack?.name || 'Preview track'}
                 </h4>
                 <p className="text-xs text-gray-400 truncate">
-                  {currentTrack.artists?.map((artist) => artist.name).join(', ')}
+                  {displayTrack?.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist'}
                 </p>
               </div>
               <button
                 onClick={handleToggleLike}
                 className="transition-colors"
-                style={{ color: isLiked(currentTrack?._id || currentTrack?.id) ? '#00ffff' : '#9CA3AF' }}
+                style={{ color: isLiked(displayTrack?._id || displayTrack?.id) ? '#00ffff' : '#9CA3AF' }}
               >
-                {isLiked(currentTrack?._id || currentTrack?.id) ? (
+                {isLiked(displayTrack?._id || displayTrack?.id) ? (
                   <LikedIcon className="w-4 h-4" />
                 ) : (
                   <LikeIcon className="w-4 h-4" />

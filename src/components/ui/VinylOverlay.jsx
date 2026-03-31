@@ -21,11 +21,19 @@ import {
 import LyricsOverlay from './LyricsOverlay';
 
 function VinylOverlay({ isOpen, onClose }) {
-  const { isPlaying, currentTrack, getVinylForSong } = useMusic();
+  const { isPlaying, currentTrack, previewSession, getVinylForSong } = useMusic();
   const [showLyrics, setShowLyrics] = useState(false);
+  const displayTrack = previewSession?.currentTrack || currentTrack;
+  const displayIsPlaying = previewSession?.isPlaying ?? isPlaying;
 
   const getVinylSrc = () => {
-    const matchedVinylImage = getVinylForSong(currentTrack);
+    if (previewSession?.vinyl) {
+      return previewSession.vinyl.image_base64
+        ? `data:${previewSession.vinyl.mime_type || 'image/png'};base64,${previewSession.vinyl.image_base64}`
+        : previewSession.vinyl.image_url || vinylSvg;
+    }
+
+    const matchedVinylImage = getVinylForSong(displayTrack);
     if (matchedVinylImage) {
       return matchedVinylImage;
     }
@@ -92,11 +100,11 @@ function VinylOverlay({ isOpen, onClose }) {
                   className="w-[560px] h-[560px] flex-shrink-0 vinyl-spinning object-contain"
                   style={{
                     filter: 'drop-shadow(0 0 12px rgba(0, 255, 255, 0.45)) drop-shadow(0 0 30px rgba(0, 255, 255, 0.25))',
-                    animationPlayState: isPlaying ? 'running' : 'paused',
+                    animationPlayState: displayIsPlaying ? 'running' : 'paused',
                   }}
                 />
 
-                <TonearmAnimator />
+                <TonearmAnimator isPlaying={displayIsPlaying} />
               </motion.div>
             </div>
 
@@ -120,8 +128,7 @@ function VinylOverlay({ isOpen, onClose }) {
   return ReactDOM.createPortal(overlay, document.body);
 }
 
-function TonearmAnimator() {
-  const { isPlaying } = useMusic();
+function TonearmAnimator({ isPlaying }) {
   const spring = { type: 'spring', stiffness: 60, damping: 20, duration: 2.5 };
   const playingPose = { top: 72, left: -190, rotate: 10 };
   const pausedPose = { top: 20, left: -280, rotate: -25 };
@@ -144,6 +151,7 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
   const {
     currentTrack,
     isPlaying,
+    previewSession,
     progress,
     duration,
     volume,
@@ -154,10 +162,15 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
     setProgress,
     setVolume,
   } = useMusic();
+  const displayTrack = previewSession?.currentTrack || currentTrack;
+  const displayIsPlaying = previewSession?.isPlaying ?? isPlaying;
+  const displayProgress = previewSession?.progress ?? progress;
+  const displayDuration = previewSession?.duration ?? duration;
 
   const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
+    const safeSeconds = Number(seconds || 0);
+    const mins = Math.floor(safeSeconds / 60);
+    const secs = Math.floor(safeSeconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
@@ -166,7 +179,7 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
 
   const onPlayPause = (e) => {
     e.stopPropagation();
-    isPlaying ? pauseTrack() : resumeTrack();
+    displayIsPlaying ? pauseTrack() : resumeTrack();
   };
 
   const onSeek = (e) => {
@@ -206,17 +219,17 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
     >
       <div className="flex items-center justify-between">
         <div className="w-1/4 flex items-center space-x-3 overflow-hidden">
-          {currentTrack && (
+          {displayTrack && (
             <>
               <img
-                src={currentTrack.album?.images?.[0]?.url || currentTrack._vinylImage || albumArtPlaceholder}
-                alt={currentTrack.name || 'Current track'}
+                src={displayTrack.album?.images?.[0]?.url || displayTrack.cover_art_url || displayTrack._vinylImage || albumArtPlaceholder}
+                alt={displayTrack.name || 'Current track'}
                 className="w-10 h-10 rounded object-cover flex-shrink-0"
               />
               <div className="min-w-0">
-                <p className="text-sm text-white truncate">{currentTrack.name || 'Unknown Track'}</p>
+                <p className="text-sm text-white truncate">{displayTrack.name || 'Unknown Track'}</p>
                 <p className="text-xs text-gray-400 truncate">
-                  {currentTrack.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist'}
+                  {displayTrack.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist'}
                 </p>
               </div>
             </>
@@ -232,7 +245,7 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
               <SkipPrevIcon className="w-5 h-5" />
             </button>
             <button onClick={onPlayPause} className="w-10 h-10 bg-white text-dark-bg rounded-full flex items-center justify-center hover:scale-105 transition-transform">
-              {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-0.5" />}
+              {displayIsPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-0.5" />}
             </button>
             <button onClick={onNext} className="text-gray-400 hover:text-white transition-colors">
               <SkipNextIcon className="w-5 h-5" />
@@ -243,17 +256,17 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
           </div>
 
           <div className="flex items-center space-x-3 w-full max-w-md">
-            <span className="text-xs text-gray-400 w-8">{formatTime(progress)}</span>
+            <span className="text-xs text-gray-400 w-8">{formatTime(displayProgress)}</span>
             <input
               type="range"
               min="0"
-              max={Math.max(0, duration || 0)}
-              value={Math.min(progress || 0, duration || 0)}
+              max={Math.max(0, displayDuration || 0)}
+              value={Math.min(displayProgress || 0, displayDuration || 0)}
               onChange={onSeek}
               onClick={(e) => e.stopPropagation()}
               className="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
             />
-            <span className="text-xs text-gray-400 w-8">{formatTime(duration)}</span>
+            <span className="text-xs text-gray-400 w-8">{formatTime(displayDuration)}</span>
           </div>
         </div>
 

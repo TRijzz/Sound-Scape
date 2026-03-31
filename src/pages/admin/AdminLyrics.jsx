@@ -4,6 +4,9 @@ import AdminLayout from './AdminLayout';
 import apiService from '../../services/api';
 import { ToastContainer } from '../../components/ui/Toast';
 
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
+const hasHiddenArtistLink = (artists) => Array.isArray(artists) && artists.some((artist) => !isAdminVisibleArtist(artist));
+
 export default function AdminLyrics() {
   const [items, setItems] = useState([]);
   const [songs, setSongs] = useState([]);
@@ -21,6 +24,8 @@ export default function AdminLyrics() {
   const [isSearching, setIsSearching] = useState(false);
   const [songSearch, setSongSearch] = useState('');
   // const [showSuggestions, setShowSuggestions] = useState(false); // Removed dropdown logic
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showHiddenArtistContent, setShowHiddenArtistContent] = useState(false);
   const stats = {
     total: items.length,
     synced: items.filter((item) => Array.isArray(item.lines) && item.lines.length > 0).length,
@@ -45,7 +50,7 @@ export default function AdminLyrics() {
       const filtered = search.trim()
         ? list.filter(it => String(it?.song?.name || '').toLowerCase().includes(search.trim().toLowerCase()))
         : list;
-      setItems(filtered);
+      setItems(filtered.filter((item) => showHiddenArtistContent || !hasHiddenArtistLink(item?.song?.artists)));
       
       // Initialize empty songs list for search
       setSongs([]);
@@ -74,7 +79,7 @@ export default function AdminLyrics() {
       try {
         const res = await apiService.getSongs(1, 20, songSearch);
         const results = res?.songs || (Array.isArray(res) ? res : []);
-        setSongs(results);
+        setSongs(results.filter((song) => showHiddenArtistContent || !hasHiddenArtistLink(song?.artists)));
       } catch (err) {
         console.error('Song search failed', err);
         setSongs([]);
@@ -84,7 +89,7 @@ export default function AdminLyrics() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [songSearch, selectedSongId]);
+  }, [songSearch, selectedSongId, showHiddenArtistContent]);
 
   const handleAddLyrics = async () => {
     if (!selectedSongId) {
@@ -148,7 +153,29 @@ export default function AdminLyrics() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-line */ }, [search]);
+  const toggleLyricsSelection = (itemId) => {
+    setSelectedIds((prev) => (
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId]
+    ));
+  };
+
+  const bulkDeleteLyrics = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected lyric record${selectedIds.length === 1 ? '' : 's'}?`)) return;
+    try {
+      const selectedItems = items.filter((item) => selectedIds.includes(String(item._id || item.id)));
+      await Promise.all(selectedItems.map((item) => apiService.deleteLyrics(item?.song?._id || item?.song || item?._id)));
+      setItems((prev) => prev.filter((item) => !selectedIds.includes(String(item._id || item.id))));
+      setSelectedIds([]);
+      showToast(`Deleted ${selectedItems.length} lyric record${selectedItems.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      showToast(err.message || 'Failed to delete selected lyrics', 'error');
+    }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-line */ }, [search, showHiddenArtistContent]);
 
   return (
     <AdminLayout>
@@ -199,6 +226,10 @@ export default function AdminLyrics() {
             placeholder="Search lyrics by song name"
             className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 flex-1"
           />
+          <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-200">
+            <input type="checkbox" checked={showHiddenArtistContent} onChange={(e) => setShowHiddenArtistContent(e.target.checked)} />
+            Show hidden artists' songs
+          </label>
           <button 
             onClick={() => {
               setIsAdding(!isAdding);
@@ -372,9 +403,21 @@ export default function AdminLyrics() {
           </motion.div>
         )}
 
+        <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-gray-300">
+            {loading ? 'Loading lyrics...' : `${items.length} lyric records shown${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
+          </div>
+          {selectedIds.length > 0 ? (
+            <button onClick={bulkDeleteLyrics} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+          ) : null}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {items.map(it => (
             <div key={it._id || it.id} className="p-3 rounded-lg bg-light-gray/30 space-y-2 relative group">
+              <div className="absolute left-3 top-3 z-10">
+                <input type="checkbox" checked={selectedIds.includes(String(it._id || it.id))} onChange={() => toggleLyricsSelection(String(it._id || it.id))} />
+              </div>
               <div className="font-medium pr-16">{it?.song?.name || 'Unknown Song (Orphan)'}</div>
               <div className="text-xs text-gray-400">Lines: {Array.isArray(it.lines) ? it.lines.length : 0}</div>
               <div className="text-xs text-gray-500">Updated: {new Date(it.updatedAt).toLocaleString()}</div>

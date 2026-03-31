@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import apiService from '../../services/api';
@@ -6,8 +6,13 @@ import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 
 const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
+const getArtistEntityId = (artist) => {
+  if (!artist) return '';
+  if (typeof artist === 'string') return artist;
+  return String(artist._id || artist.id || '');
+};
 const songCover = (song) => apiService.resolveMediaUrl(song.cover_art_url || song.album?.images?.[0]?.url || '');
-const songArtistsText = (song) => (song.artists || []).map((artist) => artist?.name).filter(Boolean).join(', ');
 const songDuration = (song) => {
   const totalSeconds = Math.floor((song.duration_ms || 0) / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -23,29 +28,55 @@ export default function AdminSongs() {
   const [artists, setArtists] = useState([]);
   const [audioInventory, setAudioInventory] = useState({ total_files: 0, linked_song_count: 0, orphan_file_count: 0 });
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
+  const initialSearch = searchParams.get('q') || '';
+  const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState({ album: 'all', artist: 'all', sort: 'recent' });
+  const [artistContentMode, setArtistContentMode] = useState('visible');
+  const [selectedIds, setSelectedIds] = useState([]);
   const uploadedOnly = searchParams.get('uploaded') === '1';
+  const hiddenArtistIds = useMemo(
+    () => new Set(artists.filter((artist) => !isAdminVisibleArtist(artist)).map((artist) => String(artist._id || artist.id || '')).filter(Boolean)),
+    [artists]
+  );
+  const visibleArtists = useMemo(() => artists.filter(isAdminVisibleArtist), [artists]);
+  const hiddenArtists = useMemo(() => artists.filter((artist) => !isAdminVisibleArtist(artist)), [artists]);
+
+  const isArtistAllowed = (artist) => {
+    const artistId = getArtistEntityId(artist);
+    if (artistId && hiddenArtistIds.has(artistId)) return false;
+    return isAdminVisibleArtist(artist);
+  };
+
+  const hasHiddenArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
+  const songArtistsText = (song) => (song.artists || []).filter(isArtistAllowed).map((artist) => artist?.name).filter(Boolean).join(', ');
 
   const [toasts, setToasts] = useState([]);
   const [syncingFolders, setSyncingFolders] = useState(false);
   const albumOptions = albums
+    .filter((album) => artistContentMode === 'hidden' ? hasHiddenArtistLink(album?.artists) : !hasHiddenArtistLink(album?.artists))
     .map((album) => album?.name)
     .filter(Boolean)
     .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
-  const artistOptions = artists
+  const artistOptions = (artistContentMode === 'hidden' ? hiddenArtists : visibleArtists)
     .map((artist) => artist?.name)
     .filter(Boolean)
     .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
   const filteredSongs = songs
     .filter((song) => {
+      const hiddenLinked = hasHiddenArtistLink(song?.artists);
+      const matchesVisibility = artistContentMode === 'hidden' ? hiddenLinked : !hiddenLinked;
       const matchesUploaded = !uploadedOnly || song.has_uploaded_audio;
       const query = search.trim().toLowerCase();
-      const haystack = [song.name, song.album?.name, songArtistsText(song)].filter(Boolean).join(' ').toLowerCase();
+      const hiddenArtistText = (song.artists || []).filter((artist) => hiddenArtistIds.has(getArtistEntityId(artist))).map((artist) => artist?.name).filter(Boolean).join(' ');
+      const haystack = [song.name, song.album?.name, artistContentMode === 'hidden' ? hiddenArtistText : songArtistsText(song)].filter(Boolean).join(' ').toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
       const matchesAlbum = filters.album === 'all' || String(song.album?.name || '').toLowerCase() === filters.album.toLowerCase();
-      const matchesArtist = filters.artist === 'all' || songArtistsText(song).toLowerCase().includes(filters.artist.toLowerCase());
-      return matchesUploaded && matchesSearch && matchesAlbum && matchesArtist;
+      const matchesArtist = filters.artist === 'all'
+        || (song.artists || []).some((artist) => String(artist?.name || '').toLowerCase().includes(filters.artist.toLowerCase())
+          && (artistContentMode === 'hidden'
+            ? hiddenArtistIds.has(getArtistEntityId(artist))
+            : isArtistAllowed(artist)));
+      return matchesVisibility && matchesUploaded && matchesSearch && matchesAlbum && matchesArtist;
     })
     .sort((left, right) => {
       if (filters.sort === 'az') {
@@ -61,8 +92,11 @@ export default function AdminSongs() {
     uploaded: audioInventory.total_files,
     linkedUploaded: audioInventory.linked_song_count,
     withAlbum: filteredSongs.filter((song) => song.album).length,
-    explicit: filteredSongs.filter((song) => song.explicit).length
+    explicit: filteredSongs.filter((song) => song.explicit).length,
+    hiddenArtistSongs: songs.filter((song) => hasHiddenArtistLink(song?.artists)).length
   };
+  const filteredSongIds = filteredSongs.map((song) => String(song._id || song.id));
+  const allFilteredSelected = filteredSongIds.length > 0 && filteredSongIds.every((id) => selectedIds.includes(id));
 
   const showToast = (message, type = 'error', duration = 4000) => {
     const id = Date.now();
@@ -77,7 +111,7 @@ export default function AdminSongs() {
     setLoading(true);
     try {
       const [songsRes, inventoryRes, albumsRes, artistsRes] = await Promise.all([
-        apiService.getSongs(1, 2000, '', '', '', '', '', '-popularity'),
+        apiService.getSongs(1, 1000, '', '', '', '', '', '-createdAt'),
         apiService.getAudioInventory(),
         apiService.getAlbums(1, 1000),
         apiService.getArtists(1, 1000)
@@ -105,6 +139,11 @@ export default function AdminSongs() {
   useEffect(() => {
     load();
   }, [uploadedOnly]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get('q') || '';
+    setSearch(nextSearch);
+  }, [searchParams]);
 
   const autoPopulate = async () => {
     try {
@@ -149,6 +188,39 @@ export default function AdminSongs() {
     }
   };
 
+  const bulkDeleteSongs = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected song${selectedIds.length === 1 ? '' : 's'}?`)) return;
+    try {
+      await Promise.all(selectedIds.map((id) => apiService.deleteSong(id)));
+      setSongs((prev) => prev.filter((song) => !selectedIds.includes(String(song._id || song.id))));
+      setSelectedIds([]);
+      showToast(`Deleted ${selectedIds.length} song${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+    } catch (error) {
+      showToast(`Failed to delete selected songs: ${error?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  const toggleSongSelection = (songId) => {
+    setSelectedIds((prev) => (
+      prev.includes(songId)
+        ? prev.filter((id) => id !== songId)
+        : [...prev, songId]
+    ));
+  };
+
+  const toggleFilteredSelection = () => {
+    setSelectedIds((prev) => (
+      allFilteredSelected
+        ? prev.filter((id) => !filteredSongIds.includes(id))
+        : Array.from(new Set([...prev, ...filteredSongIds]))
+    ));
+  };
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [artistContentMode]);
+
   return (
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -162,12 +234,13 @@ export default function AdminSongs() {
             </div>
             <button onClick={() => navigate('/admin/songs/create')} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add song</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <div className="mt-6 grid gap-3 md:grid-cols-5">
             {[
               { label: 'Total songs', value: stats.total, onClick: uploadedOnly ? () => setSearchParams({}) : null, helper: uploadedOnly ? 'Show all songs' : null },
               { label: 'Uploaded audio', value: stats.uploaded, onClick: () => setSearchParams({ uploaded: '1' }), helper: `${stats.linkedUploaded} linked to songs` },
               { label: 'Linked albums', value: stats.withAlbum },
-              { label: 'Explicit', value: stats.explicit }
+              { label: 'Explicit', value: stats.explicit },
+              { label: 'Hidden artist songs', value: stats.hiddenArtistSongs, onClick: () => setArtistContentMode((prev) => (prev === 'hidden' ? 'visible' : 'hidden')), helper: artistContentMode === 'hidden' ? 'Showing only hidden artist songs' : 'Click to view hidden artist songs' }
             ].map(({ label, value, onClick, helper }) => {
               const clickable = typeof onClick === 'function';
               const Tag = clickable ? 'button' : 'div';
@@ -266,13 +339,23 @@ export default function AdminSongs() {
           ) : null}
         </div>
 
+        {selectedIds.length > 0 ? (
+          <div className="flex items-center justify-between rounded-[28px] border border-red-500/20 bg-red-500/5 p-5">
+            <p className="text-sm text-gray-200">{selectedIds.length} song{selectedIds.length === 1 ? '' : 's'} selected</p>
+            <button onClick={bulkDeleteSongs} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+          </div>
+        ) : null}
+
         <div className="hidden overflow-hidden rounded-[28px] border border-white/10 bg-white/5 xl:block">
-          <div className="grid grid-cols-[minmax(0,2fr)_1.1fr_150px_120px_220px] gap-4 border-b border-white/10 px-5 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-            <div>Song</div><div>Album</div><div>Status</div><div>Genre</div><div>Quick actions</div>
+          <div className="grid grid-cols-[44px_minmax(0,2fr)_1.1fr_150px_120px_220px] gap-4 border-b border-white/10 px-5 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
+            <div className="flex items-center justify-center"><input type="checkbox" checked={allFilteredSelected} onChange={toggleFilteredSelection} /></div><div>Song</div><div>Album</div><div>Status</div><div>Genre</div><div>Quick actions</div>
           </div>
           <div className="divide-y divide-white/10">
             {filteredSongs.map((song) => (
-              <div key={song._id || song.id} className="grid grid-cols-[minmax(0,2fr)_1.1fr_150px_120px_220px] gap-4 px-5 py-4">
+              <div key={song._id || song.id} className="grid grid-cols-[44px_minmax(0,2fr)_1.1fr_150px_120px_220px] gap-4 px-5 py-4">
+                <div className="flex items-center justify-center">
+                  <input type="checkbox" checked={selectedIds.includes(String(song._id || song.id))} onChange={() => toggleSongSelection(String(song._id || song.id))} />
+                </div>
                 <div className="flex items-center gap-3">
                   <div className="h-14 w-14 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
                     {songCover(song) ? (
@@ -307,6 +390,7 @@ export default function AdminSongs() {
             <div key={song._id || song.id} className="rounded-[24px] border border-white/10 bg-white/5 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={selectedIds.includes(String(song._id || song.id))} onChange={() => toggleSongSelection(String(song._id || song.id))} className="mt-1" />
                   <div className="h-14 w-14 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
                     {songCover(song) ? <img src={songCover(song)} alt={song.name} className="h-full w-full object-cover" /> : null}
                   </div>
@@ -332,7 +416,7 @@ export default function AdminSongs() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading songs...' : `${filteredSongs.length} songs shown of ${songs.length}`}
+            {loading ? 'Loading songs...' : `${filteredSongs.length} songs shown of ${songs.length}${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
           </div>
           <button disabled={loading} onClick={load} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-white/5">
             Refresh

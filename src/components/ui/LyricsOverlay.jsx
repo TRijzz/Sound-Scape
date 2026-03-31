@@ -422,7 +422,7 @@ function LyricsPlayBar({ onClose }) {
           {currentTrack && (
             <>
               <img
-                src={currentTrack.album?.images?.[0]?.url || albumArtPlaceholder}
+                src={currentTrack.album?.images?.[0]?.url || currentTrack.cover_art_url || albumArtPlaceholder}
                 alt={currentTrack.name || 'Current track'}
                 className="w-10 h-10 rounded object-cover flex-shrink-0"
               />

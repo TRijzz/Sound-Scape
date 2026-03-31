@@ -9,13 +9,18 @@ import ConfirmModal from '../../components/ui/ConfirmModal';
 import DatePicker from '../../components/ui/DatePicker';
 
 const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
+const getArtistEntityId = (artist) => {
+  if (!artist) return '';
+  if (typeof artist === 'string') return artist;
+  return String(artist._id || artist.id || '');
+};
 
 const getAlbumDisplayName = (album) => {
   if (album?.name === '\u00F7 (Deluxe)') return 'Divide Deluxe';
   return album?.name;
 };
 
-const albumArtistsText = (album) => (album?.artists || []).map((artist) => artist?.name).filter(Boolean).join(', ');
 const albumCover = (album) => apiService.resolveMediaUrl(album?.images?.[0]?.url || '');
 
 const fmtDate = (value) => {
@@ -35,6 +40,8 @@ export default function AdminAlbums() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ type: 'all', artist: 'all', sort: 'recent' });
+  const [artistContentMode, setArtistContentMode] = useState('visible');
+  const [selectedIds, setSelectedIds] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -54,32 +61,54 @@ export default function AdminAlbums() {
 
   const [toasts, setToasts] = useState([]);
   const canCreate = useMemo(() => name.trim().length > 0 && !creating, [name, creating]);
+  const visibleArtists = useMemo(() => artists.filter(isAdminVisibleArtist), [artists]);
+  const hiddenArtists = useMemo(() => artists.filter((artist) => !isAdminVisibleArtist(artist)), [artists]);
+  const hiddenArtistIds = useMemo(
+    () => new Set(artists.filter((artist) => !isAdminVisibleArtist(artist)).map((artist) => String(artist._id || artist.id || '')).filter(Boolean)),
+    [artists]
+  );
+
+  const isArtistAllowed = (artist) => {
+    const artistId = getArtistEntityId(artist);
+    if (artistId && hiddenArtistIds.has(artistId)) return false;
+    return isAdminVisibleArtist(artist);
+  };
+
+  const albumArtistsText = (album) => (album?.artists || []).filter(isArtistAllowed).map((artist) => artist?.name).filter(Boolean).join(', ');
+  const hasHiddenArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
 
   const stats = useMemo(() => ({
     total: albums.length,
     withAudio: Object.values(trackCounts).filter((count) => count > 0).length,
     singles: albums.filter((album) => album.album_type === 'single').length,
-    upcoming: albums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length
+    upcoming: albums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length,
+    hiddenArtistAlbums: albums.filter((album) => hasHiddenArtistLink(album?.artists)).length
   }), [albums, trackCounts]);
 
   const artistOptions = useMemo(
-    () => artists
+    () => (artistContentMode === 'hidden' ? hiddenArtists : visibleArtists)
       .map((artist) => artist.name)
       .filter(Boolean)
       .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' })),
-    [artists]
+    [artistContentMode, hiddenArtists, visibleArtists]
   );
 
   const filteredAlbums = useMemo(() => {
     const query = search.trim().toLowerCase();
     const next = albums.filter((album) => {
-      const matchesSearch = !query || [getAlbumDisplayName(album), albumArtistsText(album)]
+      const hiddenLinked = hasHiddenArtistLink(album?.artists);
+      const matchesVisibility = artistContentMode === 'hidden' ? hiddenLinked : !hiddenLinked;
+      const hiddenArtistText = (album?.artists || []).filter((artist) => hiddenArtistIds.has(getArtistEntityId(artist))).map((artist) => artist?.name).filter(Boolean).join(', ');
+      const matchesSearch = !query || [getAlbumDisplayName(album), artistContentMode === 'hidden' ? hiddenArtistText : albumArtistsText(album)]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query));
       const matchesType = filters.type === 'all' || album.album_type === filters.type;
       const matchesArtist = filters.artist === 'all'
-        || (album.artists || []).some((artist) => String(artist?.name || '').toLowerCase() === filters.artist.toLowerCase());
-      return matchesSearch && matchesType && matchesArtist;
+        || (album.artists || []).some((artist) => String(artist?.name || '').toLowerCase() === filters.artist.toLowerCase()
+          && (artistContentMode === 'hidden'
+            ? hiddenArtistIds.has(getArtistEntityId(artist))
+            : isArtistAllowed(artist)));
+      return matchesVisibility && matchesSearch && matchesType && matchesArtist;
     });
 
     const sorted = [...next];
@@ -91,7 +120,9 @@ export default function AdminAlbums() {
       sorted.sort((left, right) => new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime());
     }
     return sorted;
-  }, [albums, filters, search]);
+  }, [albumArtistsText, albums, artistContentMode, filters, hiddenArtistIds, search]);
+  const filteredAlbumIds = filteredAlbums.map((album) => String(album._id || album.id));
+  const allFilteredSelected = filteredAlbumIds.length > 0 && filteredAlbumIds.every((id) => selectedIds.includes(id));
 
   const showToast = (message, type = 'error', duration = 4000) => {
     const id = Date.now();
@@ -234,6 +265,39 @@ export default function AdminAlbums() {
     }
   };
 
+  const bulkDeleteAlbums = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected album${selectedIds.length === 1 ? '' : 's'}?`)) return;
+    try {
+      await Promise.all(selectedIds.map((id) => apiService.deleteAlbum(id)));
+      setAlbums((prev) => prev.filter((album) => !selectedIds.includes(String(album._id || album.id))));
+      setSelectedIds([]);
+      showToast(`Deleted ${selectedIds.length} album${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+    } catch (error) {
+      showToast(`Failed to delete selected albums: ${error?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  const toggleAlbumSelection = (albumId) => {
+    setSelectedIds((prev) => (
+      prev.includes(albumId)
+        ? prev.filter((id) => id !== albumId)
+        : [...prev, albumId]
+    ));
+  };
+
+  const toggleFilteredSelection = () => {
+    setSelectedIds((prev) => (
+      allFilteredSelected
+        ? prev.filter((id) => !filteredAlbumIds.includes(id))
+        : Array.from(new Set([...prev, ...filteredAlbumIds]))
+    ));
+  };
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [artistContentMode]);
+
   return (
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -247,18 +311,27 @@ export default function AdminAlbums() {
             </div>
             <button onClick={() => setDrawerOpen(true)} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add album</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <div className="mt-6 grid gap-3 md:grid-cols-5">
             {[
               ['Total albums', stats.total],
               ['With audio', stats.withAudio],
               ['Singles', stats.singles],
-              ['Upcoming', stats.upcoming]
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              ['Upcoming', stats.upcoming],
+              ['Hidden artist albums', stats.hiddenArtistAlbums]
+            ].map(([label, value]) => {
+              const isHiddenCard = label === 'Hidden artist albums';
+              return (
+              <button
+                type="button"
+                key={label}
+                onClick={isHiddenCard ? () => setArtistContentMode((prev) => (prev === 'hidden' ? 'visible' : 'hidden')) : undefined}
+                className={`rounded-2xl border p-4 text-left ${isHiddenCard && artistContentMode === 'hidden' ? 'border-neon-blue/50 bg-neon-blue/10' : 'border-white/10 bg-black/20'} ${isHiddenCard ? 'transition hover:border-neon-blue/40 hover:bg-neon-blue/5' : ''}`}
+              >
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
                 <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-              </div>
-            ))}
+                {isHiddenCard ? <p className="mt-2 text-xs text-neon-blue">{artistContentMode === 'hidden' ? 'Showing only hidden artist albums' : 'Click to view hidden artist albums'}</p> : null}
+              </button>
+            );})}
           </div>
         </div>
 
@@ -302,13 +375,23 @@ export default function AdminAlbums() {
           </div>
         </div>
 
+        {selectedIds.length > 0 ? (
+          <div className="flex items-center justify-between rounded-[28px] border border-red-500/20 bg-red-500/5 p-5">
+            <p className="text-sm text-gray-200">{selectedIds.length} album{selectedIds.length === 1 ? '' : 's'} selected</p>
+            <button onClick={bulkDeleteAlbums} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+          </div>
+        ) : null}
+
         <div className="hidden overflow-hidden rounded-[28px] border border-white/10 bg-white/5 xl:block">
-          <div className="grid grid-cols-[minmax(0,2fr)_1.1fr_120px_120px_120px_220px] gap-4 border-b border-white/10 px-5 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-            <div>Album</div><div>Artist</div><div>Type</div><div>Tracks</div><div>Updated</div><div>Quick actions</div>
+          <div className="grid grid-cols-[44px_minmax(0,2fr)_1.1fr_120px_120px_120px_220px] gap-4 border-b border-white/10 px-5 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
+            <div className="flex items-center justify-center"><input type="checkbox" checked={allFilteredSelected} onChange={toggleFilteredSelection} /></div><div>Album</div><div>Artist</div><div>Type</div><div>Tracks</div><div>Updated</div><div>Quick actions</div>
           </div>
           <div className="divide-y divide-white/10">
             {filteredAlbums.map((album) => (
-              <div key={album._id || album.id} className="grid grid-cols-[minmax(0,2fr)_1.1fr_120px_120px_120px_220px] gap-4 px-5 py-4">
+              <div key={album._id || album.id} className="grid grid-cols-[44px_minmax(0,2fr)_1.1fr_120px_120px_120px_220px] gap-4 px-5 py-4">
+                <div className="flex items-center justify-center">
+                  <input type="checkbox" checked={selectedIds.includes(String(album._id || album.id))} onChange={() => toggleAlbumSelection(String(album._id || album.id))} />
+                </div>
                 <div className="flex items-center gap-3">
                   <div className="h-14 w-14 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
                     {albumCover(album) ? (
@@ -340,6 +423,7 @@ export default function AdminAlbums() {
             <div key={album._id || album.id} className="rounded-[24px] border border-white/10 bg-white/5 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={selectedIds.includes(String(album._id || album.id))} onChange={() => toggleAlbumSelection(String(album._id || album.id))} className="mt-1" />
                   <div className="h-14 w-14 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
                     {albumCover(album) ? <img src={albumCover(album)} alt={getAlbumDisplayName(album)} className="h-full w-full object-cover" /> : null}
                   </div>
@@ -364,7 +448,7 @@ export default function AdminAlbums() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading albums...' : `${filteredAlbums.length} albums shown of ${albums.length}`}
+            {loading ? 'Loading albums...' : `${filteredAlbums.length} albums shown of ${albums.length}${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
           </div>
           <button disabled={loading} onClick={load} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-white/5">
             Refresh
@@ -419,7 +503,7 @@ export default function AdminAlbums() {
                           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Choose artist</span>
                           <select value={selectedArtists[0] || ''} onChange={(e) => setSelectedArtists(e.target.value ? [e.target.value] : [])} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60">
                             <option style={selectOptionStyle} value="">Select artist</option>
-                            {artists.map((artist) => (
+                            {visibleArtists.map((artist) => (
                               <option key={artist._id || artist.id} style={selectOptionStyle} value={artist._id || artist.id}>{artist.name}</option>
                             ))}
                           </select>
@@ -456,7 +540,7 @@ export default function AdminAlbums() {
                           <div className="min-w-0">
                             <p className="truncate text-xl font-semibold text-white">{name || 'Untitled album'}</p>
                             <p className="mt-1 text-sm text-gray-300">{albumType}</p>
-                            <p className="mt-2 truncate text-sm text-gray-400">{artists.find((artist) => (artist._id || artist.id) === selectedArtists[0])?.name || 'No artist selected'}</p>
+                            <p className="mt-2 truncate text-sm text-gray-400">{visibleArtists.find((artist) => (artist._id || artist.id) === selectedArtists[0])?.name || 'No artist selected'}</p>
                           </div>
                         </div>
                       </div>

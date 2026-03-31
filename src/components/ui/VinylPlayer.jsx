@@ -130,11 +130,11 @@ const VinylPlayer = ({ isOpen, onClose }) => {
             onClick={onClose}
           >
             {/* Blurred album art background */}
-            {currentTrack?.album?.images?.[0]?.url && (
+            {(currentTrack?.album?.images?.[0]?.url || currentTrack?.cover_art_url) && (
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{
-                  backgroundImage: `url(${currentTrack.album.images[0].url})`,
+                  backgroundImage: `url(${currentTrack?.album?.images?.[0]?.url || currentTrack?.cover_art_url})`,
                   filter: 'blur(20px) brightness(0.3)',
                   transform: 'scale(1.1)'
                 }}

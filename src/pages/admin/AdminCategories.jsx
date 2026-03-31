@@ -18,6 +18,7 @@ export default function AdminCategories() {
   const [editDescription, setEditDescription] = useState('');
   const [editCoverImage, setEditCoverImage] = useState('');
   const [editIsPublic, setEditIsPublic] = useState(true);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const [toasts, setToasts] = useState([]);
 
@@ -118,6 +119,27 @@ export default function AdminCategories() {
     }
   };
 
+  const toggleCategorySelection = (categoryId) => {
+    setSelectedIds((prev) => (
+      prev.includes(categoryId)
+        ? prev.filter((item) => item !== categoryId)
+        : [...prev, categoryId]
+    ));
+  };
+
+  const bulkDeleteCategories = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected categor${selectedIds.length === 1 ? 'y' : 'ies'}?`)) return;
+    try {
+      await Promise.all(selectedIds.map((id) => apiService.deleteCategory(id)));
+      setCategories((prev) => prev.filter((cat) => !selectedIds.includes(String(cat._id || cat.id))));
+      setSelectedIds([]);
+      showToast(`Deleted ${selectedIds.length} categor${selectedIds.length === 1 ? 'y' : 'ies'} successfully!`, 'success');
+    } catch (error) {
+      showToast(`Failed to delete selected categories: ${error.message}`, 'error');
+    }
+  };
+
   return (
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -168,7 +190,15 @@ export default function AdminCategories() {
       </motion.section>
 
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Categories ({categories.length})</h2>
+        <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
+          <h2 className="text-xl font-semibold">Categories ({categories.length})</h2>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-300">{selectedIds.length ? `${selectedIds.length} selected` : 'No selection'}</div>
+            {selectedIds.length > 0 ? (
+              <button onClick={bulkDeleteCategories} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+            ) : null}
+          </div>
+        </div>
         {loading ? (
           <div className="text-center py-8 text-gray-400">Loading...</div>
         ) : categories.length === 0 ? (
@@ -185,6 +215,9 @@ export default function AdminCategories() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="p-4 bg-dark-gray/40 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors"
               >
+                <div className="mb-3">
+                  <input type="checkbox" checked={selectedIds.includes(String(cat._id || cat.id))} onChange={() => toggleCategorySelection(String(cat._id || cat.id))} />
+                </div>
                 {editId === (cat._id || cat.id) ? (
                   <div className="space-y-3">
                     <input 

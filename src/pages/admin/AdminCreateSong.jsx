@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
@@ -19,9 +19,11 @@ const toDisplayGenre = (value) => {
 
 const uniqueSorted = (values) => Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
   .sort((left, right) => left.localeCompare(right));
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
 
 export default function AdminCreateSong() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [artists, setArtists] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -45,9 +47,11 @@ export default function AdminCreateSong() {
   const [lyricsFile, setLyricsFile] = useState(null);
 
   const [toasts, setToasts] = useState([]);
+  const prefilledArtistName = searchParams.get('artist') || '';
+  const prefilledArtistId = searchParams.get('artistId') || '';
 
   const canCreate = useMemo(() => name.trim().length > 0 && !creating, [name, creating]);
-  const artistSuggestions = useMemo(() => uniqueSorted(artists.map((artist) => artist.name)), [artists]);
+  const artistSuggestions = useMemo(() => uniqueSorted(artists.filter(isAdminVisibleArtist).map((artist) => artist.name)), [artists]);
   const selectedAlbumDetails = useMemo(
     () => albums.find((album) => (album._id || album.id) === selectedAlbum),
     [albums, selectedAlbum]
@@ -82,19 +86,27 @@ export default function AdminCreateSong() {
         const categoriesList = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.categories || []);
         const genresList = Array.isArray(genresRes) ? genresRes : (genresRes?.genres || []);
 
-        setArtists(artistsList);
+        setArtists(artistsList.filter(isAdminVisibleArtist));
         setAlbums(albumsList);
         setCategoryOptions(uniqueSorted(categoriesList.map((item) => item.name || item.collectionName || '')));
         setGenreOptions(uniqueSorted(genresList.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean).map(toDisplayGenre)));
         setMoodOptions(uniqueSorted((moodsRes?.moods || []).concat(songList.map((song) => song.mood))));
         setLanguageOptions(uniqueSorted([...DEFAULT_LANGUAGES, ...songList.map((song) => song.language)]));
+        if (prefilledArtistName) {
+          setArtistNamesInput(prefilledArtistName);
+        } else if (prefilledArtistId) {
+          const matchedArtist = artistsList.filter(isAdminVisibleArtist).find((artist) => String(artist._id || artist.id || '') === String(prefilledArtistId));
+          if (matchedArtist?.name) {
+            setArtistNamesInput(matchedArtist.name);
+          }
+        }
       } catch (error) {
         console.error('Error loading create song data:', error);
       }
     };
 
     load();
-  }, []);
+  }, [prefilledArtistId, prefilledArtistName]);
 
   const resolveArtistIds = async () => {
     const names = uniqueSorted(artistNamesInput.split(',').map((value) => value.trim()));
@@ -134,7 +146,7 @@ export default function AdminCreateSong() {
 
       await apiService.createSong(formData);
       showToast('Song created successfully!', 'success', 3000);
-      navigate('/admin/songs');
+      navigate(`/admin/songs?q=${encodeURIComponent(name.trim())}`);
     } catch (error) {
       console.error('Error creating song:', error);
       const errorMessage = error?.message || error?.details?.message || error?.details?.error || 'Unknown error';

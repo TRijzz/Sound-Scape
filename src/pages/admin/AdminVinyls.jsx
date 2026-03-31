@@ -5,18 +5,13 @@ import apiService from '../../services/api';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 
+const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
+const getArtistEntityId = (artist) => {
+  if (!artist) return '';
+  if (typeof artist === 'string') return artist;
+  return String(artist._id || artist.id || '');
+};
 const getAlbumTrackCount = (counts, album) => counts[album._id || album.id] || 0;
-const getAlbumArtistLabel = (album) => {
-  const names = Array.isArray(album?.artists) ? album.artists.map((artist) => artist.name).filter(Boolean) : [];
-  return names.length > 0 ? names.join(', ') : 'Unknown artist';
-};
-
-const formatAlbumOption = (album, counts) => {
-  const trackCount = getAlbumTrackCount(counts, album);
-  const artistLabel = getAlbumArtistLabel(album);
-  const releaseDate = album?.release_date || 'No date';
-  return `${album.name} | ${artistLabel} | ${releaseDate} | ${trackCount} tracks`;
-};
 
 export default function AdminVinyls() {
   const [vinyls, setVinyls] = useState([]);
@@ -40,6 +35,18 @@ export default function AdminVinyls() {
   const [editingId, setEditingId] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [vinylToDelete, setVinylToDelete] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showHiddenArtistContent, setShowHiddenArtistContent] = useState(false);
+  const hiddenArtistIds = useMemo(
+    () => new Set(
+      albums
+        .flatMap((album) => Array.isArray(album?.artists) ? album.artists : [])
+        .filter((artist) => !isAdminVisibleArtist(artist))
+        .map((artist) => getArtistEntityId(artist))
+        .filter(Boolean)
+    ),
+    [albums]
+  );
   const stats = useMemo(() => ({
     total: vinyls.length,
     visible: vinyls.filter((vinyl) => vinyl.display_in_store).length,
@@ -53,14 +60,41 @@ export default function AdminVinyls() {
   };
   const removeToast = (id) => setToasts((prev) => prev.filter((toast) => toast.id !== id));
 
+  const isArtistAllowed = (artist) => {
+    const artistId = getArtistEntityId(artist);
+    if (artistId && hiddenArtistIds.has(artistId)) return false;
+    return showHiddenArtistContent || isAdminVisibleArtist(artist);
+  };
+
+  const hasHiddenArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
+
+  const getAlbumArtistLabel = (album) => {
+    const names = Array.isArray(album?.artists) ? album.artists.filter(isArtistAllowed).map((artist) => artist.name).filter(Boolean) : [];
+    return names.length > 0 ? names.join(', ') : 'Unknown artist';
+  };
+
+  const formatAlbumOption = (album, counts) => {
+    const trackCount = getAlbumTrackCount(counts, album);
+    const artistLabel = getAlbumArtistLabel(album);
+    const releaseDate = album?.release_date || 'No date';
+    return `${album.name} | ${artistLabel} | ${releaseDate} | ${trackCount} tracks`;
+  };
+
   const sortedAlbums = useMemo(() => {
-    return [...albums].sort((left, right) => {
-      const leftCount = getAlbumTrackCount(albumTrackCounts, left);
-      const rightCount = getAlbumTrackCount(albumTrackCounts, right);
-      if (leftCount !== rightCount) return rightCount - leftCount;
-      return String(left.name || '').localeCompare(String(right.name || ''));
-    });
-  }, [albums, albumTrackCounts]);
+    return [...albums]
+      .filter((album) => showHiddenArtistContent || !hasHiddenArtistLink(album?.artists))
+      .sort((left, right) => {
+        const leftCount = getAlbumTrackCount(albumTrackCounts, left);
+        const rightCount = getAlbumTrackCount(albumTrackCounts, right);
+        if (leftCount !== rightCount) return rightCount - leftCount;
+        return String(left.name || '').localeCompare(String(right.name || ''));
+      });
+  }, [albums, albumTrackCounts, showHiddenArtistContent]);
+
+  const filteredVinyls = useMemo(
+    () => vinyls.filter((vinyl) => showHiddenArtistContent || !hasHiddenArtistLink(vinyl?.albumId?.artists)),
+    [vinyls, showHiddenArtistContent]
+  );
 
   const existingAlbumVinylCount = useMemo(() => {
     if (!albumId) return 0;
@@ -203,6 +237,27 @@ export default function AdminVinyls() {
     }
   };
 
+  const toggleVinylSelection = (vinylId) => {
+    setSelectedIds((prev) => (
+      prev.includes(vinylId)
+        ? prev.filter((id) => id !== vinylId)
+        : [...prev, vinylId]
+    ));
+  };
+
+  const bulkDeleteVinyls = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected vinyl${selectedIds.length === 1 ? '' : 's'}?`)) return;
+    try {
+      await Promise.all(selectedIds.map((id) => apiService.deleteVinyl(id)));
+      setVinyls((prev) => prev.filter((vinyl) => !selectedIds.includes(String(vinyl._id || vinyl.id))));
+      setSelectedIds([]);
+      showToast(`Deleted ${selectedIds.length} vinyl${selectedIds.length === 1 ? '' : 's'}.`, 'success');
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete selected vinyls', 'error');
+    }
+  };
+
   return (
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -240,6 +295,16 @@ export default function AdminVinyls() {
         </div>
 
         <div className="p-6 bg-dark-gray/40 rounded-xl border border-gray-800 space-y-4">
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-white">Hidden artist content</p>
+              <p className="text-xs text-gray-400">Reveal vinyls tied to hidden artists only when you need to manage them.</p>
+            </div>
+            <label className="flex items-center gap-3 text-sm text-gray-200">
+              <input type="checkbox" checked={showHiddenArtistContent} onChange={(e) => setShowHiddenArtistContent(e.target.checked)} />
+              Show hidden artists' vinyls
+            </label>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Vinyl Name</label>
@@ -332,12 +397,24 @@ export default function AdminVinyls() {
           </div>
         </div>
 
+        <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-gray-300">
+            {loading ? 'Loading vinyls...' : `${filteredVinyls.length} vinyls shown of ${vinyls.length}${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
+          </div>
+          {selectedIds.length > 0 ? (
+            <button onClick={bulkDeleteVinyls} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+          ) : null}
+        </div>
+
         {loading ? (
           <div className="text-center py-16 text-gray-500">Loading vinyl inventory...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {vinyls.map((vinyl) => (
+            {filteredVinyls.map((vinyl) => (
               <div key={vinyl._id || vinyl.id} className={`p-4 rounded-xl bg-light-gray/30 border ${vinyl.display_in_store ? 'border-neon-blue/30' : 'border-gray-800'} space-y-3 relative overflow-hidden group`}>
+                <div className="absolute left-3 top-3 z-10">
+                  <input type="checkbox" checked={selectedIds.includes(String(vinyl._id || vinyl.id))} onChange={() => toggleVinylSelection(String(vinyl._id || vinyl.id))} />
+                </div>
                 <div className="absolute top-2 right-2 flex gap-2 flex-wrap justify-end max-w-[70%]">
                   {vinyl.display_in_store ? (
                     <span className="px-2 py-1 bg-neon-blue/20 text-[10px] text-neon-blue rounded uppercase tracking-wider border border-neon-blue/30">In Store</span>
@@ -375,7 +452,7 @@ export default function AdminVinyls() {
           </div>
         )}
 
-        {vinyls.length === 0 && !loading && (
+        {filteredVinyls.length === 0 && !loading && (
           <div className="text-center py-20 bg-dark-gray/20 rounded-2xl border border-dashed border-gray-800">
             <p className="text-gray-500">No vinyls found. Create your first one above!</p>
           </div>

@@ -324,6 +324,26 @@ export default function AdminArtists() {
     } finally { setSaving(false); }
   };
 
+  const bulkDeleteArtists = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected artist${selectedIds.length === 1 ? '' : 's'}? This also removes linked albums and songs.`)) return;
+    setSaving(true);
+    try {
+      await Promise.all(selectedIds.map((id) => apiService.deleteArtist(id)));
+      setArtists((prev) => prev.filter((artist) => !selectedIds.includes(idOf(artist))));
+      if (activeId && selectedIds.includes(activeId)) {
+        setDrawerOpen(false);
+        setActiveId(null);
+      }
+      setSelectedIds([]);
+      toast(`Deleted ${selectedIds.length} artist${selectedIds.length === 1 ? '' : 's'}.`, 'success');
+    } catch (error) {
+      toast(`Bulk delete failed: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const toggleFilteredSelection = () => {
     const filteredIds = filtered.map((artist) => idOf(artist));
     setSelectedIds(
@@ -400,10 +420,14 @@ export default function AdminArtists() {
 
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm text-gray-200">
+                {selectedIds.length} artist{selectedIds.length === 1 ? '' : 's'} selected
+              </span>
               <button onClick={toggleFilteredSelection} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">{allFilteredSelected ? 'Clear page selection' : 'Select filtered'}</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_featured: true }), 'Selected artists featured.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Feature</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_featured: false }), 'Selected artists unfeatured.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Unfeature</button>
+              <button disabled={selectedIds.length === 0 || saving} onClick={bulkDeleteArtists} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 disabled:opacity-40 hover:bg-red-500/20">Delete selected</button>
             </div>
             <div className="flex flex-col gap-3 md:flex-row">
               <input value={bulkGenre} onChange={(e) => setBulkGenre(e.target.value)} placeholder="Assign genre" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none focus:border-neon-blue/60" />
@@ -546,7 +570,7 @@ export default function AdminArtists() {
                     <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-300">Linked releases</h4>
                     <div className="mt-5 grid gap-4 md:grid-cols-2">
                       <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked albums</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading albums...</p> : links.albums.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked albums yet.</p> : <div className="mt-3 space-y-2">{links.albums.map((album) => <div key={album._id || album.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{album.name}</div><div className="mt-1 text-xs text-gray-400">{album.release_date || 'Release date unknown'}</div><button onClick={() => navigate(`/admin/albums/edit/${album._id || album.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit album</button></div>)}</div>}<button onClick={() => navigate('/admin/albums')} className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Add album</button></div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked songs</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading songs...</p> : links.tracks.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked songs yet.</p> : <div className="mt-3 space-y-2">{links.tracks.map((track) => <div key={track._id || track.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{track.name}</div><div className="mt-1 text-xs text-gray-400">Popularity {track.popularity || 0}</div><button onClick={() => navigate(`/admin/songs/edit/${track._id || track.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit song</button></div>)}</div>}<button onClick={() => navigate('/admin/songs/create')} className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Add song</button></div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Linked songs</p>{links.loading ? <p className="mt-3 text-sm text-gray-400">Loading songs...</p> : links.tracks.length === 0 ? <p className="mt-3 text-sm text-gray-400">No linked songs yet.</p> : <div className="mt-3 space-y-2">{links.tracks.map((track) => <div key={track._id || track.id} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-white"><div className="font-medium">{track.name}</div><div className="mt-1 text-xs text-gray-400">Popularity {track.popularity || 0}</div><button onClick={() => navigate(`/admin/songs/edit/${track._id || track.id}`)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit song</button></div>)}</div>}<button onClick={() => navigate(`/admin/songs/create?artist=${encodeURIComponent(previewName(form))}${activeId ? `&artistId=${encodeURIComponent(activeId)}` : ''}`)} className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Add song</button></div>
                     </div>
                   </section>
                 </div>
