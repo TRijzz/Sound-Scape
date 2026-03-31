@@ -388,13 +388,14 @@ class ApiService {
   }
 
   // Vinyl Store
-  async getVinyls(page = 1, limit = 20, search = '', display_in_store = undefined) {
+  async getVinyls(page = 1, limit = 20, search = '', display_in_store = undefined, albumId = '') {
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
     });
     if (search) params.append('search', search);
     if (display_in_store !== undefined) params.append('display_in_store', String(display_in_store));
+    if (albumId) params.append('albumId', albumId);
     return this.fetchData(`/vinyls?${params.toString()}`);
   }
 
@@ -423,6 +424,20 @@ class ApiService {
 
   async purchaseVinyl(vinylId) {
     return this.fetchData('/users/purchase-vinyl', { method: 'POST', body: JSON.stringify({ vinylId }) });
+  }
+
+  async initiateKhaltiVinylPayment(vinylId) {
+    return this.fetchData('/payments/khalti/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ vinylId })
+    });
+  }
+
+  async verifyKhaltiPayment(payload) {
+    return this.fetchData('/payments/khalti/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 
   async setActiveVinyl(vinylId) {

@@ -13,6 +13,7 @@ import ArtistPage from './pages/ArtistPage';
 import AlbumPage from './pages/AlbumPage';
 import GenrePage from './pages/GenrePage';
 import MoodBrowsePage from './pages/MoodBrowsePage';
+import KhaltiPaymentCallbackPage from './pages/KhaltiPaymentCallbackPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import SettingsPage from './pages/SettingsPage';
@@ -102,6 +103,7 @@ function AppContent() {
                 <Route path="/album/:id" element={<AlbumPage />} />
                 <Route path="/genre/:name" element={<GenrePage />} />
                 <Route path="/moods" element={<MoodBrowsePage />} />
+                <Route path="/payment/khalti/callback" element={<KhaltiPaymentCallbackPage />} />
                 <Route path="/store" element={<VinylStore />} />
                 <Route path="/vinyl/:id" element={<VinylPage />} />
                 <Route path="/login" element={<LoginPage />} />

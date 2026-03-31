@@ -5,6 +5,7 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 
+const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
 const songCover = (song) => apiService.resolveMediaUrl(song.cover_art_url || song.album?.images?.[0]?.url || '');
 const songArtistsText = (song) => (song.artists || []).map((artist) => artist?.name).filter(Boolean).join(', ');
 const songDuration = (song) => {
@@ -18,14 +19,43 @@ export default function AdminSongs() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [songs, setSongs] = useState([]);
+  const [albums, setAlbums] = useState([]);
+  const [artists, setArtists] = useState([]);
   const [audioInventory, setAudioInventory] = useState({ total_files: 0, linked_song_count: 0, orphan_file_count: 0 });
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ album: 'all', artist: 'all', sort: 'recent' });
   const uploadedOnly = searchParams.get('uploaded') === '1';
 
   const [toasts, setToasts] = useState([]);
   const [syncingFolders, setSyncingFolders] = useState(false);
-  const filteredSongs = uploadedOnly ? songs.filter((song) => song.has_uploaded_audio) : songs;
+  const albumOptions = albums
+    .map((album) => album?.name)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
+  const artistOptions = artists
+    .map((artist) => artist?.name)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
+  const filteredSongs = songs
+    .filter((song) => {
+      const matchesUploaded = !uploadedOnly || song.has_uploaded_audio;
+      const query = search.trim().toLowerCase();
+      const haystack = [song.name, song.album?.name, songArtistsText(song)].filter(Boolean).join(' ').toLowerCase();
+      const matchesSearch = !query || haystack.includes(query);
+      const matchesAlbum = filters.album === 'all' || String(song.album?.name || '').toLowerCase() === filters.album.toLowerCase();
+      const matchesArtist = filters.artist === 'all' || songArtistsText(song).toLowerCase().includes(filters.artist.toLowerCase());
+      return matchesUploaded && matchesSearch && matchesAlbum && matchesArtist;
+    })
+    .sort((left, right) => {
+      if (filters.sort === 'az') {
+        return String(left.name || '').localeCompare(String(right.name || ''), undefined, { sensitivity: 'base' });
+      }
+      if (filters.sort === 'za') {
+        return String(right.name || '').localeCompare(String(left.name || ''), undefined, { sensitivity: 'base' });
+      }
+      return new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime();
+    });
   const stats = {
     total: songs.length,
     uploaded: audioInventory.total_files,
@@ -46,14 +76,18 @@ export default function AdminSongs() {
   const load = async () => {
     setLoading(true);
     try {
-      const [songsRes, inventoryRes] = await Promise.all([
-        apiService.getSongs(1, uploadedOnly ? 200 : 1000, search, '', '', '', '', '-popularity', '', '', '', '', uploadedOnly),
-        apiService.getAudioInventory()
+      const [songsRes, inventoryRes, albumsRes, artistsRes] = await Promise.all([
+        apiService.getSongs(1, 2000, '', '', '', '', '', '-popularity'),
+        apiService.getAudioInventory(),
+        apiService.getAlbums(1, 1000),
+        apiService.getArtists(1, 1000)
       ]);
 
       const songList = Array.isArray(songsRes?.songs) ? songsRes.songs : Array.isArray(songsRes) ? songsRes : [];
 
       setSongs(songList);
+      setAlbums(Array.isArray(albumsRes?.albums) ? albumsRes.albums : []);
+      setArtists(Array.isArray(artistsRes?.artists) ? artistsRes.artists : []);
       setAudioInventory({
         total_files: Number(inventoryRes?.total_files) || 0,
         linked_song_count: Number(inventoryRes?.linked_song_count) || 0,
@@ -70,7 +104,7 @@ export default function AdminSongs() {
 
   useEffect(() => {
     load();
-  }, [search, uploadedOnly]);
+  }, [uploadedOnly]);
 
   const autoPopulate = async () => {
     try {
@@ -165,28 +199,63 @@ export default function AdminSongs() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search songs or artists"
+                placeholder="Search by song, album or artist name"
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"
               />
             </label>
-            <div className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Create</span>
-              <button onClick={() => navigate('/admin/songs/create')} className="w-full rounded-2xl bg-neon-blue px-4 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">
-                Add song
-              </button>
-            </div>
-            <div className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Assign</span>
-              <button onClick={autoPopulate} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10">
-                Auto assign
-              </button>
-            </div>
-            <div className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Folder sync</span>
-              <button onClick={handleFolderSync} disabled={syncingFolders} className="w-full rounded-2xl border border-yellow-500/30 bg-yellow-600/20 px-4 py-3 text-sm text-yellow-100 disabled:opacity-50 hover:bg-yellow-600/30">
-                {syncingFolders ? 'Syncing...' : 'Sync folders'}
-              </button>
-            </div>
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Choose album</span>
+              <select
+                value={filters.album}
+                onChange={(e) => setFilters((prev) => ({ ...prev, album: e.target.value }))}
+                style={{ colorScheme: 'dark' }}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"
+              >
+                <option style={selectOptionStyle} value="all">All albums</option>
+                {albumOptions.map((albumName) => (
+                  <option key={albumName} style={selectOptionStyle} value={albumName}>{albumName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Artist</span>
+              <select
+                value={filters.artist}
+                onChange={(e) => setFilters((prev) => ({ ...prev, artist: e.target.value }))}
+                style={{ colorScheme: 'dark' }}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"
+              >
+                <option style={selectOptionStyle} value="all">All artists</option>
+                {artistOptions.map((artistName) => (
+                  <option key={artistName} style={selectOptionStyle} value={artistName}>{artistName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Sort</span>
+              <select
+                value={filters.sort}
+                onChange={(e) => setFilters((prev) => ({ ...prev, sort: e.target.value }))}
+                style={{ colorScheme: 'dark' }}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"
+              >
+                <option style={selectOptionStyle} value="recent">Recently added</option>
+                <option style={selectOptionStyle} value="az">Song name A-Z</option>
+                <option style={selectOptionStyle} value="za">Song name Z-A</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <button onClick={() => navigate('/admin/songs/create')} className="w-full rounded-2xl bg-neon-blue px-4 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">
+              Add song
+            </button>
+            <button onClick={autoPopulate} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10">
+              Auto assign
+            </button>
+            <button onClick={handleFolderSync} disabled={syncingFolders} className="w-full rounded-2xl border border-yellow-500/30 bg-yellow-600/20 px-4 py-3 text-sm text-yellow-100 disabled:opacity-50 hover:bg-yellow-600/30">
+              {syncingFolders ? 'Syncing...' : 'Sync folders'}
+            </button>
           </div>
           {uploadedOnly ? (
             <div className="mt-4">

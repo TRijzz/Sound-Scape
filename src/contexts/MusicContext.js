@@ -264,6 +264,28 @@ export function MusicProvider({ children }) {
     }
   };
 
+  const previewVinylExperience = ({ track, vinyl = null, queue = [], trackIndex = 0 } = {}) => {
+    const previewQueue = Array.isArray(queue) && queue.length > 0 ? queue : (track ? [track] : []);
+    const safeIndex = Math.max(0, Math.min(trackIndex, Math.max(previewQueue.length - 1, 0)));
+    const selectedTrack = track || previewQueue[safeIndex];
+
+    if (!selectedTrack) {
+      return;
+    }
+
+    player.pauseTrack();
+    dispatch({ type: 'SET_QUEUE', payload: previewQueue });
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: safeIndex });
+    dispatch({ type: 'SET_CURRENT_TRACK', payload: selectedTrack });
+    dispatch({ type: 'SET_PLAYING', payload: false });
+
+    if (vinyl) {
+      dispatch({ type: 'SET_ACTIVE_VINYL', payload: vinyl });
+    }
+
+    openVinylOverlay();
+  };
+
   const login = async (user, tokens) => {
     if (tokens) {
       localStorage.setItem('authTokens', JSON.stringify(tokens));
@@ -355,6 +377,7 @@ export function MusicProvider({ children }) {
     ...state,
     playTrack,
     playVinylTrack,
+    previewVinylExperience,
     pauseTrack,
     resumeTrack,
     nextTrack,

@@ -51,7 +51,7 @@ export const createVinyl = async (req, res) => {
 
 export const getVinyls = async (req, res) => {
   try {
-    const { page = 1, limit = 20, sort = '-createdAt', search, display_in_store } = req.query;
+    const { page = 1, limit = 20, sort = '-createdAt', search, display_in_store, albumId } = req.query;
     const query = {};
 
     if (search) {
@@ -77,6 +77,9 @@ export const getVinyls = async (req, res) => {
     }
     if (display_in_store !== undefined) {
       query.display_in_store = display_in_store === 'true';
+    }
+    if (albumId) {
+      query.albumId = albumId;
     }
 
     const parsedPage = Math.max(1, parseInt(page, 10) || 1);
