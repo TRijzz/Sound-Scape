@@ -9,6 +9,10 @@ export default function VinylCard({ vinyl }) {
   const imageSrc = vinyl.image_base64
     ? `data:${vinyl.mime_type || 'image/png'};base64,${vinyl.image_base64}`
     : vinyl.image_url || '/src/assets/album_art_placeholder.svg';
+  const editionCount = Number(vinyl._editionCount || 0);
+  const displayPrice = editionCount > 1
+    ? Number(vinyl._bundlePrice || vinyl.price || 0)
+    : Number(vinyl.price || 0);
 
   return (
     <motion.div
@@ -29,6 +33,11 @@ export default function VinylCard({ vinyl }) {
             transition={{ repeat: isHovered ? Infinity : 0, duration: 8, ease: 'linear' }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
+          {editionCount > 1 ? (
+            <div className="absolute left-3 top-3 rounded-full border border-neon-blue/30 bg-black/65 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-neon-blue backdrop-blur-sm">
+              {editionCount} editions
+            </div>
+          ) : null}
 
           <div className="absolute bottom-3 right-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
             <div className="bg-neon-blue text-dark-bg p-2 rounded-full shadow-lg">
@@ -48,10 +57,10 @@ export default function VinylCard({ vinyl }) {
           </p>
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-800/50">
             <span className="text-neon-blue font-bold text-lg">
-              ${vinyl.price?.toFixed(2) || '0.00'}
+              ${displayPrice.toFixed(2)}
             </span>
             <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold px-2 py-0.5 bg-gray-800/50 rounded">
-              Vinyl Edition
+              {editionCount > 1 ? 'Vinyl Set' : 'Vinyl Edition'}
             </span>
           </div>
         </div>

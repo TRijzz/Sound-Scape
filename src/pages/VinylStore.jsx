@@ -6,6 +6,45 @@ import VinylCard from '../components/vinyl/VinylCard';
 import VinylCarousel from '../components/vinyl/VinylCarousel';
 import { ToastContainer } from '../components/ui/Toast';
 
+const vinylGroupKey = (vinyl) => {
+  const albumId = vinyl?.albumId?._id || vinyl?.albumId || '';
+  if (albumId) return `album:${albumId}`;
+  return `fallback:${String(vinyl?.name || '').trim().toLowerCase()}|${String(vinyl?.artist || '').trim().toLowerCase()}`;
+};
+
+const groupVinylEditions = (items = []) => {
+  const groups = new Map();
+
+  items.forEach((vinyl) => {
+    const key = vinylGroupKey(vinyl);
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        ...vinyl,
+        _editionCount: 1,
+        _editionVinylIds: [vinyl._id || vinyl.id],
+        _bundlePrice: Number(vinyl?.price || 0),
+      });
+      return;
+    }
+
+    existing._editionCount += 1;
+    existing._editionVinylIds.push(vinyl._id || vinyl.id);
+    existing._bundlePrice = Number(existing._bundlePrice || 0) + Number(vinyl?.price || 0);
+
+    if (vinyl.is_featured && !existing.is_featured) {
+      groups.set(key, {
+        ...vinyl,
+        _editionCount: existing._editionCount,
+        _editionVinylIds: existing._editionVinylIds,
+        _bundlePrice: existing._bundlePrice,
+      });
+    }
+  });
+
+  return Array.from(groups.values());
+};
+
 export default function VinylStore() {
   const location = useLocation();
   const [vinyls, setVinyls] = useState([]);
@@ -19,10 +58,11 @@ export default function VinylStore() {
       try {
         const response = await apiService.getVinyls(1, 100, searchQuery, true);
         const allVinyls = response.vinyls || [];
+        const groupedVinyls = groupVinylEditions(allVinyls);
 
-        const featured = allVinyls.filter(v => v.is_featured);
-        setFeaturedVinyls(searchQuery ? [] : (featured.length > 0 ? featured : allVinyls.slice(0, 3)));
-        setVinyls(allVinyls);
+        const featured = groupedVinyls.filter((vinyl) => vinyl.is_featured);
+        setFeaturedVinyls(searchQuery ? [] : (featured.length > 0 ? featured : groupedVinyls.slice(0, 3)));
+        setVinyls(groupedVinyls);
       } catch (error) {
         console.error('Error fetching vinyls:', error);
       } finally {
@@ -92,7 +132,7 @@ export default function VinylStore() {
                     {searchQuery ? `Album Vinyl Results for "${searchQuery}"` : 'Browse All Vinyls'}
                   </h2>
                   <div className="text-sm text-gray-400">
-                    Showing {vinyls.length} items
+                    Showing {vinyls.length} album {vinyls.length === 1 ? 'entry' : 'entries'}
                   </div>
                 </div>
 

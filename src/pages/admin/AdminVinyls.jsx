@@ -31,7 +31,7 @@ export default function AdminVinyls() {
   const [displayInStore, setDisplayInStore] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
   const [albumId, setAlbumId] = useState('');
   const [songId, setSongId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -61,6 +61,11 @@ export default function AdminVinyls() {
       return String(left.name || '').localeCompare(String(right.name || ''));
     });
   }, [albums, albumTrackCounts]);
+
+  const existingAlbumVinylCount = useMemo(() => {
+    if (!albumId) return 0;
+    return vinyls.filter((vinyl) => String(vinyl.albumId?._id || vinyl.albumId || '') === String(albumId)).length;
+  }, [albumId, vinyls]);
 
   const load = async () => {
     setLoading(true);
@@ -121,14 +126,14 @@ export default function AdminVinyls() {
     setDisplayInStore(false);
     setIsAvailable(true);
     setIsFeatured(false);
-    setImageFile(null);
+    setImageFiles([]);
     setAlbumId('');
     setSongId('');
     setEditingId(null);
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || (!editingId && !imageFile)) return;
+    if (!name.trim() || (!editingId && imageFiles.length === 0)) return;
     setSubmitting(true);
     try {
       const payload = new FormData();
@@ -142,14 +147,16 @@ export default function AdminVinyls() {
       payload.append('is_featured', String(isFeatured));
       payload.append('albumId', albumId.trim() || '');
       payload.append('songId', songId.trim() || '');
-      if (imageFile) payload.append('vinylImage', imageFile);
+      imageFiles.forEach((file) => payload.append('vinylImage', file));
 
       if (editingId) {
-        await apiService.updateVinyl(editingId, payload);
-        showToast('Vinyl updated', 'success');
+        const response = await apiService.updateVinyl(editingId, payload);
+        const extraCreatedCount = Array.isArray(response?.created_vinyls) ? response.created_vinyls.length : 0;
+        showToast(extraCreatedCount > 0 ? `Vinyl updated and ${extraCreatedCount} more edition${extraCreatedCount === 1 ? '' : 's'} created` : 'Vinyl updated', 'success');
       } else {
-        await apiService.createVinyl(payload);
-        showToast('Vinyl created', 'success');
+        const response = await apiService.createVinyl(payload);
+        const createdCount = Array.isArray(response?.vinyls) ? response.vinyls.length : 1;
+        showToast(createdCount > 1 ? `${createdCount} vinyl editions created` : 'Vinyl created', 'success');
       }
 
       resetForm();
@@ -173,7 +180,7 @@ export default function AdminVinyls() {
     setIsFeatured(Boolean(vinyl.is_featured));
     setAlbumId(vinyl.albumId?._id || vinyl.albumId || '');
     setSongId(vinyl.songId?._id || vinyl.songId || '');
-    setImageFile(null);
+    setImageFiles([]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -303,8 +310,18 @@ export default function AdminVinyls() {
             </div>
 
             <div className="md:col-span-2 lg:col-span-3 space-y-1">
-              <label className="text-xs text-gray-400">Vinyl Image {editingId && '(Optional if not changing)'}</label>
-              <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20 cursor-pointer" />
+              <label className="text-xs text-gray-400">Vinyl Image {editingId ? '(Optional, and can add more editions)' : ''}</label>
+              <input type="file" accept="image/*" multiple onChange={(e) => setImageFiles(Array.from(e.target.files || []))} className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20 cursor-pointer" />
+              {albumId && existingAlbumVinylCount > 0 ? (
+                <p className="text-[11px] text-neon-blue">
+                  This album already has {existingAlbumVinylCount} vinyl edition{existingAlbumVinylCount === 1 ? '' : 's'}. You can upload multiple image files here to add more editions in one go.
+                </p>
+              ) : null}
+              {imageFiles.length > 0 ? (
+                <p className="text-[11px] text-gray-500">
+                  {imageFiles.length} file{imageFiles.length === 1 ? '' : 's'} selected
+                </p>
+              ) : null}
             </div>
           </div>
 

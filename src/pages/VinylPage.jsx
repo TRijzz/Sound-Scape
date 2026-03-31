@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import apiService from '../services/api';
 import { ToastContainer } from '../components/ui/Toast';
 import { useMusic } from '../contexts/MusicContext';
@@ -15,20 +15,26 @@ const VinylPage = () => {
   const [vinyl, setVinyl] = useState(null);
   const [relatedVinyls, setRelatedVinyls] = useState([]);
   const [tracks, setTracks] = useState([]);
+  const [tracksByEdition, setTracksByEdition] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [purchasePending, setPurchasePending] = useState(false);
   const [currentEditionIndex, setCurrentEditionIndex] = useState(0);
+  const [editionDirection, setEditionDirection] = useState(1);
 
   useEffect(() => {
     const fetchVinylData = async () => {
       try {
         setLoading(true);
+        setError(null);
         const data = await apiService.getVinyl(id);
         setVinyl(data);
         const resolvedTracks = await resolveVinylTracks(data);
         setTracks(resolvedTracks);
+        setTracksByEdition({
+          [String(data?._id || data?.id || '')]: resolvedTracks,
+        });
         const linkedAlbumId = data?.albumId?._id || data?.albumId || '';
         if (linkedAlbumId) {
           const relatedResponse = await apiService.getVinyls(1, 100, '', true, linkedAlbumId);
@@ -37,6 +43,25 @@ const VinylPage = () => {
           setRelatedVinyls(nextRelated);
           const activeIndex = nextRelated.findIndex((item) => String(item._id || item.id || '') === String(data._id || data.id || ''));
           setCurrentEditionIndex(activeIndex >= 0 ? activeIndex : 0);
+
+          const trackEntries = await Promise.all(
+            nextRelated.map(async (edition) => {
+              const editionId = String(edition?._id || edition?.id || '');
+              if (editionId === String(data?._id || data?.id || '')) {
+                return [editionId, resolvedTracks];
+              }
+
+              try {
+                const editionTracks = await resolveVinylTracks(edition);
+                return [editionId, editionTracks];
+              } catch (trackError) {
+                console.error('Error preloading vinyl edition tracks:', trackError);
+                return [editionId, []];
+              }
+            })
+          );
+
+          setTracksByEdition(Object.fromEntries(trackEntries));
         } else {
           setRelatedVinyls([data]);
           setCurrentEditionIndex(0);
@@ -52,7 +77,7 @@ const VinylPage = () => {
     fetchVinylData();
   }, [id]);
 
-  const ownsVinyl = useMemo(() => {
+  const ownsCurrentEdition = useMemo(() => {
     if (!vinyl) return false;
     const vinylId = String(vinyl._id || vinyl.id || '');
     return (purchasedVinyls || []).some((ownedVinyl) => String(ownedVinyl._id || ownedVinyl.id || '') === vinylId);
@@ -72,27 +97,38 @@ const VinylPage = () => {
     [relatedVinyls]
   );
   const hasEditionSwitcher = relatedVinyls.length > 1;
-
   const unownedRelatedVinyls = useMemo(() => {
     return availableRelatedVinyls.filter((edition) => {
       const editionId = String(edition._id || edition.id || '');
       return !(purchasedVinyls || []).some((ownedVinyl) => String(ownedVinyl._id || ownedVinyl.id || '') === editionId);
     });
   }, [availableRelatedVinyls, purchasedVinyls]);
+  const ownsEntireSet = unownedRelatedVinyls.length === 0 && availableRelatedVinyls.length > 0;
+  const missingBundlePrice = useMemo(
+    () => unownedRelatedVinyls.reduce((sum, edition) => sum + Number(edition?.price || 0), 0),
+    [unownedRelatedVinyls]
+  );
 
   const handlePurchase = async () => {
     if (!vinyl) return;
 
-    if (ownsVinyl) {
+    if (ownsEntireSet) {
       navigate('/library');
       return;
     }
 
     setPurchasePending(true);
     try {
-      await apiService.purchaseVinyl(vinyl._id || vinyl.id);
+      const editionsToPurchase = unownedRelatedVinyls.length > 0 ? unownedRelatedVinyls : [vinyl];
+      for (const edition of editionsToPurchase) {
+        await apiService.purchaseVinyl(edition._id || edition.id);
+      }
       await syncCurrentUser();
-      showToast(`Successfully purchased ${vinyl.name}. Added to your vinyl collection.`);
+      showToast(
+        editionsToPurchase.length > 1
+          ? `Successfully purchased all ${editionsToPurchase.length} vinyl editions for ${vinyl.name}.`
+          : `Successfully purchased ${vinyl.name}. Added to your vinyl collection.`
+      );
     } catch (err) {
       const message = err?.status === 401 && !isAuthenticated
         ? 'Please log in to purchase this vinyl.'
@@ -103,36 +139,25 @@ const VinylPage = () => {
     }
   };
 
-  const handleBuyAllRelated = async () => {
-    if (unownedRelatedVinyls.length === 0) {
-      showToast('You already own all available vinyl editions for this album.');
-      return;
-    }
-
-    setPurchasePending(true);
-    try {
-      for (const edition of unownedRelatedVinyls) {
-        await apiService.purchaseVinyl(edition._id || edition.id);
-      }
-      await syncCurrentUser();
-      showToast(`Purchased ${unownedRelatedVinyls.length} vinyl edition${unownedRelatedVinyls.length === 1 ? '' : 's'} from this album.`);
-    } catch (err) {
-      const message = err?.status === 401 && !isAuthenticated
-        ? 'Please log in to purchase these vinyl editions.'
-        : `Failed to buy all editions: ${err.message}`;
-      showToast(message, 'error');
-    } finally {
-      setPurchasePending(false);
-    }
-  };
-
   const switchEdition = (direction) => {
     if (relatedVinyls.length <= 1) return;
     const nextIndex = (currentEditionIndex + direction + relatedVinyls.length) % relatedVinyls.length;
-    const nextEdition = relatedVinyls[nextIndex];
+    selectEdition(nextIndex, direction);
+  };
+
+  const selectEdition = (index, direction = 1) => {
+    const nextEdition = relatedVinyls[index];
     if (!nextEdition) return;
-    setCurrentEditionIndex(nextIndex);
-    navigate(`/vinyl/${nextEdition._id || nextEdition.id}`);
+
+    const nextEditionId = String(nextEdition._id || nextEdition.id || '');
+    setEditionDirection(direction);
+    setCurrentEditionIndex(index);
+    setVinyl(nextEdition);
+    setTracks(tracksByEdition[nextEditionId] || []);
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(window.history.state, '', `/vinyl/${nextEditionId}`);
+    }
   };
 
   const handlePreview = async () => {
@@ -208,19 +233,30 @@ const VinylPage = () => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.6 }}
-                className="relative aspect-square block w-full group"
+                className="relative aspect-square block w-full group overflow-hidden rounded-[2rem]"
                 onClick={handlePreview}
               >
                 <div className="absolute inset-0 rounded-[2rem] bg-[#18181B] shadow-2xl border border-gray-800" />
 
-                <motion.img
-                  key={String(vinyl._id || vinyl.id || vinyl.name)}
-                  src={imageSrc}
-                  alt={vinyl.name}
-                  className="relative z-10 w-full h-full object-contain p-6 drop-shadow-[0_20px_45px_rgba(0,0,0,0.45)]"
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 8, ease: 'linear' }}
-                />
+                <AnimatePresence mode="wait" custom={editionDirection}>
+                  <motion.div
+                    key={String(vinyl._id || vinyl.id || vinyl.name)}
+                    custom={editionDirection}
+                    initial={{ opacity: 0, x: editionDirection > 0 ? 70 : -70, scale: 0.92 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: editionDirection > 0 ? -70 : 70, scale: 0.92 }}
+                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute inset-0"
+                  >
+                    <motion.img
+                      src={imageSrc}
+                      alt={vinyl.name}
+                      className="relative z-10 w-full h-full object-contain p-6 drop-shadow-[0_20px_45px_rgba(0,0,0,0.45)]"
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 8, ease: 'linear' }}
+                    />
+                  </motion.div>
+                </AnimatePresence>
 
                 <div className="absolute -inset-4 bg-neon-blue/20 blur-3xl rounded-full -z-10 opacity-30 group-hover:opacity-50 transition-opacity" />
               </motion.button>
@@ -246,7 +282,7 @@ const VinylPage = () => {
                       <button
                         key={edition._id || edition.id || index}
                         type="button"
-                        onClick={() => navigate(`/vinyl/${edition._id || edition.id}`)}
+                        onClick={() => selectEdition(index, index > currentEditionIndex ? 1 : -1)}
                         className={`h-2.5 rounded-full transition-all ${
                           index === currentEditionIndex ? 'w-8 bg-neon-blue' : 'w-2.5 bg-white/20 hover:bg-white/40'
                         }`}
@@ -272,9 +308,19 @@ const VinylPage = () => {
                 {vinyl.release_year && (
                   <span className="text-gray-500 font-medium">Released {vinyl.release_year}</span>
                 )}
-                {ownsVinyl && (
+                {hasEditionSwitcher && (
+                  <span className="px-3 py-1 bg-white/5 text-gray-300 text-xs font-bold rounded-full uppercase tracking-wider border border-white/10">
+                    {relatedVinyls.length} editions in this set
+                  </span>
+                )}
+                {ownsEntireSet && (
                   <span className="px-3 py-1 bg-emerald-500/10 text-emerald-300 text-xs font-bold rounded-full uppercase tracking-wider border border-emerald-400/20">
-                    In Your Collection
+                    Full Set Owned
+                  </span>
+                )}
+                {!ownsEntireSet && ownsCurrentEdition && (
+                  <span className="px-3 py-1 bg-amber-500/10 text-amber-200 text-xs font-bold rounded-full uppercase tracking-wider border border-amber-300/20">
+                    This edition owned
                   </span>
                 )}
               </div>
@@ -287,11 +333,11 @@ const VinylPage = () => {
               <div className="flex flex-wrap gap-4 mb-10">
                 <button
                   onClick={handlePurchase}
-                  disabled={purchasePending || (!vinyl.is_available && !ownsVinyl)}
+                  disabled={purchasePending || availableRelatedVinyls.length === 0}
                   className={`px-10 py-4 rounded-2xl font-black text-lg transition-all transform hover:scale-105 active:scale-95 flex items-center shadow-2xl ${
-                    ownsVinyl
+                    ownsEntireSet
                       ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-400/20 hover:bg-emerald-500/20'
-                      : vinyl.is_available
+                      : availableRelatedVinyls.length > 0
                         ? 'bg-neon-blue text-dark-bg hover:bg-neon-blue/90 shadow-neon-blue/20'
                         : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
                   }`}
@@ -299,28 +345,16 @@ const VinylPage = () => {
                   <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
-                  {ownsVinyl
+                  {ownsEntireSet
                     ? 'Open in Collection'
                     : purchasePending
                       ? 'Processing...'
-                      : vinyl.is_available
-                        ? `Buy for $${vinyl.price?.toFixed(2)}`
+                      : availableRelatedVinyls.length > 0
+                        ? hasEditionSwitcher
+                          ? `${unownedRelatedVinyls.length !== availableRelatedVinyls.length ? 'Complete set' : 'Buy full set'} for $${missingBundlePrice.toFixed(2)}`
+                          : `Buy for $${Number(vinyl.price || 0).toFixed(2)}`
                         : 'Sold Out'}
                 </button>
-
-                {relatedVinyls.length > 1 && (
-                  <button
-                    onClick={handleBuyAllRelated}
-                    disabled={purchasePending || unownedRelatedVinyls.length === 0}
-                    className={`px-10 py-4 rounded-2xl font-black text-lg border transition-all ${
-                      unownedRelatedVinyls.length > 0
-                        ? 'bg-amber-400/10 text-amber-100 border-amber-300/20 hover:bg-amber-400/15'
-                        : 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed'
-                    }`}
-                  >
-                    {unownedRelatedVinyls.length > 0 ? `Buy all ${unownedRelatedVinyls.length} editions` : 'All editions owned'}
-                  </button>
-                )}
 
                 <button
                   onClick={handlePreview}
@@ -329,9 +363,15 @@ const VinylPage = () => {
                   <svg className="w-6 h-6 mr-3 text-neon-blue" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  {ownsVinyl ? 'Play Vinyl' : 'Preview Experience'}
+                  {ownsCurrentEdition ? 'Play Vinyl' : 'Preview Experience'}
                 </button>
               </div>
+
+              {hasEditionSwitcher && (
+                <p className="text-sm text-gray-500 -mt-4 max-w-2xl">
+                  Buying from the store unlocks every vinyl edition for this album together. After purchase, choose which pressing to spin from your library.
+                </p>
+              )}
 
               <div className="space-y-8">
                 <section>

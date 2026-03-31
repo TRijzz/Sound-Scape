@@ -11,11 +11,11 @@ import { upload } from '../middlewares/upload.js';
 
 const router = Router();
 
-router.route('/').post(requireAdminOrAuth, upload.fields([{ name: 'vinylImage', maxCount: 1 }]), createVinyl).get(getVinyls);
+router.route('/').post(requireAdminOrAuth, upload.fields([{ name: 'vinylImage', maxCount: 12 }]), createVinyl).get(getVinyls);
 router
   .route('/:id')
   .get(getVinyl)
-  .put(requireAdminOrAuth, upload.fields([{ name: 'vinylImage', maxCount: 1 }]), updateVinyl)
+  .put(requireAdminOrAuth, upload.fields([{ name: 'vinylImage', maxCount: 12 }]), updateVinyl)
   .delete(requireAdminOrAuth, deleteVinyl);
 
 export default router;

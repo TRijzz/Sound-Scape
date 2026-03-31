@@ -4,17 +4,23 @@ import Album from '../models/Album.js';
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
 const normalizeSearchValue = (value = '') => String(value).trim().toLowerCase().replace(/\s+/g, ' ');
 
-const normalizeVinylPayload = (payload = {}, files = {}) => {
+const normalizeVinylPayload = (payload = {}, fileInput = null) => {
   const normalized = {
     ...payload,
     albumId: payload.albumId || null,
     songId: payload.songId || null,
   };
 
-  if (files?.vinylImage?.[0]) {
-    normalized.image_url = `/images/${files.vinylImage[0].filename}`;
+  const vinylImageFile = Array.isArray(fileInput?.vinylImage)
+    ? fileInput.vinylImage[0]
+    : fileInput?.fieldname === 'vinylImage'
+      ? fileInput
+      : fileInput?.vinylImage?.[0];
+
+  if (vinylImageFile) {
+    normalized.image_url = `/images/${vinylImageFile.filename}`;
     normalized.image_base64 = undefined;
-    normalized.mime_type = files.vinylImage[0].mimetype || 'image/png';
+    normalized.mime_type = vinylImageFile.mimetype || 'image/png';
   }
 
   if (normalized.price !== undefined) normalized.price = Number(normalized.price);
@@ -28,7 +34,7 @@ const normalizeVinylPayload = (payload = {}, files = {}) => {
   if (normalized.is_featured !== undefined) normalized.is_featured = normalized.is_featured === 'true' || normalized.is_featured === true;
 
   if (!normalized.image_base64) delete normalized.image_base64;
-  if (!normalized.mime_type && !files?.vinylImage?.[0]) delete normalized.mime_type;
+  if (!normalized.mime_type && !vinylImageFile) delete normalized.mime_type;
 
   return normalized;
 };
@@ -41,6 +47,20 @@ const vinylPopulate = [
 
 export const createVinyl = async (req, res) => {
   try {
+    const vinylImages = Array.isArray(req.files?.vinylImage) ? req.files.vinylImage : [];
+
+    if (vinylImages.length > 1) {
+      const createdVinyls = await Vinyl.create(
+        vinylImages.map((file) => normalizeVinylPayload(req.body, file))
+      );
+      const createdIds = createdVinyls.map((vinyl) => vinyl._id);
+      const hydratedVinyls = await Vinyl.find({ _id: { $in: createdIds } }).populate(vinylPopulate).lean();
+      return res.status(201).json({
+        message: `${hydratedVinyls.length} vinyl editions created successfully`,
+        vinyls: hydratedVinyls,
+      });
+    }
+
     const vinyl = await Vinyl.create(normalizeVinylPayload(req.body, req.files));
     const hydrated = await Vinyl.findById(vinyl._id).populate(vinylPopulate).lean();
     res.status(201).json(hydrated);
@@ -114,14 +134,33 @@ export const getVinyl = async (req, res) => {
 
 export const updateVinyl = async (req, res) => {
   try {
+    const vinylImages = Array.isArray(req.files?.vinylImage) ? req.files.vinylImage : [];
+    const updatePayload = normalizeVinylPayload(
+      req.body,
+      vinylImages.length > 0 ? vinylImages[0] : req.files
+    );
+
     const vinyl = await Vinyl.findByIdAndUpdate(
       req.params.id,
-      normalizeVinylPayload(req.body, req.files),
+      updatePayload,
       { new: true, runValidators: true }
     ).populate(vinylPopulate);
     if (!vinyl) {
       return res.status(404).json({ message: 'Vinyl not found' });
     }
+
+    if (vinylImages.length > 1) {
+      const additionalPayloads = vinylImages.slice(1).map((file) => normalizeVinylPayload(req.body, file));
+      const createdVinyls = await Vinyl.create(additionalPayloads);
+      const createdIds = createdVinyls.map((item) => item._id);
+      const hydratedCreatedVinyls = await Vinyl.find({ _id: { $in: createdIds } }).populate(vinylPopulate).lean();
+      return res.json({
+        message: `Vinyl updated and ${hydratedCreatedVinyls.length} additional edition${hydratedCreatedVinyls.length === 1 ? '' : 's'} created`,
+        vinyl,
+        created_vinyls: hydratedCreatedVinyls,
+      });
+    }
+
     res.json(vinyl);
   } catch (error) {
     res.status(400).json({ message: 'Failed to update vinyl', error: error.message });
