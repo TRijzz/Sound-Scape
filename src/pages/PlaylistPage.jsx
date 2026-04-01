@@ -10,7 +10,7 @@ import { usePlaylistActions } from '../hooks/usePlaylists';
 const PlaylistPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { playTrack, isAuthenticated, setShowAuthPrompt, user, queue, setQueue } = useMusic();
+  const { playTrack, isAuthenticated, setShowAuthPrompt, user, queue, setQueue, setShuffleEnabled } = useMusic();
   const [playlist, setPlaylist] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +23,8 @@ const PlaylistPage = () => {
   const [dragIndex, setDragIndex] = useState(null);
   const [shareMessage, setShareMessage] = useState('');
   const [showManageMenu, setShowManageMenu] = useState(false);
-  const { handleEditPlaylist, handleRemoveFromPlaylist, handleDeletePlaylist } = usePlaylistActions();
+  const [moveSong, setMoveSong] = useState(null);
+  const { playlists, handleEditPlaylist, handleRemoveFromPlaylist, handleDeletePlaylist, handleAddToPlaylist } = usePlaylistActions();
 
   useEffect(() => {
     const load = async () => {
@@ -76,13 +77,24 @@ const PlaylistPage = () => {
       setShowAuthPrompt(true);
       return;
     }
-    playTrack(track);
+    const songs = Array.isArray(playlist?.songs) ? playlist.songs : [track];
+    const trackIndex = songs.findIndex((item) => String(item?._id || item?.id || '') === String(track?._id || track?.id || ''));
+    setShuffleEnabled(false);
+    playTrack(track, {
+      queue: songs,
+      currentIndex: trackIndex >= 0 ? trackIndex : 0,
+      shuffle: false
+    });
   };
 
   const handleShuffleAll = () => {
     if (!playlist || !Array.isArray(playlist.songs) || playlist.songs.length === 0) return;
-    const shuffled = [...playlist.songs].sort(() => Math.random() - 0.5);
-    handlePlay(shuffled[0]);
+    const firstIndex = Math.floor(Math.random() * playlist.songs.length);
+    playTrack(playlist.songs[firstIndex], {
+      queue: playlist.songs,
+      currentIndex: firstIndex,
+      shuffle: true
+    });
   };
 
   const startEdit = () => {
@@ -146,6 +158,18 @@ const PlaylistPage = () => {
     if (!playlist || !isOwner) return;
     const updated = await handleRemoveFromPlaylist(playlistId, songId);
     setPlaylist(updated || { ...playlist, songs: (playlist.songs || []).filter((song) => (song._id || song.id) !== songId) });
+  };
+
+  const moveSongToPlaylist = async (targetPlaylistId) => {
+    if (!moveSong || !playlistId || !targetPlaylistId) return;
+
+    try {
+      await handleAddToPlaylist(targetPlaylistId, [moveSong]);
+      await removeSong(moveSong._id || moveSong.id);
+      setMoveSong(null);
+    } catch (err) {
+      console.error('Failed to move song to playlist:', err);
+    }
   };
 
   const copyShareLink = async () => {
@@ -454,6 +478,17 @@ const PlaylistPage = () => {
                   index={index}
                   showAlbum={true}
                   onClick={() => handlePlay(song)}
+                  menuItems={isOwner ? [
+                    {
+                      label: 'Move to playlist',
+                      onClick: () => setMoveSong(song)
+                    },
+                    {
+                      label: 'Remove',
+                      variant: 'danger',
+                      onClick: () => removeSong(song._id || song.id)
+                    }
+                  ] : []}
                 />
               </div>
             ))}
@@ -465,6 +500,50 @@ const PlaylistPage = () => {
           </div>
         )}
       </motion.section>
+
+      {moveSong ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-dark-gray p-6 shadow-2xl">
+            <div className="mb-4">
+              <p className="text-xs uppercase tracking-[0.35em] text-neon-blue/80">Move Song</p>
+              <h3 className="mt-2 text-2xl font-semibold text-white">{moveSong.name}</h3>
+              <p className="mt-1 text-sm text-gray-400">
+                Move this song from {playlist?.name} to another playlist.
+              </p>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {playlists.filter((item) => String(item._id || item.id) !== String(playlistId)).length ? (
+                playlists
+                  .filter((item) => String(item._id || item.id) !== String(playlistId))
+                  .map((item) => (
+                    <button
+                      key={item._id || item.id}
+                      onClick={() => moveSongToPlaylist(item._id || item.id)}
+                      className="w-full rounded-xl border border-gray-700 bg-black/20 px-4 py-3 text-left transition-colors hover:border-neon-blue/40 hover:bg-neon-blue/10"
+                    >
+                      <div className="text-sm font-medium text-white">{item.name}</div>
+                      <div className="text-xs text-gray-400">
+                        {(item.songs || []).length} {((item.songs || []).length === 1) ? 'song' : 'songs'}
+                      </div>
+                    </button>
+                  ))
+              ) : (
+                <div className="rounded-xl border border-gray-700 bg-black/20 px-4 py-4 text-sm text-gray-400">
+                  No other playlists available yet.
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() => setMoveSong(null)}
+                className="rounded-lg bg-light-gray/60 px-4 py-2 text-white transition-colors hover:bg-light-gray"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useState, useReducer, useEffect, useRef, useCallback } from 'react';
 import apiService from '../services/api';
 import useAudioPlayer from '../hooks/useAudioPlayer';
 import { getVinylImageSrc, vinylContainsTrack } from '../utils/vinyl';
@@ -13,6 +13,7 @@ const initialState = {
   volume: 60,
   queue: [],
   currentIndex: 0,
+  shuffleEnabled: false,
   user: null,
   isAuthenticated: false,
   repeatMode: 'off',
@@ -39,6 +40,8 @@ function musicReducer(state, action) {
       return { ...state, queue: action.payload };
     case 'SET_CURRENT_INDEX':
       return { ...state, currentIndex: action.payload };
+    case 'SET_SHUFFLE':
+      return { ...state, shuffleEnabled: action.payload };
     case 'SET_USER':
       return {
         ...state,
@@ -75,6 +78,49 @@ export function MusicProvider({ children }) {
   const [state, dispatch] = useReducer(musicReducer, initialState);
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const setQueue = useCallback((queue, currentIndex = 0) => {
+    const normalizedQueue = Array.isArray(queue) ? queue.filter(Boolean) : [];
+    const safeIndex = normalizedQueue.length
+      ? Math.max(0, Math.min(currentIndex, normalizedQueue.length - 1))
+      : 0;
+    dispatch({ type: 'SET_QUEUE', payload: normalizedQueue });
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: safeIndex });
+  }, []);
+
+  const setShuffleEnabled = useCallback((enabled) => {
+    dispatch({ type: 'SET_SHUFFLE', payload: Boolean(enabled) });
+  }, []);
+
+  const toggleShuffle = useCallback(() => {
+    dispatch({ type: 'SET_SHUFFLE', payload: !stateRef.current.shuffleEnabled });
+  }, []);
+
+  const addToQueue = useCallback((tracks) => {
+    const incoming = (Array.isArray(tracks) ? tracks : [tracks]).filter(Boolean);
+    if (!incoming.length) return;
+
+    const currentQueue = Array.isArray(stateRef.current.queue) ? stateRef.current.queue : [];
+    const existingIds = new Set(
+      currentQueue.map((song) => String(song?._id || song?.id || ''))
+    );
+
+    const mergedQueue = [...currentQueue];
+    incoming.forEach((track) => {
+      const trackId = String(track?._id || track?.id || '');
+      if (trackId && existingIds.has(trackId)) return;
+      if (trackId) existingIds.add(trackId);
+      mergedQueue.push(track);
+    });
+
+    setQueue(mergedQueue, stateRef.current.currentIndex || 0);
+  }, [setQueue]);
+
   const player = useAudioPlayer();
 
   const userOwnsVinyl = (vinyl) => {
@@ -96,8 +142,25 @@ export function MusicProvider({ children }) {
     }
   };
 
-  const playTrack = async (track) => {
+  const playTrack = useCallback(async (track, options = {}) => {
     if (!track) return;
+
+    const {
+      queue,
+      currentIndex,
+      preserveQueue = false,
+      shuffle,
+    } = options;
+
+    if (Array.isArray(queue)) {
+      setQueue(queue, currentIndex ?? queue.findIndex((item) => String(item?._id || item?.id || '') === String(track?._id || track?.id || '')));
+    } else if (!preserveQueue) {
+      setQueue([track], 0);
+    }
+
+    if (typeof shuffle === 'boolean') {
+      setShuffleEnabled(shuffle);
+    }
 
     try {
       dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
@@ -115,7 +178,7 @@ export function MusicProvider({ children }) {
       dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
       dispatch({ type: 'SET_PLAYING', payload: false });
     }
-  };
+  }, [player, setQueue, setShuffleEnabled]);
 
   const pauseTrack = async () => {
     if (state.previewSession) {
@@ -157,21 +220,43 @@ export function MusicProvider({ children }) {
     }
   };
 
-  const setQueue = (queue, currentIndex = 0) => {
-    dispatch({ type: 'SET_QUEUE', payload: queue });
-    dispatch({ type: 'SET_CURRENT_INDEX', payload: currentIndex });
+  const getRandomQueueIndex = (queue, currentIndex) => {
+    if (!Array.isArray(queue) || queue.length === 0) return -1;
+    if (queue.length === 1) return 0;
+
+    let nextIndex = currentIndex;
+    while (nextIndex === currentIndex) {
+      nextIndex = Math.floor(Math.random() * queue.length);
+    }
+    return nextIndex;
   };
 
-  const nextTrack = async () => {
-    if (state.previewSession?.queue?.length) {
-      const nextIndex = state.previewSession.currentIndex < state.previewSession.queue.length - 1
-        ? state.previewSession.currentIndex + 1
+  const playRandomTrack = useCallback(async ({ excludeTrackId = null } = {}) => {
+    try {
+      const response = await apiService.getSongs(1, 50, '', '', '', '', '', '-popularity', '', '', '', '', true);
+      const songs = Array.isArray(response?.songs) ? response.songs : Array.isArray(response) ? response : [];
+      const candidates = songs.filter((song) => String(song?._id || song?.id || '') !== String(excludeTrackId || ''));
+
+      if (!candidates.length) return;
+
+      const nextTrack = candidates[Math.floor(Math.random() * candidates.length)];
+      await playTrack(nextTrack, { queue: [nextTrack], currentIndex: 0, preserveQueue: false });
+    } catch (error) {
+      console.error('Failed to play a random follow-up track:', error);
+    }
+  }, [playTrack]);
+
+  const nextTrack = useCallback(async ({ triggeredByEnd = false } = {}) => {
+    const snapshot = stateRef.current;
+    if (snapshot.previewSession?.queue?.length) {
+      const nextIndex = snapshot.previewSession.currentIndex < snapshot.previewSession.queue.length - 1
+        ? snapshot.previewSession.currentIndex + 1
         : 0;
-      const nextPreviewTrack = state.previewSession.queue[nextIndex];
+      const nextPreviewTrack = snapshot.previewSession.queue[nextIndex];
       dispatch({
         type: 'SET_PREVIEW_SESSION',
         payload: {
-          ...state.previewSession,
+          ...snapshot.previewSession,
           currentIndex: nextIndex,
           currentTrack: nextPreviewTrack,
           progress: 0,
@@ -181,26 +266,40 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    if (!state.queue.length) {
-      player.nextTrack && player.nextTrack();
+    if (!snapshot.queue.length) {
+      await playRandomTrack({ excludeTrackId: snapshot.currentTrack?._id || snapshot.currentTrack?.id });
       return;
     }
 
-    const nextIndex = state.currentIndex < state.queue.length - 1 ? state.currentIndex + 1 : 0;
-    dispatch({ type: 'SET_CURRENT_INDEX', payload: nextIndex });
-    await playTrack(state.queue[nextIndex]);
-  };
+    let nextIndex = -1;
+    if (snapshot.shuffleEnabled) {
+      nextIndex = getRandomQueueIndex(snapshot.queue, snapshot.currentIndex);
+    } else if (snapshot.currentIndex < snapshot.queue.length - 1) {
+      nextIndex = snapshot.currentIndex + 1;
+    } else if (snapshot.repeatMode === 'all') {
+      nextIndex = 0;
+    }
 
-  const previousTrack = async () => {
-    if (state.previewSession?.queue?.length) {
-      const prevIndex = state.previewSession.currentIndex > 0
-        ? state.previewSession.currentIndex - 1
-        : state.previewSession.queue.length - 1;
-      const prevPreviewTrack = state.previewSession.queue[prevIndex];
+    if (nextIndex === -1 || !snapshot.queue[nextIndex]) {
+      await playRandomTrack({ excludeTrackId: snapshot.currentTrack?._id || snapshot.currentTrack?.id });
+      return;
+    }
+
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: nextIndex });
+    await playTrack(snapshot.queue[nextIndex], { preserveQueue: true });
+  }, [playRandomTrack, playTrack]);
+
+  const previousTrack = useCallback(async () => {
+    const snapshot = stateRef.current;
+    if (snapshot.previewSession?.queue?.length) {
+      const prevIndex = snapshot.previewSession.currentIndex > 0
+        ? snapshot.previewSession.currentIndex - 1
+        : snapshot.previewSession.queue.length - 1;
+      const prevPreviewTrack = snapshot.previewSession.queue[prevIndex];
       dispatch({
         type: 'SET_PREVIEW_SESSION',
         payload: {
-          ...state.previewSession,
+          ...snapshot.previewSession,
           currentIndex: prevIndex,
           currentTrack: prevPreviewTrack,
           progress: 0,
@@ -210,15 +309,42 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    if (!state.queue.length) {
+    if (!snapshot.queue.length) {
       player.previousTrack && player.previousTrack();
       return;
     }
 
-    const prevIndex = state.currentIndex > 0 ? state.currentIndex - 1 : state.queue.length - 1;
+    const prevIndex = snapshot.currentIndex > 0
+      ? snapshot.currentIndex - 1
+      : snapshot.repeatMode === 'all'
+        ? snapshot.queue.length - 1
+        : 0;
     dispatch({ type: 'SET_CURRENT_INDEX', payload: prevIndex });
-    await playTrack(state.queue[prevIndex]);
-  };
+    await playTrack(snapshot.queue[prevIndex], { preserveQueue: true });
+  }, [playTrack, player]);
+
+  const handleTrackEnded = useCallback(async () => {
+    const snapshot = stateRef.current;
+    if (snapshot.repeatMode === 'one' && snapshot.currentTrack) {
+      await playTrack(snapshot.currentTrack, { preserveQueue: true });
+      return;
+    }
+    await nextTrack({ triggeredByEnd: true });
+  }, [nextTrack, playTrack]);
+
+  useEffect(() => {
+    const audioElement = player.audioElement;
+    if (!audioElement) return undefined;
+
+    const onEnded = () => {
+      handleTrackEnded();
+    };
+
+    audioElement.addEventListener('ended', onEnded);
+    return () => {
+      audioElement.removeEventListener('ended', onEnded);
+    };
+  }, [handleTrackEnded, player.audioElement]);
 
   const setProgress = (progress) => {
     if (state.previewSession) {
@@ -469,6 +595,10 @@ export function MusicProvider({ children }) {
     setVolume,
     toggleLike,
     setRepeatMode,
+    shuffleEnabled: state.shuffleEnabled,
+    setShuffleEnabled,
+    toggleShuffle,
+    addToQueue,
     isLiked: (songId) => state.likedSongs.has(songId),
     likedSongsIds: Array.from(state.likedSongs),
     setQueue,

@@ -3,22 +3,25 @@ import { motion } from 'framer-motion';
 import apiService from '../services/api';
 import SongCard from '../components/ui/SongCard';
 import { useMusic } from '../contexts/MusicContext';
-import { PlayIcon, ShuffleIcon, MoreIcon } from '../components/ui/Icons';
+import { PlayIcon, ShuffleIcon } from '../components/ui/Icons';
 import { useNavigate } from 'react-router-dom';
+import { usePlaylistActions } from '../hooks/usePlaylists';
 
 const LikedSongs = () => {
   const [songs, setSongs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
   const [showSticky, setShowSticky] = useState(false);
-  const [showMore, setShowMore] = useState(false);
+  const [moveSong, setMoveSong] = useState(null);
   const navigate = useNavigate();
   const { 
     isAuthenticated, 
     likedSongsIds,
-    setQueue,
-    playTrack 
+    playTrack,
+    toggleLike,
+    setShuffleEnabled
   } = useMusic();
+  const { playlists, handleAddToPlaylist } = usePlaylistActions();
 
   useEffect(() => {
     const load = async () => {
@@ -66,15 +69,22 @@ const LikedSongs = () => {
 
   const handlePlayAll = () => {
     if (!filteredSortedSongs.length) return;
-    setQueue(filteredSortedSongs);
-    playTrack(filteredSortedSongs[0]);
+    setShuffleEnabled(false);
+    playTrack(filteredSortedSongs[0], {
+      queue: filteredSortedSongs,
+      currentIndex: 0,
+      shuffle: false
+    });
   };
 
   const handleShuffleAll = () => {
     if (!filteredSortedSongs.length) return;
-    const shuffled = [...filteredSortedSongs].sort(() => Math.random() - 0.5);
-    setQueue(shuffled);
-    playTrack(shuffled[0]);
+    const firstIndex = Math.floor(Math.random() * filteredSortedSongs.length);
+    playTrack(filteredSortedSongs[firstIndex], {
+      queue: filteredSortedSongs,
+      currentIndex: firstIndex,
+      shuffle: true
+    });
   };
 
   const handleDownloadAll = async () => {
@@ -88,6 +98,30 @@ const LikedSongs = () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    }
+  };
+
+  const handleRemoveFromLiked = async (song) => {
+    const songId = song?._id || song?.id;
+    if (!songId) return;
+
+    try {
+      await toggleLike(songId);
+      setSongs((prev) => prev.filter((item) => (item._id || item.id) !== songId));
+    } catch (err) {
+      console.error('Failed to remove liked song:', err);
+    }
+  };
+
+  const handleMoveToPlaylist = async (playlistId) => {
+    if (!moveSong || !playlistId) return;
+
+    try {
+      await handleAddToPlaylist(playlistId, [moveSong]);
+      await handleRemoveFromLiked(moveSong);
+      setMoveSong(null);
+    } catch (err) {
+      console.error('Failed to move liked song:', err);
     }
   };
 
@@ -141,10 +175,6 @@ const LikedSongs = () => {
                   <button onClick={handleDownloadAll} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray transition-colors flex items-center gap-2">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17h16v4H4z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     <span>Download</span>
-                  </button>
-                  <button onClick={() => setShowMore(v => !v)} className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray transition-colors flex items-center gap-2">
-                    <MoreIcon className="w-5 h-5" />
-                    <span>More</span>
                   </button>
                 </div>
               </div>
@@ -224,11 +254,66 @@ const LikedSongs = () => {
               index={index}
               showAlbum={true}
               isLiked={true}
-              onClick={() => playTrack(song)}
+              onClick={() => playTrack(song, {
+                queue: filteredSortedSongs,
+                currentIndex: index,
+                preserveQueue: false
+              })}
+              menuItems={[
+                {
+                  label: 'Move to playlist',
+                  onClick: () => setMoveSong(song)
+                },
+                {
+                  label: 'Remove',
+                  variant: 'danger',
+                  onClick: () => handleRemoveFromLiked(song)
+                }
+              ]}
             />
           ))}
         </div>
       </div>
+
+      {moveSong ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-dark-gray p-6 shadow-2xl">
+            <div className="mb-4">
+              <p className="text-xs uppercase tracking-[0.35em] text-neon-blue/80">Move Song</p>
+              <h3 className="mt-2 text-2xl font-semibold text-white">{moveSong.name}</h3>
+              <p className="mt-1 text-sm text-gray-400">
+                Choose the playlist you want to move this liked song into.
+              </p>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {playlists.length ? playlists.map((playlist) => (
+                <button
+                  key={playlist._id || playlist.id}
+                  onClick={() => handleMoveToPlaylist(playlist._id || playlist.id)}
+                  className="w-full rounded-xl border border-gray-700 bg-black/20 px-4 py-3 text-left transition-colors hover:border-neon-blue/40 hover:bg-neon-blue/10"
+                >
+                  <div className="text-sm font-medium text-white">{playlist.name}</div>
+                  <div className="text-xs text-gray-400">
+                    {(playlist.songs || []).length} {((playlist.songs || []).length === 1) ? 'song' : 'songs'}
+                  </div>
+                </button>
+              )) : (
+                <div className="rounded-xl border border-gray-700 bg-black/20 px-4 py-4 text-sm text-gray-400">
+                  No playlists yet. Create one in Your Library first.
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() => setMoveSong(null)}
+                className="rounded-lg bg-light-gray/60 px-4 py-2 text-white transition-colors hover:bg-light-gray"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

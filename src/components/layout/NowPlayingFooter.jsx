@@ -38,6 +38,9 @@ const NowPlayingFooter = () => {
     isLiked,
     repeatMode,
     setRepeatMode,
+    shuffleEnabled,
+    toggleShuffle,
+    addToQueue,
     isAuthenticated,
     setShowAuthPrompt,
     showVinylOverlay,
@@ -46,7 +49,6 @@ const NowPlayingFooter = () => {
     previewSession,
   } = useMusic();
 
-  const [isShuffle, setIsShuffle] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
@@ -102,6 +104,29 @@ const NowPlayingFooter = () => {
     if (!displayTrack) return;
     const id = displayTrack._id || displayTrack.id;
     if (id) toggleLike(id);
+  };
+
+  const handleShareCurrentTrack = async () => {
+    if (!displayTrack) return;
+
+    const shareUrl = `${window.location.origin}/search?q=${encodeURIComponent(displayTrack.name || '')}`;
+    const artistNames = displayTrack.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist';
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: displayTrack.name || 'Song',
+          text: `Listen to ${displayTrack.name || 'this song'} by ${artistNames}`,
+          url: shareUrl
+        });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch (error) {
+      console.error('Failed to share track:', error);
+    } finally {
+      setShowMore(false);
+    }
   };
 
   const closePlaylistModal = () => {
@@ -182,10 +207,10 @@ const NowPlayingFooter = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsShuffle((prev) => !prev);
+                    toggleShuffle();
                   }}
                   className="transition-colors"
-                  style={{ color: isShuffle ? '#00ffff' : '#9CA3AF' }}
+                  style={{ color: shuffleEnabled ? '#00ffff' : '#9CA3AF' }}
                 >
                   <ShuffleIcon className="w-4 h-4" />
                 </button>
@@ -275,12 +300,29 @@ const NowPlayingFooter = () => {
                 <div className="absolute bottom-10 right-0 bg-dark-gray border border-gray-700 rounded-lg shadow-lg w-56 z-50">
                   <button
                     onClick={() => {
-                      setNewPlaylistName('');
-                      setShowAddToPlaylist(true);
+                      if (displayTrack) {
+                        addToQueue(displayTrack);
+                      }
+                      setShowMore(false);
                     }}
                     className="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-gray-800"
                   >
+                    Add to queue
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewPlaylistName('');
+                      setShowAddToPlaylist(true);
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-gray-800 border-t border-gray-800"
+                  >
                     Add to playlist
+                  </button>
+                  <button
+                    onClick={handleShareCurrentTrack}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-gray-800 border-t border-gray-800"
+                  >
+                    Share
                   </button>
                 </div>
               )}

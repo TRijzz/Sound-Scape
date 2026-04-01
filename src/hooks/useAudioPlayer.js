@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-export const useAudioPlayer = () => {
+export const useAudioPlayer = ({ onEnded } = {}) => {
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -12,6 +12,11 @@ export const useAudioPlayer = () => {
 
   // Audio element reference
   const audioRef = useRef(null);
+  const onEndedRef = useRef(onEnded);
+
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
 
   // Initialize audio element
   useEffect(() => {
@@ -37,8 +42,7 @@ export const useAudioPlayer = () => {
       const handleEnded = () => {
         setIsPlaying(false);
         setProgress(0);
-        // Auto-play next track if available
-        // This can be extended to implement queue functionality
+        onEndedRef.current?.();
       };
 
       const handlePlay = () => {
@@ -157,6 +161,10 @@ export const useAudioPlayer = () => {
 
       if (isSameTrack && audioRef.current.paused) {
         // Same track, just resume
+        if (audioRef.current.ended || audioRef.current.currentTime >= Math.max((audioRef.current.duration || 0) - 0.25, 0)) {
+          audioRef.current.currentTime = 0;
+          setProgress(0);
+        }
         await audioRef.current.play();
         setIsPlaying(true);
         setIsLoading(false);
