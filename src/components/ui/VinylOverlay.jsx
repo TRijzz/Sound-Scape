@@ -161,6 +161,8 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
     resumeTrack,
     setProgress,
     setVolume,
+    isAuthenticated,
+    setShowAuthPrompt,
   } = useMusic();
   const displayTrack = previewSession?.currentTrack || currentTrack;
   const displayIsPlaying = previewSession?.isPlaying ?? isPlaying;
@@ -281,7 +283,15 @@ function OverlayPlayBar({ onOuterClick, onOpenLyrics }) {
           >
             <MicIcon className="w-4 h-4" />
           </button>
-          <button className="text-gray-400 hover:text-white transition-colors" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="text-gray-400 hover:text-white transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isAuthenticated) {
+                setShowAuthPrompt(true);
+              }
+            }}
+          >
             <MoreIcon className="w-4 h-4" />
           </button>
           <button

@@ -147,6 +147,10 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick, me
       <button
         onClick={(e) => {
           e.stopPropagation();
+          if (!isAuthenticated) {
+            setShowAuthPrompt(true);
+            return;
+          }
           setMenuOpen((prev) => !prev);
         }}
         className="hidden group-hover:block text-gray-400 hover:text-white transition-colors"

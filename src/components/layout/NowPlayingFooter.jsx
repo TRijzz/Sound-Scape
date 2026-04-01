@@ -278,7 +278,13 @@ const NowPlayingFooter = () => {
 
             <div className="flex items-center w-1/4 justify-end space-x-5 relative">
               <button
-                onClick={() => setShowMore((prev) => !prev)}
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    setShowAuthPrompt(true);
+                    return;
+                  }
+                  setShowMore((prev) => !prev);
+                }}
                 className="text-gray-400 hover:text-white transition-colors"
                 title="More options"
                 aria-label="More options"

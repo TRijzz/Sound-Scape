@@ -7,7 +7,7 @@ import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 import apiService from '../../services/api';
 
 const ArtistCard = ({ artist, index, isFollowing = false }) => {
-  const { playTrack } = useMusic();
+  const { playTrack, isAuthenticated, setShowAuthPrompt } = useMusic();
   const [imageSrc, setImageSrc] = useState(() => {
     const primary =
       (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
@@ -114,7 +114,16 @@ const ArtistCard = ({ artist, index, isFollowing = false }) => {
             </button>
 
             {/* More Options */}
-            <button className="absolute top-3 left-3 p-2 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isAuthenticated) {
+                  setShowAuthPrompt(true);
+                }
+              }}
+              className="absolute top-3 left-3 p-2 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            >
               <MoreIcon className="w-4 h-4 text-white" />
             </button>
           </div>

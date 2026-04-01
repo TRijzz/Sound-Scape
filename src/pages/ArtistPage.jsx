@@ -12,7 +12,7 @@ import apiService from '../services/api';
 const ArtistPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { playTrack, isAuthenticated } = useMusic();
+  const { playTrack, isAuthenticated, setShowAuthPrompt: setGlobalAuthPrompt } = useMusic();
   const [isFollowing, setIsFollowing] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   
@@ -173,7 +173,14 @@ const ArtistPage = () => {
                     <span>{isFollowing ? 'Following' : 'Follow'}</span>
                   </button>
                   
-                  <button className="p-3 text-gray-400 hover:text-white transition-colors">
+                  <button
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        setGlobalAuthPrompt(true);
+                      }
+                    }}
+                    className="p-3 text-gray-400 hover:text-white transition-colors"
+                  >
                     <MoreIcon className="w-5 h-5" />
                   </button>
                 </div>

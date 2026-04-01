@@ -329,6 +329,10 @@ const PlaylistPage = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!isAuthenticated) {
+                        setShowAuthPrompt(true);
+                        return;
+                      }
                       setShowManageMenu((prev) => !prev);
                     }}
                     className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray transition-colors flex items-center gap-2"

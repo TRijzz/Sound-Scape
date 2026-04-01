@@ -24,6 +24,8 @@ const VinylPlayer = ({ isOpen, onClose }) => {
     repeatMode,
     isLiked,
     getVinylForSong,
+    isAuthenticated,
+    setShowAuthPrompt,
   } = useMusic();
 
   const [playerState, setPlayerState] = useState('stopped');
@@ -276,6 +278,10 @@ const VinylPlayer = ({ isOpen, onClose }) => {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!isAuthenticated) {
+                            setShowAuthPrompt(true);
+                            return;
+                          }
                           setShowPlaylistMenu(!showPlaylistMenu);
                         }}
                         className="text-gray-400 hover:text-white transition-colors"

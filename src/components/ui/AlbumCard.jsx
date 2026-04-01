@@ -11,7 +11,7 @@ const getAlbumDisplayName = (album) => {
 };
 
 const AlbumCard = ({ album, index, isLiked = false }) => {
-  const { playTrack } = useMusic();
+  const { playTrack, isAuthenticated, setShowAuthPrompt } = useMusic();
 
   const handlePlay = (e) => {
     e.preventDefault();
@@ -65,7 +65,16 @@ const AlbumCard = ({ album, index, isLiked = false }) => {
             </button>
 
             {/* More Options */}
-            <button className="absolute top-3 left-3 p-2 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isAuthenticated) {
+                  setShowAuthPrompt(true);
+                }
+              }}
+              className="absolute top-3 left-3 p-2 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            >
               <MoreIcon className="w-4 h-4 text-white" />
             </button>
           </div>

@@ -370,6 +370,8 @@ function LyricsPlayBar({ onClose }) {
     resumeTrack,
     setProgress,
     setVolume,
+    isAuthenticated,
+    setShowAuthPrompt,
   } = useMusic();
 
   // Add a local time formatter
@@ -482,7 +484,15 @@ function LyricsPlayBar({ onClose }) {
           >
             <MicIcon className="w-4 h-4" />
           </button>
-          <button className="text-gray-400 hover:text-white transition-colors" onClick={(e)=>e.stopPropagation()}>
+          <button
+            className="text-gray-400 hover:text-white transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isAuthenticated) {
+                setShowAuthPrompt(true);
+              }
+            }}
+          >
             <MoreIcon className="w-4 h-4" />
           </button>
           <button
