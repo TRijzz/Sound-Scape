@@ -42,10 +42,221 @@ const similarityScore = (query = '', candidate = '') => {
   return Math.max(0, 1 - distance / base);
 };
 
+const isVisibleArtistEntity = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';  //Visible and Hidden Artist Filter
+const isVisibleAlbumEntity = (album) => album && album.is_visible !== false && album.publish_status !== 'hidden';
+const isVisibleSongEntity = (song) => song && song.is_visible !== false && song.publish_status !== 'hidden';
+
+const filterVisibleArtists = (artists) => (
+  Array.isArray(artists) ? artists.filter(isVisibleArtistEntity) : []
+);
+
+const getArtistVisibilityKey = (artist) => {
+  if (!artist) return '';
+  if (typeof artist === 'string') return `id:${artist}`;
+  const id = String(artist._id || artist.id || '').trim();
+  if (id) return `id:${id}`;
+  const name = String(artist.name || '').trim().toLowerCase();
+  return name ? `name:${name}` : '';
+};
+
+const getArtistNameVisibilityKey = (artist) => {
+  const name = typeof artist === 'string' ? artist : artist?.name;
+  const normalized = String(name || '').trim().toLowerCase();
+  return normalized ? `name:${normalized}` : '';
+};
+
+const songHasHiddenArtistLink = (song, hiddenArtistLookup = null) => {
+  const artists = Array.isArray(song?.artists) ? song.artists : [];
+  return artists.some((artist) => {
+    if (hiddenArtistLookup?.size) {
+      const visibilityKey = getArtistVisibilityKey(artist);
+      const nameKey = getArtistNameVisibilityKey(artist);
+      if ((visibilityKey && hiddenArtistLookup.has(visibilityKey)) || (nameKey && hiddenArtistLookup.has(nameKey))) {
+        return true;
+      }
+    }
+    return !isVisibleArtistEntity(artist);
+  });
+};
+
+const albumHasHiddenArtistLink = (album, hiddenArtistLookup = null) => {
+  const artists = Array.isArray(album?.artists) ? album.artists : [];
+  return artists.some((artist) => {
+    if (hiddenArtistLookup?.size) {
+      const visibilityKey = getArtistVisibilityKey(artist);
+      const nameKey = getArtistNameVisibilityKey(artist);
+      if ((visibilityKey && hiddenArtistLookup.has(visibilityKey)) || (nameKey && hiddenArtistLookup.has(nameKey))) {
+        return true;
+      }
+    }
+    return !isVisibleArtistEntity(artist);
+  });
+};
+
+const songHasUploadedAudio = (song) => {
+  const audioUrl = String(song?.audio_url || '').trim();
+  const filePath = String(song?.file_path || '').trim();
+  return Boolean(song?.has_uploaded_audio || audioUrl || filePath);
+};
+
+const sanitizeSongEntity = (song, hiddenArtistLookup = null) => {
+  if (!song) return null;
+  if (!isVisibleSongEntity(song)) return null;
+
+  const keepAudioBackedSong = songHasHiddenArtistLink(song, hiddenArtistLookup) && songHasUploadedAudio(song);
+  if (songHasHiddenArtistLink(song, hiddenArtistLookup) && !keepAudioBackedSong) return null;
+
+  const nextSong = {
+    ...song,
+    artists: filterVisibleArtists(song.artists)
+  };
+
+  if (song.album && typeof song.album === 'object') {
+    if (albumHasHiddenArtistLink(song.album, hiddenArtistLookup)) {
+      nextSong.album = null;
+    } else {
+      nextSong.album = {
+        ...song.album,
+        artists: filterVisibleArtists(song.album.artists)
+      };
+    }
+  }
+
+  return nextSong;
+};
+
+const sanitizeAlbumEntity = (album, hiddenArtistLookup = null) => {
+  if (!album || !isVisibleAlbumEntity(album) || albumHasHiddenArtistLink(album, hiddenArtistLookup)) return null;
+
+  const nextAlbum = {
+    ...album,
+    artists: filterVisibleArtists(album.artists)
+  };
+
+  if (Array.isArray(album.tracks)) {
+    nextAlbum.tracks = album.tracks
+      .map((track) => sanitizeSongEntity(track, hiddenArtistLookup))
+      .filter(Boolean);
+  }
+
+  return nextAlbum;
+};
+
+const sanitizeArtistEntity = (artist, hiddenArtistLookup = null) => {
+  if (!artist || !isVisibleArtistEntity(artist)) return null;
+
+  const nextArtist = { ...artist };
+
+  if (Array.isArray(artist.top_tracks)) {
+    nextArtist.top_tracks = artist.top_tracks
+      .map((track) => sanitizeSongEntity(track, hiddenArtistLookup))
+      .filter(Boolean);
+  }
+
+  if (Array.isArray(artist.albums)) {
+    nextArtist.albums = artist.albums
+      .map((album) => sanitizeAlbumEntity(album, hiddenArtistLookup))
+      .filter(Boolean);
+  }
+
+  return nextArtist;
+};
+
+const sanitizeSongList = (songs, hiddenArtistLookup = null) => (
+  Array.isArray(songs) ? songs.map((song) => sanitizeSongEntity(song, hiddenArtistLookup)).filter(Boolean) : []
+);
+
+const sanitizeAlbumList = (albums, hiddenArtistLookup = null) => (
+  Array.isArray(albums) ? albums.map((album) => sanitizeAlbumEntity(album, hiddenArtistLookup)).filter(Boolean) : []
+);
+
+const sanitizeArtistList = (artists, hiddenArtistLookup = null) => (
+  Array.isArray(artists) ? artists.map((artist) => sanitizeArtistEntity(artist, hiddenArtistLookup)).filter(Boolean) : []
+);
+
 class ApiService {
   constructor() {
     this.authToken = null;
     this.adminCode = null;
+    this.artistVisibilityCache = null;
+    this.artistVisibilityPromise = null;
+  }
+
+  shouldSanitizePublicContent() {             //Hides hidden content filterinf in public
+    if (typeof window === 'undefined') return true;
+    return !window.location.pathname.startsWith('/admin');
+  }
+
+  async getHiddenArtistLookup() {
+    if (!this.shouldSanitizePublicContent()) {
+      return new Set();
+    }
+
+    if (this.artistVisibilityCache) {
+      return this.artistVisibilityCache;
+    }
+
+    if (!this.artistVisibilityPromise) {
+      this.artistVisibilityPromise = this.fetchData('/artists?page=1&limit=5000')
+        .then((response) => {
+          const artists = Array.isArray(response?.artists) ? response.artists : Array.isArray(response) ? response : [];
+          const hiddenKeys = new Set();
+          artists.forEach((artist) => {
+            if (isVisibleArtistEntity(artist)) return;
+            const visibilityKey = getArtistVisibilityKey(artist);
+            const nameKey = getArtistNameVisibilityKey(artist);
+            if (visibilityKey) hiddenKeys.add(visibilityKey);
+            if (nameKey) hiddenKeys.add(nameKey);
+          });
+          this.artistVisibilityCache = hiddenKeys;
+          return hiddenKeys;
+        })
+        .catch((error) => {
+          console.error('Failed to build hidden artist lookup:', error);
+          return new Set();
+        })
+        .finally(() => {
+          this.artistVisibilityPromise = null;
+        });
+    }
+
+    return this.artistVisibilityPromise;
+  }
+
+  async sanitizeSongs(songs) {
+    if (!this.shouldSanitizePublicContent()) return Array.isArray(songs) ? songs : [];
+    const hiddenArtistLookup = await this.getHiddenArtistLookup();
+    return sanitizeSongList(songs, hiddenArtistLookup);
+  }
+
+  async sanitizeAlbums(albums) {
+    if (!this.shouldSanitizePublicContent()) return Array.isArray(albums) ? albums : [];
+    const hiddenArtistLookup = await this.getHiddenArtistLookup();
+    return sanitizeAlbumList(albums, hiddenArtistLookup);
+  }
+
+  async sanitizeArtists(artists) {
+    if (!this.shouldSanitizePublicContent()) return Array.isArray(artists) ? artists : [];
+    const hiddenArtistLookup = await this.getHiddenArtistLookup();
+    return sanitizeArtistList(artists, hiddenArtistLookup);
+  }
+
+  async sanitizeSong(song) {
+    if (!this.shouldSanitizePublicContent()) return song;
+    const hiddenArtistLookup = await this.getHiddenArtistLookup();
+    return sanitizeSongEntity(song, hiddenArtistLookup);
+  }
+
+  async sanitizeAlbum(album) {
+    if (!this.shouldSanitizePublicContent()) return album;
+    const hiddenArtistLookup = await this.getHiddenArtistLookup();
+    return sanitizeAlbumEntity(album, hiddenArtistLookup);
+  }
+
+  async sanitizeArtist(artist) {
+    if (!this.shouldSanitizePublicContent()) return artist;
+    const hiddenArtistLookup = await this.getHiddenArtistLookup();
+    return sanitizeArtistEntity(artist, hiddenArtistLookup);
   }
 
   setAuthToken(token) {
@@ -205,7 +416,8 @@ class ApiService {
 
   // Artists API
   async getPopularArtists(limit = 20) {
-    return this.fetchData(`/artists/popular?limit=${limit}`);
+    const response = await this.fetchData(`/artists/popular?limit=${limit}`);
+    return await this.sanitizeArtists(Array.isArray(response?.artists) ? response.artists : response);
   }
 
   async getArtistGenres(limit = 100) {
@@ -222,11 +434,16 @@ class ApiService {
     if (search) params.append('search', search);
     if (genre) params.append('genre', genre);
     
-    return this.fetchData(`/artists?${params}`);
+    const response = await this.fetchData(`/artists?${params}`);
+    if (Array.isArray(response?.artists)) {
+      return { ...response, artists: await this.sanitizeArtists(response.artists) };
+    }
+    return await this.sanitizeArtists(response);
   }
 
   async getArtist(id) {
-    return this.fetchData(`/artists/${id}`);
+    const response = await this.fetchData(`/artists/${id}`);
+    return await this.sanitizeArtist(response);
   }
 
   async createArtist(payload) {
@@ -248,11 +465,19 @@ class ApiService {
   }
 
   async getArtistAlbums(artistId, page = 1, limit = 20) {
-    return this.fetchData(`/artists/${artistId}/albums?page=${page}&limit=${limit}`);
+    const response = await this.fetchData(`/artists/${artistId}/albums?page=${page}&limit=${limit}`);
+    if (Array.isArray(response?.albums)) {
+      return { ...response, albums: await this.sanitizeAlbums(response.albums) };
+    }
+    return await this.sanitizeAlbums(response);
   }
 
   async getArtistTopTracks(artistId, limit = 10) {
-    return this.fetchData(`/artists/${artistId}/top-tracks?limit=${limit}`);
+    const response = await this.fetchData(`/artists/${artistId}/top-tracks?limit=${limit}`);
+    if (Array.isArray(response?.tracks)) {
+      return { ...response, tracks: await this.sanitizeSongs(response.tracks) };
+    }
+    return await this.sanitizeSongs(response);
   }
 
   async populateArtistGenres({ dryRun = false, limit = 0 } = {}) {
@@ -263,12 +488,17 @@ class ApiService {
   }
 
   // Songs API
-  async getPopularSongs(limit = 20) {
-    return this.fetchData(`/songs/popular?limit=${limit}`);
+  async getPopularSongs(limit = 20) {   //Popular Songs Display
+    const response = await this.fetchData(`/songs/popular?limit=${limit}`);
+    return await this.sanitizeSongs(Array.isArray(response?.songs) ? response.songs : response);
   }
 
-  async getPersonalizedRecommendations(limit = 12) {
-    return this.fetchData(`/songs/recommendations?limit=${limit}`);
+  async getPersonalizedRecommendations(limit = 12) {          //Recommendations based on listening history and preferences
+    const response = await this.fetchData(`/songs/recommendations?limit=${limit}`);
+    return {
+      ...response,
+      tracks: await this.sanitizeSongs(response?.tracks)
+    };
   }
 
   async getListeningAnalytics() {
@@ -293,22 +523,32 @@ class ApiService {
     if (category) params.append('category', category);
     if (hasAudio) params.append('has_audio', 'true');
     
-    return this.fetchData(`/songs?${params}`);
+    const response = await this.fetchData(`/songs?${params}`);
+    if (Array.isArray(response?.songs)) {
+      return { ...response, songs: await this.sanitizeSongs(response.songs) };
+    }
+    return await this.sanitizeSongs(response);
   }
 
-  async getSongsByGenre(genre, limit = 20) {
-    return this.fetchData(`/songs/genre?genre=${encodeURIComponent(genre)}&limit=${limit}`);
+  async getSongsByGenre(genre, limit = 20) {          // Songs by genre
+    const response = await this.fetchData(`/songs/genre?genre=${encodeURIComponent(genre)}&limit=${limit}`);
+    if (Array.isArray(response?.songs)) {
+      return { ...response, songs: await this.sanitizeSongs(response.songs) };
+    }
+    return await this.sanitizeSongs(response);
   }
 
-  async searchSongs(query, limit = 20) {
-    return this.fetchData(`/songs/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  async searchSongs(query, limit = 20) {        // Search songs
+    const response = await this.fetchData(`/songs/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    return await this.sanitizeSongs(Array.isArray(response?.songs) ? response.songs : response);
   }
 
-  async getSong(id) {
-    return this.fetchData(`/songs/${id}`);
+  async getSong(id) {                     //Particular Search Song
+    const response = await this.fetchData(`/songs/${id}`);
+    return await this.sanitizeSong(response);
   }
 
-  async getSongMoods() {
+  async getSongMoods() {              //Fetches list of moods for songs
     return this.fetchData('/songs/moods');
   }
 
@@ -341,8 +581,9 @@ class ApiService {
   }
 
   // Albums API
-  async getPopularAlbums(limit = 20) {
-    return this.fetchData(`/albums/popular?limit=${limit}`);
+  async getPopularAlbums(limit = 20) {      //Poplular Albums Dispay
+    const response = await this.fetchData(`/albums/popular?limit=${limit}`);
+    return await this.sanitizeAlbums(Array.isArray(response?.albums) ? response.albums : response);
   }
 
   async getAlbums(page = 1, limit = 20, search = '', genre = '', year = '', sort = '-release_date') {
@@ -356,15 +597,24 @@ class ApiService {
     if (genre) params.append('genre', genre);
     if (year) params.append('year', year);
     
-    return this.fetchData(`/albums?${params}`);
+    const response = await this.fetchData(`/albums?${params}`);
+    if (Array.isArray(response?.albums)) {
+      return { ...response, albums: await this.sanitizeAlbums(response.albums) };
+    }
+    return await this.sanitizeAlbums(response);
   }
 
   async getAlbum(id) {
-    return this.fetchData(`/albums/${id}`);
+    const response = await this.fetchData(`/albums/${id}`);
+    return await this.sanitizeAlbum(response);
   }
 
   async getAlbumTracks(albumId, page = 1, limit = 50) {
-    return this.fetchData(`/albums/${albumId}/tracks?page=${page}&limit=${limit}`);
+    const response = await this.fetchData(`/albums/${albumId}/tracks?page=${page}&limit=${limit}`);
+    if (Array.isArray(response?.tracks)) {
+      return { ...response, tracks: await this.sanitizeSongs(response.tracks) };
+    }
+    return await this.sanitizeSongs(response);
   }
 
   async createAlbum(payload) {
@@ -396,11 +646,20 @@ class ApiService {
     if (search) params.append('search', search);
     if (display_in_store !== undefined) params.append('display_in_store', String(display_in_store));
     if (albumId) params.append('albumId', albumId);
-    return this.fetchData(`/vinyls?${params.toString()}`);
+    const response = await this.fetchData(`/vinyls?${params.toString()}`);
+    const vinyls = Array.isArray(response?.vinyls) ? response.vinyls : Array.isArray(response) ? response : [];
+    const sanitizedVinyls = this.shouldSanitizePublicContent()
+      ? vinyls.filter((vinyl) => !albumHasHiddenArtistLink(vinyl?.albumId))
+      : vinyls;
+    if (Array.isArray(response?.vinyls)) {
+      return { ...response, vinyls: sanitizedVinyls };
+    }
+    return sanitizedVinyls;
   }
 
   async getVinyl(id) {
-    return this.fetchData(`/vinyls/${id}`);
+    const response = await this.fetchData(`/vinyls/${id}`);
+    return this.shouldSanitizePublicContent() && albumHasHiddenArtistLink(response?.albumId) ? null : response;
   }
 
   async createVinyl(data) {
@@ -427,17 +686,13 @@ class ApiService {
   }
 
   async initiateKhaltiVinylPayment(vinylId) {
-    return this.fetchData('/payments/khalti/initiate', {
-      method: 'POST',
-      body: JSON.stringify({ vinylId })
-    });
+    // Khalti payment flow is paused for now and will be re-enabled later.
+    throw new Error('Khalti payment is temporarily disabled.');
   }
 
   async verifyKhaltiPayment(payload) {
-    return this.fetchData('/payments/khalti/verify', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
+    // Khalti payment flow is paused for now and will be re-enabled later.
+    throw new Error('Khalti payment is temporarily disabled.');
   }
 
   async setActiveVinyl(vinylId) {
@@ -479,9 +734,9 @@ class ApiService {
       }
 
       const normalizedResults = {
-        artists: Array.isArray(artistResults) ? artistResults : [],
-        songs: Array.isArray(songResults) ? songResults : [],
-        albums: Array.isArray(albumResults) ? albumResults : []
+        artists: await this.sanitizeArtists(Array.isArray(artistResults) ? artistResults : []),
+        songs: await this.sanitizeSongs(Array.isArray(songResults) ? songResults : []),
+        albums: await this.sanitizeAlbums(Array.isArray(albumResults) ? albumResults : [])
       };
 
       const totalHits = normalizedResults.artists.length + normalizedResults.songs.length + normalizedResults.albums.length;
@@ -507,9 +762,9 @@ class ApiService {
         .map((entry) => entry.item);
 
       return {
-        songs: rankItems(songsFallback?.songs || songsFallback || [], (song) => song?.name || song?.title || ''),
-        artists: rankItems(artistsFallback?.artists || artistsFallback || [], (artist) => artist?.name || ''),
-        albums: rankItems(albumsFallback?.albums || albumsFallback || [], (album) => album?.name || '')
+        songs: await this.sanitizeSongs(rankItems(songsFallback?.songs || songsFallback || [], (song) => song?.name || song?.title || '')),
+        artists: await this.sanitizeArtists(rankItems(artistsFallback?.artists || artistsFallback || [], (artist) => artist?.name || '')),
+        albums: await this.sanitizeAlbums(rankItems(albumsFallback?.albums || albumsFallback || [], (album) => album?.name || ''))
       };
     } catch (error) {
       console.error('API searchAll error:', error);
@@ -607,17 +862,18 @@ class ApiService {
 
   // Likes (Liked Songs)
   async getLikedSongs() {
-    return this.fetchData('/users/me/likes');
+    const response = await this.fetchData('/users/me/likes');
+    return await this.sanitizeSongs(Array.isArray(response?.songs) ? response.songs : response);
   }
 
-  async likeSong(songId) {
+  async likeSong(songId) {        //Likes the Song
     return this.fetchData('/users/me/likes', {
       method: 'POST',
       body: JSON.stringify({ songId })
     });
   }
 
-  async unlikeSong(songId) {
+  async unlikeSong(songId) {     //Unlikes the Song
     return this.fetchData('/users/me/likes', {
       method: 'DELETE',
       body: JSON.stringify({ songId })
@@ -626,10 +882,15 @@ class ApiService {
 
   // Playlists
   async getMyPlaylists() {
-    return this.fetchData('/playlists/me');
+    const response = await this.fetchData('/playlists/me');
+    const playlists = Array.isArray(response?.playlists) ? response.playlists : Array.isArray(response) ? response : [];
+    return Promise.all(playlists.map(async (playlist) => ({
+      ...playlist,
+      songs: await this.sanitizeSongs(playlist?.songs)
+    })));
   }
 
-  async createPlaylist(payload) {
+  async createPlaylist(payload) {     //Creates a NewPlaylist
     return this.fetchData('/playlists', {
       method: 'POST',
       body: JSON.stringify({
@@ -654,7 +915,11 @@ class ApiService {
   }
 
   async getPlaylist(playlistId) {
-    return this.fetchData(`/playlists/${playlistId}`);
+    const response = await this.fetchData(`/playlists/${playlistId}`);
+    return {
+      ...response,
+      songs: await this.sanitizeSongs(response?.songs)
+    };
   }
 
   async addSongToPlaylist(playlistId, songId) {
@@ -894,7 +1159,11 @@ class ApiService {
 
   async getSongsByCategory(category, limit = 20) {
     const params = new URLSearchParams({ limit: String(limit), category });
-    return this.fetchData(`/songs?${params}`);
+    const response = await this.fetchData(`/songs?${params}`);
+    if (Array.isArray(response?.songs)) {
+      return { ...response, songs: await this.sanitizeSongs(response.songs) };
+    }
+    return await this.sanitizeSongs(response);
   }
 
   canonicalizeGenreList(list) {
@@ -972,4 +1241,5 @@ class ApiService {
 }
 
 export default new ApiService();
+
 

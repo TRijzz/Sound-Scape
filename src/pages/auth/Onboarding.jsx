@@ -46,15 +46,32 @@ export default function Onboarding() {
     try {
       setLoading(true);
       setError('');
-      const me = user || await api.getCurrentUser();
-      if (!me || !me._id) throw new Error('User not found');
-      await api.updateUser(me._id, {
+      let me = user;
+      if (!me?._id && !me?.id) {
+        me = await api.getCurrentUser();
+      }
+      if (me) {
+        setUser(me);
+      }
+      const userId = me?._id || me?.id;
+      if (!userId) throw new Error('User not found');
+      await api.updateUser(userId, {
         onboarded: true,
         preferred_genres: genres,
         preferred_moods: moods,
         preferred_languages: languages,
         preferred_tags: tags,
       });
+      if (me) {
+        setUser({
+          ...me,
+          onboarded: true,
+          preferred_genres: genres,
+          preferred_moods: moods,
+          preferred_languages: languages,
+          preferred_tags: tags,
+        });
+      }
       navigate('/');
     } catch (e) {
       setError(e.message || 'Failed to save preferences');

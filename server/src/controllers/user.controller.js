@@ -61,25 +61,48 @@ export const getUser = async (req, res) => {
 };
 
 export const updateUser = async (req, res) => {
-  const { name, avatar_url, onboarded, preferred_genres, preferred_moods, preferred_languages, preferred_tags } = req.body || {};
+  const {
+    name,
+    avatar_url,
+    bio,
+    onboarded,
+    preferred_genres,
+    preferred_moods,
+    preferred_languages,
+    preferred_tags
+  } = req.body || {};
   const { id } = req.params;
+
   if (!id || (typeof id === 'string' && id.length !== 24)) {
     return res.status(400).json({ message: 'Invalid user id' });
   }
+
+  const requesterId = String(userIdFromRequest(req) || '');
+  if (!req.isAdmin && requesterId !== String(id)) {
+    return res.status(403).json({ message: 'You can only update your own profile' });
+  }
+
   const set = {};
-  if (typeof name === 'string') set.name = name;
+  if (typeof name === 'string') set.name = name.trim();
   if (typeof avatar_url === 'string') set.avatar_url = avatar_url;
+  if (typeof bio === 'string') set.bio = bio.trim();
   if (typeof onboarded === 'boolean') set.onboarded = onboarded;
   if (Array.isArray(preferred_genres)) set.preferred_genres = preferred_genres.map(String);
   if (Array.isArray(preferred_moods)) set.preferred_moods = preferred_moods.map(String);
   if (Array.isArray(preferred_languages)) set.preferred_languages = preferred_languages.map(String);
   if (Array.isArray(preferred_tags)) set.preferred_tags = preferred_tags.map(String);
 
+  const profileImageFile = req.files?.profileImage?.[0];
+  if (profileImageFile) {
+    set.avatar_url = `/images/${profileImageFile.filename}`;
+  }
+
   const user = await User.findByIdAndUpdate(
     id,
     { $set: set },
     { new: true }
   ).lean();
+
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json(user);
 };

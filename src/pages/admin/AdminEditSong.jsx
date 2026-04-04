@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
+import { formatDurationFromMs, readAudioDurationFromFile, readAudioDurationFromUrl } from '../../utils/audioDuration';
 
 const DEFAULT_LANGUAGES = ['English', 'Nepali', 'Hindi', 'Spanish', 'French', 'Korean'];
 
@@ -51,6 +52,7 @@ export default function AdminEditSong() {
   const [removeCurrentAudio, setRemoveCurrentAudio] = useState(false);
   const [coverFile, setCoverFile] = useState(null);
   const [lyricsFile, setLyricsFile] = useState(null);
+  const [detectedDurationMs, setDetectedDurationMs] = useState(0);
 
   const artistSuggestions = useMemo(() => uniqueSorted(allArtists.filter(isAdminVisibleArtist).map((artist) => artist.name)), [allArtists]);
   const selectedAlbum = useMemo(() => allAlbums.find((item) => item._id === album || item.id === album), [allAlbums, album]);
@@ -134,7 +136,20 @@ export default function AdminEditSong() {
         setLanguage(song.language || '');
         setCurrentAudioUrl(song.audio_url || '');
         setCurrentCoverUrl(song.cover_art_url || song.album?.images?.[0]?.url || '');
+        setDetectedDurationMs(Number(song.duration_ms || 0));
         setRemoveCurrentAudio(false);
+
+        if (song.audio_url && !Number(song.duration_ms || 0)) {
+          try {
+            const absoluteAudioUrl = song.audio_url.startsWith('http')
+              ? song.audio_url
+              : `${window.location.origin}${song.audio_url}`;
+            const nextDuration = await readAudioDurationFromUrl(absoluteAudioUrl);
+            setDetectedDurationMs(nextDuration);
+          } catch (durationError) {
+            console.error('Failed to detect existing audio duration:', durationError);
+          }
+        }
       } catch (error) {
         console.error('Error loading data:', error);
         showToast('Error loading song details', 'error');
@@ -146,6 +161,23 @@ export default function AdminEditSong() {
 
     loadData();
   }, [id, navigate]);
+
+  const handleAudioChange = async (event) => {
+    const nextFile = event.target.files?.[0] || null;
+    setAudioFile(nextFile);
+    if (!nextFile) {
+      return;
+    }
+
+    setRemoveCurrentAudio(false);
+    try {
+      const nextDuration = await readAudioDurationFromFile(nextFile);
+      setDetectedDurationMs(nextDuration);
+    } catch (error) {
+      console.error('Failed to detect uploaded audio duration:', error);
+      showToast('Could not detect the new audio duration automatically.', 'error');
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -168,6 +200,7 @@ export default function AdminEditSong() {
       formData.append('genre', genre);
       formData.append('mood', mood);
       formData.append('language', language);
+      if (detectedDurationMs > 0) formData.append('duration_ms', String(detectedDurationMs));
       if (removeCurrentAudio && !audioFile) formData.append('remove_audio', 'true');
       if (audioFile) formData.append('audio', audioFile);
       if (coverFile) formData.append('cover', coverFile);
@@ -254,7 +287,6 @@ export default function AdminEditSong() {
                 </datalist>
                 <p className="text-xs text-gray-500 mt-2">Use commas for multiple artists. New names will be created automatically.</p>
               </div>
-
             </div>
 
             <div className="space-y-4">
@@ -337,13 +369,12 @@ export default function AdminEditSong() {
                   <input
                     type="file"
                     accept="audio/*"
-                    onChange={(e) => {
-                      const nextFile = e.target.files[0] || null;
-                      setAudioFile(nextFile);
-                      if (nextFile) setRemoveCurrentAudio(false);
-                    }}
+                    onChange={handleAudioChange}
                     className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-blue/10 file:text-neon-blue hover:file:bg-neon-blue/20"
                   />
+                  {detectedDurationMs > 0 && (
+                    <div className="mt-2 text-xs text-green-400">Detected duration: {formatDurationFromMs(detectedDurationMs)}</div>
+                  )}
                   {currentAudioUrl ? (
                     <div className="mt-2 flex items-center justify-between gap-3">
                       <div className="text-xs text-gray-500 truncate max-w-xs">

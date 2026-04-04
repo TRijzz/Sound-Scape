@@ -6,7 +6,7 @@ import { useMusic } from '../../contexts/MusicContext';
 const EmailVerified = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useMusic();
+  const { login, syncCurrentUser } = useMusic();
   
   // Get user data from location state
   const user = location.state?.user;
@@ -14,19 +14,32 @@ const EmailVerified = () => {
 
   useEffect(() => {
     // Auto-login and redirect after a short delay
-    const timer = setTimeout(() => {
-      if (user) {
-        login(user, tokens);
+    const timer = setTimeout(async () => {
+      let resolvedUser = user || null;
+
+      if (tokens) {
+        await login(resolvedUser, tokens);
+      } else if (resolvedUser) {
+        await login(resolvedUser);
       }
+
+      if (!resolvedUser) {
+        resolvedUser = await syncCurrentUser();
+      }
+
       navigate('/onboarding');
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [user, tokens, login, navigate]);
+  }, [user, tokens, login, navigate, syncCurrentUser]);
 
-  const handleContinue = () => {
-    if (user) {
-      login(user, tokens);
+  const handleContinue = async () => {
+    if (tokens) {
+      await login(user || null, tokens);
+    } else if (user) {
+      await login(user);
+    } else {
+      await syncCurrentUser();
     }
     navigate('/onboarding');
   };

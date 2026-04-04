@@ -6,13 +6,12 @@ import apiService from '../services/api';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 
 const SettingsPage = ({ defaultTab = 'profile' }) => {
-  const { user, logout } = useMusic();
+  const { user, logout, syncCurrentUser } = useMusic();
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  
-  // Update active tab when defaultTab prop changes (e.g., from route change)
+
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
@@ -56,29 +55,79 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
   const ProfileTab = () => {
     const [profileData, setProfileData] = useState({
       name: user?.name || '',
-      bio: '',
-      avatar: user?.avatar || ''
+      bio: user?.bio || '',
+      avatar: user?.avatar_url || user?.avatar || ''
     });
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+      setProfileData({
+        name: user?.name || '',
+        bio: user?.bio || '',
+        avatar: user?.avatar_url || user?.avatar || ''
+      });
+      setAvatarFile(null);
+    }, []);
 
     const handleChange = (e) => {
       const { name, value } = e.target;
-      setProfileData(prev => ({
+      setProfileData((prev) => ({
         ...prev,
         [name]: value
       }));
     };
 
     const handleAvatarUpload = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setProfileData(prev => ({
-            ...prev,
-            avatar: e.target.result
-          }));
-        };
-        reader.readAsDataURL(file);
+      const file = e.target.files?.[0] || null;
+      setAvatarFile(file);
+      setMessage('');
+      setError('');
+
+      if (!file) {
+        setProfileData((prev) => ({
+          ...prev,
+          avatar: user?.avatar_url || user?.avatar || ''
+        }));
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      setProfileData((prev) => ({
+        ...prev,
+        avatar: objectUrl
+      }));
+    };
+
+    const handleSave = async () => {
+      const userId = user?._id || user?.id;
+      if (!userId) {
+        setError('You need to be logged in to update your profile.');
+        return;
+      }
+
+      try {
+        setIsSaving(true);
+        setMessage('');
+        setError('');
+
+        const formData = new FormData();
+        formData.append('name', profileData.name.trim());
+        formData.append('bio', profileData.bio.trim());
+        if (avatarFile) {
+          formData.append('profileImage', avatarFile);
+        }
+
+        await apiService.updateUser(userId, formData);
+        await syncCurrentUser();
+        setMessage('Profile updated successfully.');
+      } catch (saveError) {
+        console.error('Failed to save profile:', saveError);
+        setError(saveError?.message || 'Failed to save changes.');
+      } finally {
+        setIsSaving(false);
       }
     };
 
@@ -86,8 +135,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
       <div className="space-y-6">
         <div>
           <h3 className="text-xl font-semibold text-white mb-4">Profile Information</h3>
-          
-          {/* Avatar Upload */}
+
           <div className="flex items-center space-x-6 mb-6">
             <div className="relative">
               <img
@@ -108,7 +156,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
             </div>
           </div>
 
-          {/* Name */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Display Name
@@ -123,7 +170,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
             />
           </div>
 
-          {/* Bio */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Bio
@@ -138,8 +184,15 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
             />
           </div>
 
-          <button className="px-6 py-3 bg-neon-blue text-dark-bg rounded-xl font-medium hover:bg-neon-blue/80 transition-all duration-200 hover:scale-105">
-            Save Changes
+          {message ? <p className="mb-3 text-sm text-green-400">{message}</p> : null}
+          {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
+
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-6 py-3 bg-neon-blue text-dark-bg rounded-xl font-medium hover:bg-neon-blue/80 transition-all duration-200 hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -165,11 +218,10 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
       <div className="space-y-6">
         <div>
           <h3 className="text-xl font-semibold text-white mb-4">Account Security</h3>
-          
-          {/* Change Password */}
+
           <div className="mb-6">
             <h4 className="text-lg font-medium text-white mb-4">Change Password</h4>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -184,7 +236,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
                   placeholder="Enter current password"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   New Password
@@ -198,7 +250,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
                   placeholder="Enter new password"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Confirm New Password
@@ -213,13 +265,12 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
                 />
               </div>
             </div>
-            
+
             <button className="mt-4 px-6 py-3 bg-neon-blue text-dark-bg rounded-xl font-medium hover:bg-neon-blue/80 transition-all duration-200 hover:scale-105">
               Update Password
             </button>
           </div>
 
-          {/* Email Preferences */}
           <div>
             <h4 className="text-lg font-medium text-white mb-4">Email Preferences</h4>
             <div className="space-y-3">
@@ -249,8 +300,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
       <div className="space-y-6">
         <div>
           <h3 className="text-xl font-semibold text-white mb-4">Appearance</h3>
-          
-          {/* Theme Toggle */}
+
           <div className="mb-6">
             <h4 className="text-lg font-medium text-white mb-4">Theme</h4>
             <div className="flex items-center space-x-4">
@@ -277,7 +327,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
             </div>
           </div>
 
-          {/* Accent Color */}
           <div>
             <h4 className="text-lg font-medium text-white mb-4">Accent Color</h4>
             <div className="flex space-x-3">
@@ -374,14 +423,12 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
           <p className="text-gray-400">Manage your account and preferences</p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
           <div className="lg:w-64">
             <div className="bg-light-gray/30 rounded-xl p-4">
               <nav className="space-y-2">
@@ -403,8 +450,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
                   );
                 })}
               </nav>
-              
-              {/* Logout Button */}
+
               <div className="mt-6 pt-6 border-t border-gray-700">
                 <button
                   onClick={logout}
@@ -417,7 +463,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
             </div>
           </div>
 
-          {/* Content */}
           <div className="flex-1">
             <motion.div
               className="bg-light-gray/30 rounded-xl p-6"
@@ -436,3 +481,4 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
 };
 
 export default SettingsPage;
+

@@ -142,6 +142,10 @@ export function MusicProvider({ children }) {
     }
   };
 
+  const setUser = useCallback((user) => {
+    dispatch({ type: 'SET_USER', payload: user });
+  }, []);
+
   const playTrack = useCallback(async (track, options = {}) => {
     if (!track) return;
 
@@ -606,6 +610,7 @@ export function MusicProvider({ children }) {
     logout,
     checkAuth,
     syncCurrentUser,
+    setUser,
     isLoading,
     showAuthPrompt,
     setShowAuthPrompt,

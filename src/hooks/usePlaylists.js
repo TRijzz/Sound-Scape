@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api';
 
+const PLAYLISTS_UPDATED_EVENT = 'playlists:updated';
+const getPlaylistId = (playlist) => String(playlist?._id || playlist?.id || '');
+
+const broadcastPlaylistUpdate = (detail) => {
+  window.dispatchEvent(new CustomEvent(PLAYLISTS_UPDATED_EVENT, { detail }));
+};
+
 export const usePlaylists = () => {
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,27 +33,96 @@ export const usePlaylists = () => {
     load();
   }, [isAuthenticated, user?._id]);
 
+  useEffect(() => {
+    const handlePlaylistSync = (event) => {
+      const detail = event?.detail;
+      if (!detail?.type) return;
+
+      if (detail.type === 'replace' && Array.isArray(detail.playlists)) {
+        setPlaylists(detail.playlists);
+        return;
+      }
+
+      if (detail.type === 'create' && detail.playlist) {
+        setPlaylists((prev) => {
+          const nextId = String(detail.playlist._id || detail.playlist.id || '');
+          if (!nextId) return prev;
+          if (prev.some((playlist) => String(playlist._id || playlist.id || '') === nextId)) {
+            return prev;
+          }
+          return [...prev, detail.playlist];
+        });
+        return;
+      }
+
+      if (detail.type === 'update' && detail.playlist) {
+        setPlaylists((prev) =>
+          prev.map((playlist) =>
+            String(playlist._id || playlist.id || '') === String(detail.playlist._id || detail.playlist.id || '')
+              ? detail.playlist
+              : playlist
+          )
+        );
+        return;
+      }
+
+      if (detail.type === 'delete' && detail.playlistId) {
+        setPlaylists((prev) =>
+          prev.filter((playlist) => String(playlist._id || playlist.id || '') !== String(detail.playlistId))
+        );
+      }
+    };
+
+    window.addEventListener(PLAYLISTS_UPDATED_EVENT, handlePlaylistSync);
+    return () => window.removeEventListener(PLAYLISTS_UPDATED_EVENT, handlePlaylistSync);
+  }, []);
+
   const createPlaylist = async (playlistData) => {
-    const created = await apiService.createPlaylist({
+    const createdResponse = await apiService.createPlaylist({
       name: playlistData.name,
       description: playlistData.description || '',
       color: playlistData.color || '#0B0F1A',
       image: playlistData.image || '',
       is_public: playlistData.is_public ?? (playlistData.visibility === 'public'),
     });
-    setPlaylists(prev => [...prev, created]);
+    const createdId = getPlaylistId(createdResponse);
+    const created = createdResponse;
+
+    setPlaylists((prev) => {
+      if (prev.some((playlist) => getPlaylistId(playlist) === getPlaylistId(created))) {
+        return prev;
+      }
+      return [...prev, created];
+    });
+    broadcastPlaylistUpdate({ type: 'create', playlist: created });
+
+    if (createdId) {
+      apiService.getPlaylist(createdId)
+        .then((fullPlaylist) => {
+          setPlaylists((prev) =>
+            prev.map((playlist) => (getPlaylistId(playlist) === createdId ? fullPlaylist : playlist))
+          );
+          broadcastPlaylistUpdate({ type: 'update', playlist: fullPlaylist });
+        })
+        .catch((error) => {
+          console.error('Failed to hydrate created playlist:', error);
+        });
+    }
+
     return created;
   };
 
   const updatePlaylist = async (playlistId, updates) => {
     const updated = await apiService.updatePlaylist(playlistId, updates);
-    setPlaylists(prev => prev.map(p => (p._id === updated._id ? updated : p)));
+    setPlaylists(prev => prev.map(p => (getPlaylistId(p) === getPlaylistId(updated) ? updated : p)));
+    broadcastPlaylistUpdate({ type: 'update', playlist: updated });
     return updated;
   };
 
   const deletePlaylist = async (playlistId) => {
     await apiService.deletePlaylist(playlistId);
-    setPlaylists(prev => prev.filter(p => p._id !== playlistId));
+    setPlaylists(prev => prev.filter(p => getPlaylistId(p) !== String(playlistId)));
+    broadcastPlaylistUpdate({ type: 'delete', playlistId });
   };
 
   const addSongsToPlaylist = async (playlistId, songs) => {
@@ -56,19 +132,21 @@ export const usePlaylists = () => {
       latest = await apiService.addSongToPlaylist(playlistId, id);
     }
     if (latest) {
-      setPlaylists(prev => prev.map(p => (p._id === latest._id ? latest : p)));
+      setPlaylists(prev => prev.map(p => (getPlaylistId(p) === getPlaylistId(latest) ? latest : p)));
+      broadcastPlaylistUpdate({ type: 'update', playlist: latest });
     }
     return latest;
   };
 
   const removeSongFromPlaylist = async (playlistId, songId) => {
     const updated = await apiService.removeSongFromPlaylist(playlistId, songId);
-    setPlaylists(prev => prev.map(p => (p._id === updated._id ? updated : p)));
+    setPlaylists(prev => prev.map(p => (getPlaylistId(p) === getPlaylistId(updated) ? updated : p)));
+    broadcastPlaylistUpdate({ type: 'update', playlist: updated });
     return updated;
   };
 
   const getPlaylistById = (playlistId) => {
-    return playlists.find(p => p._id === playlistId);
+    return playlists.find(p => getPlaylistId(p) === String(playlistId));
   };
 
   return {

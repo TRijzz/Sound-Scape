@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
+import { formatDurationFromMs, readAudioDurationFromFile } from '../../utils/audioDuration';
 
 const DEFAULT_LANGUAGES = ['English', 'Nepali', 'Hindi', 'Spanish', 'French', 'Korean'];
 
@@ -43,6 +44,7 @@ export default function AdminCreateSong() {
   const [albumGenres, setAlbumGenres] = useState([]);
 
   const [audioFile, setAudioFile] = useState(null);
+  const [detectedDurationMs, setDetectedDurationMs] = useState(0);
   const [coverFile, setCoverFile] = useState(null);
   const [lyricsFile, setLyricsFile] = useState(null);
 
@@ -126,6 +128,24 @@ export default function AdminCreateSong() {
     return ids;
   };
 
+  const handleAudioChange = async (event) => {
+    const nextFile = event.target.files?.[0] || null;
+    setAudioFile(nextFile);
+    setDetectedDurationMs(0);
+
+    if (!nextFile) {
+      return;
+    }
+
+    try {
+      const nextDuration = await readAudioDurationFromFile(nextFile);
+      setDetectedDurationMs(nextDuration);
+    } catch (error) {
+      console.error('Failed to detect uploaded audio duration:', error);
+      showToast('Could not detect audio duration automatically. You can still create the song and re-upload if needed.', 'error');
+    }
+  };
+
   const createSong = async () => {
     if (!canCreate || creating) return;
     setCreating(true);
@@ -140,6 +160,7 @@ export default function AdminCreateSong() {
       if (mood.trim()) formData.append('mood', mood.trim());
       if (language.trim()) formData.append('language', language.trim());
       if (artistIds.length > 0) formData.append('artists', JSON.stringify(artistIds));
+      if (detectedDurationMs > 0) formData.append('duration_ms', String(detectedDurationMs));
       if (audioFile) formData.append('audio', audioFile);
       if (coverFile) formData.append('cover', coverFile);
       if (lyricsFile) formData.append('lyricsFile', lyricsFile);
@@ -251,7 +272,10 @@ export default function AdminCreateSong() {
             <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Audio</label>
-                <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files[0])} className="w-full text-xs text-gray-300" />
+                <input type="file" accept="audio/*" onChange={handleAudioChange} className="w-full text-xs text-gray-300" />
+                {detectedDurationMs > 0 && (
+                  <div className="mt-2 text-xs text-green-400">Detected duration: {formatDurationFromMs(detectedDurationMs)}</div>
+                )}
               </div>
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Cover</label>

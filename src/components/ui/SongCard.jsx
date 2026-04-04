@@ -5,7 +5,7 @@ import { useMusic } from '../../contexts/MusicContext';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
-const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick, menuItems = [] }) => {
+const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick, menuItems = [], compact = false }) => {
   const {
     playTrack,
     currentTrack,
@@ -208,7 +208,62 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick, me
 
   return (
     <>
-      {showAlbum ? (
+      {compact ? (
+        <motion.div
+          className={`grid grid-cols-[32px_44px_minmax(0,1fr)_56px] items-center gap-3 px-2 py-2 rounded-xl hover:bg-light-gray transition-all duration-200 group cursor-pointer ${
+            isCurrentTrack ? 'bg-neon-blue/10 border border-neon-blue/30' : ''
+          }`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: index * 0.05 }}
+          whileHover={{ scale: 1.01 }}
+          onClick={handlePlay}
+        >
+          <div className="flex items-center justify-center text-sm text-gray-400">
+            {isCurrentTrack && isPlaying ? (
+              <motion.div
+                className="w-5 h-5 flex items-center justify-center"
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+              >
+                <div className="w-2 h-2 bg-neon-blue rounded-full" />
+              </motion.div>
+            ) : (
+              <>
+                <span className="group-hover:hidden text-sm">{index + 1}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePlay();
+                  }}
+                  className="hidden group-hover:flex items-center justify-center"
+                >
+                  <PlayIcon className="w-4 h-4 text-neon-blue" />
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="w-11 h-11 shrink-0 rounded-md overflow-hidden bg-black/20 border border-gray-700">
+            <img
+              src={song.album?.images?.[0]?.url || song.cover_art_url || song._vinylImage || albumArtPlaceholder}
+              alt={song.album?.name || song.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          <div className="min-w-0">
+            <h4 className={`text-sm font-medium truncate ${isCurrentTrack ? 'text-neon-blue' : 'text-white'}`}>
+              {song.name}
+            </h4>
+            <p className="text-xs text-gray-400 truncate">
+              {song.artists?.map((artist) => artist.name).join(', ')}
+            </p>
+          </div>
+
+          <span className="text-xs text-gray-400 text-right">{formatDuration(song.duration_ms || 0)}</span>
+        </motion.div>
+      ) : showAlbum ? (
         <motion.div
           className={`grid grid-cols-[48px_minmax(0,1fr)_72px] md:grid-cols-[48px_minmax(0,1fr)_minmax(180px,0.5fr)_minmax(140px,0.4fr)_72px] items-center gap-4 px-3 py-3 rounded-xl hover:bg-light-gray transition-all duration-200 group cursor-pointer ${
             isCurrentTrack ? 'bg-neon-blue/10 border border-neon-blue/30' : ''

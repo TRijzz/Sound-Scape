@@ -22,6 +22,15 @@ const moodAccent = (mood = '', index = 0) => {
   return palettes[(seed + index) % palettes.length];
 };
 
+const shuffleList = (items = []) => {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
+  }
+  return next;
+};
+
 const HomePage = () => {
   const { playTrack, isAuthenticated } = useMusic();
   const navigate = useNavigate();
@@ -76,7 +85,7 @@ const HomePage = () => {
         
         const categoriesRes = await apiService.getCategories();
         const categories = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.categories || []);
-        const selectedCategories = categories.slice(0, 4);
+        const selectedCategories = shuffleList(categories).slice(0, 4);
 
         const sectionsData = await Promise.all(selectedCategories.map(async (category) => {
           const name = String(category?.name || '').trim();
@@ -105,7 +114,9 @@ const HomePage = () => {
           }
         }));
 
-        const validSections = sectionsData.filter((section) => section.title && section.songs.length > 0).slice(0, 3);
+        const validSections = shuffleList(
+          sectionsData.filter((section) => section.title && section.songs.length > 0)
+        ).slice(0, 3);
         
         // If we still don't have enough, fill with generic popular/latest
         if (validSections.length < 3) {
@@ -444,7 +455,7 @@ const HomePage = () => {
                         <h3 className="text-lg font-semibold mb-3 capitalize">{section.title}</h3>
                         <div className="space-y-2">
                         {section.songs.slice(0, 6).map((song, index) => (
-                            <SongCard key={song._id || song.id} song={song} index={index} showAlbum={true} onClick={() => handleTrackSelect(song)} />
+                            <SongCard key={song._id || song.id} song={song} index={index} compact={true} onClick={() => handleTrackSelect(song)} />
                         ))}
                         </div>
                     </div>

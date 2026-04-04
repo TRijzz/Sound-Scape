@@ -97,7 +97,7 @@ const loadLocalTimedLyrics = async (trackName) => {
   }
 };
 
-const LyricsOverlay = ({ isOpen, onClose }) => {
+const LyricsOverlay = ({ isOpen, onClose }) => {        //Lyrics Overlay Component
   const { currentTrack, progress, setProgress, duration } = useMusic();
   const [lyrics, setLyrics] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -175,7 +175,7 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
       
       console.log('Fetching lyrics for ID:', id, 'Name:', currentTrack.name);
 
-      apiService.getLyrics(id)   // API is called
+      apiService.getLyrics(id)   // API is called and gets the lyrics for the current track
         .then(async data => {
           console.log('Lyrics fetched:', data);
           let parsed = [];
@@ -224,7 +224,7 @@ const LyricsOverlay = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (lyrics.length === 0 || !isOpen) return;
 
-    const currentTime = Math.max(0, progress + LYRIC_HIGHLIGHT_LEAD_SECONDS);
+    const currentTime = Math.max(0, progress + LYRIC_HIGHLIGHT_LEAD_SECONDS);       //Highlights the current line with a lead time
 
     // Find the current active line
     let foundIndex = -1;

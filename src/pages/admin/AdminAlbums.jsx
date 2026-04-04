@@ -22,6 +22,7 @@ const getAlbumDisplayName = (album) => {
 };
 
 const albumCover = (album) => apiService.resolveMediaUrl(album?.images?.[0]?.url || '');
+const isHiddenAlbum = (album) => album?.is_visible === false || album?.publish_status === 'hidden';
 
 const fmtDate = (value) => {
   if (!value) return 'Unknown';
@@ -82,6 +83,7 @@ export default function AdminAlbums() {
     withAudio: Object.values(trackCounts).filter((count) => count > 0).length,
     singles: albums.filter((album) => album.album_type === 'single').length,
     upcoming: albums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length,
+    hidden: albums.filter((album) => isHiddenAlbum(album)).length,
     hiddenArtistAlbums: albums.filter((album) => hasHiddenArtistLink(album?.artists)).length
   }), [albums, trackCounts]);
 
@@ -278,6 +280,40 @@ export default function AdminAlbums() {
     }
   };
 
+  const updateAlbumVisibility = async (album, nextVisible) => {
+    try {
+      const updated = await apiService.updateAlbum(album._id || album.id, {
+        is_visible: nextVisible,
+        publish_status: nextVisible ? 'published' : 'hidden'
+      });
+      setAlbums((prev) => prev.map((item) => (
+        String(item._id || item.id) === String(album._id || album.id) ? updated : item
+      )));
+      showToast(`Album ${nextVisible ? 'unhidden' : 'hidden'} successfully.`, 'success', 3000);
+    } catch (error) {
+      showToast(`Failed to update album visibility: ${error?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  const bulkUpdateAlbumVisibility = async (nextVisible) => {
+    if (selectedIds.length === 0) return;
+    try {
+      const responses = await Promise.all(
+        selectedIds.map((id) => apiService.updateAlbum(id, {
+          is_visible: nextVisible,
+          publish_status: nextVisible ? 'published' : 'hidden'
+        }))
+      );
+      setAlbums((prev) => prev.map((album) => {
+        const match = responses.find((item) => String(item._id || item.id) === String(album._id || album.id));
+        return match || album;
+      }));
+      showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedIds.length} album${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+    } catch (error) {
+      showToast(`Failed to update selected albums: ${error?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
   const toggleAlbumSelection = (albumId) => {
     setSelectedIds((prev) => (
       prev.includes(albumId)
@@ -311,12 +347,13 @@ export default function AdminAlbums() {
             </div>
             <button onClick={() => setDrawerOpen(true)} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add album</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-5">
+          <div className="mt-6 grid gap-3 md:grid-cols-6">
             {[
               ['Total albums', stats.total],
               ['With audio', stats.withAudio],
               ['Singles', stats.singles],
               ['Upcoming', stats.upcoming],
+              ['Hidden albums', stats.hidden],
               ['Hidden artist albums', stats.hiddenArtistAlbums]
             ].map(([label, value]) => {
               const isHiddenCard = label === 'Hidden artist albums';
@@ -378,13 +415,17 @@ export default function AdminAlbums() {
         {selectedIds.length > 0 ? (
           <div className="flex items-center justify-between rounded-[28px] border border-red-500/20 bg-red-500/5 p-5">
             <p className="text-sm text-gray-200">{selectedIds.length} album{selectedIds.length === 1 ? '' : 's'} selected</p>
-            <button onClick={bulkDeleteAlbums} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => bulkUpdateAlbumVisibility(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">Hide selected</button>
+              <button onClick={() => bulkUpdateAlbumVisibility(true)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">Unhide selected</button>
+              <button onClick={bulkDeleteAlbums} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+            </div>
           </div>
         ) : null}
 
         <div className="hidden overflow-hidden rounded-[28px] border border-white/10 bg-white/5 xl:block">
           <div className="grid grid-cols-[44px_minmax(0,2fr)_1.1fr_120px_120px_120px_220px] gap-4 border-b border-white/10 px-5 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-            <div className="flex items-center justify-center"><input type="checkbox" checked={allFilteredSelected} onChange={toggleFilteredSelection} /></div><div>Album</div><div>Artist</div><div>Type</div><div>Tracks</div><div>Updated</div><div>Quick actions</div>
+            <div className="flex items-center justify-center"><input type="checkbox" checked={allFilteredSelected} onChange={toggleFilteredSelection} /></div><div>Album</div><div>Artist</div><div>Status</div><div>Tracks</div><div>Updated</div><div>Quick actions</div>
           </div>
           <div className="divide-y divide-white/10">
             {filteredAlbums.map((album) => (
@@ -406,11 +447,19 @@ export default function AdminAlbums() {
                   </div>
                 </div>
                 <div className="truncate text-sm text-gray-300">{albumArtistsText(album) || 'No artist linked'}</div>
-                <div className="text-sm capitalize text-gray-300">{album.album_type || 'album'}</div>
+                <div className="flex flex-wrap items-start gap-2">
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full border px-3 py-1 text-xs ${
+                    isHiddenAlbum(album)
+                      ? 'border-red-500/30 bg-red-500/10 text-red-200'
+                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  }`}>{isHiddenAlbum(album) ? 'Hidden' : 'Active'}</span>
+                  <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-white/10 px-3 py-1 text-xs capitalize text-gray-300">{album.album_type || 'album'}</span>
+                </div>
                 <div className="text-sm text-gray-300">{trackCounts[album._id || album.id] || 0}</div>
                 <div className="text-sm text-gray-300">{fmtDate(album.updatedAt)}</div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => navigate(`/admin/albums/edit/${album._id || album.id}`)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit</button>
+                  <button onClick={() => updateAlbumVisibility(album, isHiddenAlbum(album))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">{isHiddenAlbum(album) ? 'Unhide' : 'Hide'}</button>
                   <button onClick={() => handleDeleteClick(album)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20">Delete</button>
                 </div>
               </div>
@@ -437,9 +486,11 @@ export default function AdminAlbums() {
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400">
                 <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5">Released {fmtDate(album.release_date)}</span>
                 <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5">Linked tracks {trackCounts[album._id || album.id] || 0}</span>
+                <span className={`rounded-xl border px-3 py-1.5 ${isHiddenAlbum(album) ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>{isHiddenAlbum(album) ? 'Hidden' : 'Active'}</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button onClick={() => navigate(`/admin/albums/edit/${album._id || album.id}`)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Edit</button>
+                <button onClick={() => updateAlbumVisibility(album, isHiddenAlbum(album))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">{isHiddenAlbum(album) ? 'Unhide' : 'Hide'}</button>
                 <button onClick={() => handleDeleteClick(album)} className="rounded-xl border border-red-500/30 px-3 py-2 text-xs text-red-200">Delete</button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   HomeIcon, 
@@ -15,6 +15,7 @@ import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 
 function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
@@ -30,11 +31,14 @@ function Sidebar() {
     { path: '/library', icon: MusicNoteIcon, label: 'Your Library' },
   ];
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const name = playlistName.trim() || 'My Playlist';
-    const pl = handleCreatePlaylist({ name });
+    const playlist = await handleCreatePlaylist({ name });
     setShowCreate(false);
     setPlaylistName('');
+    if (playlist?._id || playlist?.id) {
+      navigate(`/playlist/${playlist._id || playlist.id}`);
+    }
   };
 
   const handleRename = async () => {

@@ -4,16 +4,18 @@ import { useNavigate, Link } from 'react-router-dom';
 import { usePlaylistActions } from '../hooks/usePlaylists';
 import { useMusic } from '../contexts/MusicContext';
 import { PlayIcon, SearchIcon, HeartIcon, PlusIcon } from '../components/ui/Icons';
+import SongCard from '../components/ui/SongCard';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 import vinylDisc from '../assets/vinyl.svg';
 import { getVinylImageSrc, resolveVinylTracks } from '../utils/vinyl';
+import apiService from '../services/api';
 
 const tabs = ['all', 'vinyls', 'playlists', 'liked'];
 
 const LibraryPage = () => {
   const navigate = useNavigate();
   const { playlists, loading, handleCreatePlaylist } = usePlaylistActions();
-  const { purchasedVinyls, playVinylTrack } = useMusic();
+  const { purchasedVinyls, playVinylTrack, playTrack, setShuffleEnabled } = useMusic();
 
   const [showSticky, setShowSticky] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -26,6 +28,7 @@ const LibraryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [vinylTracksById, setVinylTracksById] = useState({});
   const [vinylLoading, setVinylLoading] = useState(false);
+  const [likedSongs, setLikedSongs] = useState([]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -74,6 +77,29 @@ const LibraryPage = () => {
     };
   }, [purchasedVinyls]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLikedSongs = async () => {
+      try {
+        const data = await apiService.getLikedSongs();
+        if (!cancelled) {
+          setLikedSongs(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Failed to load liked songs for library:', error);
+        if (!cancelled) {
+          setLikedSongs([]);
+        }
+      }
+    };
+
+    loadLikedSongs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filteredPlaylists = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const items = Array.isArray(playlists) ? playlists : [];
@@ -94,6 +120,23 @@ const LibraryPage = () => {
   const totalOwnedTracks = useMemo(() => {
     return Object.values(vinylTracksById).reduce((sum, tracks) => sum + tracks.length, 0);
   }, [vinylTracksById]);
+
+  const filteredLikedSongs = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const items = Array.isArray(likedSongs) ? likedSongs : [];
+    if (!term) return items;
+    return items.filter((song) => {
+      const haystack = [
+        song.name,
+        song.album?.name,
+        ...(song.artists || []).map((artist) => artist.name)
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [likedSongs, searchTerm]);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -134,6 +177,15 @@ const LibraryPage = () => {
       trackIndex,
       openOverlay: true,
       persistActive: true,
+    });
+  };
+
+  const handlePlayLikedSong = (song, index) => {
+    setShuffleEnabled(false);
+    playTrack(song, {
+      queue: filteredLikedSongs,
+      currentIndex: index,
+      shuffle: false
     });
   };
 
@@ -263,6 +315,7 @@ const LibraryPage = () => {
 
   const showVinylSection = activeTab === 'all' || activeTab === 'vinyls';
   const showPlaylistSection = activeTab === 'all' || activeTab === 'playlists';
+  const showLikedSection = activeTab === 'all' || activeTab === 'liked';
 
   return (
     <div className="p-0 pb-24">
@@ -398,6 +451,70 @@ const LibraryPage = () => {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6">
                 {filteredPlaylists.map(renderPlaylistCard)}
+              </div>
+            )}
+          </section>
+        )}
+
+        {showLikedSection && (
+          <section>
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-white font-semibold text-2xl">Liked Songs</h2>
+                <p className="text-sm text-gray-500">Your favorites, ready to play from the library.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {filteredLikedSongs.length > 0 ? (
+                  <button
+                    onClick={() => {
+                      const firstIndex = Math.floor(Math.random() * filteredLikedSongs.length);
+                      playTrack(filteredLikedSongs[firstIndex], {
+                        queue: filteredLikedSongs,
+                        currentIndex: firstIndex,
+                        shuffle: true
+                      });
+                    }}
+                    className="px-4 py-2 rounded-lg bg-light-gray/50 text-white hover:bg-light-gray transition-colors"
+                  >
+                    Shuffle
+                  </button>
+                ) : null}
+                <div className="text-sm text-gray-500">
+                  {filteredLikedSongs.length} {filteredLikedSongs.length === 1 ? 'song' : 'songs'}
+                </div>
+              </div>
+            </div>
+
+            {filteredLikedSongs.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-800 bg-[#12131A] px-6 py-10 text-center text-gray-500">
+                {searchTerm ? 'No liked songs matched your search.' : 'No liked songs yet.'}
+              </div>
+            ) : (
+              <div>
+                <div className="mb-3 hidden md:grid grid-cols-[48px_minmax(0,1fr)_minmax(180px,0.5fr)_minmax(140px,0.4fr)_72px] items-center gap-4 border-b border-white/10 px-3 pb-3 text-sm text-gray-400">
+                  <div className="text-center">#</div>
+                  <div>Title</div>
+                  <div>Album</div>
+                  <div>Date added</div>
+                  <div className="text-right">
+                    <svg className="ml-auto w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <circle cx="12" cy="12" r="9" strokeWidth="2" />
+                      <path d="M12 7v5l3 2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {filteredLikedSongs.map((song, index) => (
+                    <SongCard
+                      key={song._id || song.id}
+                      song={song}
+                      index={index}
+                      showAlbum={true}
+                      isLiked={true}
+                      onClick={() => handlePlayLikedSong(song, index)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </section>

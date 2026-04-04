@@ -2,6 +2,17 @@ import Album from '../models/Album.js';
 import Song from '../models/Song.js';
 import { ensureMoodsExist } from '../utils/moodRegistry.js';
 
+const isAdminRequest = (req) => {
+  const adminCode = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
+  const expected = process.env.ADMIN_ACCESS_CODE;
+  return Boolean(req.isAdmin || (adminCode && expected && String(adminCode) === String(expected)));
+};
+
+const visibleAlbumQuery = {
+  is_visible: { $ne: false },
+  publish_status: { $ne: 'hidden' }
+};
+
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const buildAlbumSearchClauses = (search = '') => {
@@ -104,6 +115,9 @@ export const createAlbum = async (req, res) => {
     
     if (req.body.popularity !== undefined) albumData.popularity = Number(req.body.popularity);
     if (req.body.label) albumData.label = req.body.label;
+    if (req.body.is_visible !== undefined) albumData.is_visible = req.body.is_visible === 'true' || req.body.is_visible === true;
+    if (req.body.publish_status) albumData.publish_status = req.body.publish_status;
+    if (req.body.hidden_reason !== undefined) albumData.hidden_reason = String(req.body.hidden_reason || '').trim();
     
     // Only include spotify_id if it's provided and not empty/null - this prevents null from being set
     if (req.body.spotify_id && typeof req.body.spotify_id === 'string' && req.body.spotify_id.trim()) {
@@ -160,7 +174,7 @@ export const getAlbums = async (req, res) => {
       search
     } = req.query;
 
-    const query = {};
+    const query = isAdminRequest(req) ? {} : { ...visibleAlbumQuery };
     
     // Add genre filter
     if (genre) {
@@ -212,7 +226,10 @@ export const getAlbums = async (req, res) => {
 
 export const getAlbum = async (req, res) => {
   try {
-    const album = await Album.findById(req.params.id)
+    const album = await Album.findOne({
+      _id: req.params.id,
+      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
+    })
       .populate('artists', 'name spotify_id images popularity genres')
       .lean();
     
@@ -228,7 +245,10 @@ export const getAlbum = async (req, res) => {
 
 export const getAlbumBySpotifyId = async (req, res) => {
   try {
-    const album = await Album.findOne({ spotify_id: req.params.spotifyId })
+    const album = await Album.findOne({
+      spotify_id: req.params.spotifyId,
+      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
+    })
       .populate('artists', 'name spotify_id images popularity genres')
       .lean();
     
@@ -247,7 +267,10 @@ export const getAlbumTracks = async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (page - 1) * limit;
 
-    const album = await Album.findById(req.params.id);
+    const album = await Album.findOne({
+      _id: req.params.id,
+      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
+    });
     if (!album) {
       return res.status(404).json({ message: 'Album not found' });
     }
@@ -339,6 +362,12 @@ export const updateAlbum = async (req, res) => {
     
     if (updates.total_tracks) updates.total_tracks = Number(updates.total_tracks);
     if (updates.popularity) updates.popularity = Number(updates.popularity);
+    if (updates.is_visible !== undefined) {
+      updates.is_visible = updates.is_visible === 'true' || updates.is_visible === true;
+    }
+    if (updates.hidden_reason !== undefined) {
+      updates.hidden_reason = String(updates.hidden_reason || '').trim();
+    }
 
     // Handle external_urls
     if (updates.external_urls) {
@@ -419,7 +448,10 @@ export const getPopularAlbums = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    const albums = await Album.find({ popularity: { $gt: 0 } })
+    const albums = await Album.find({
+      popularity: { $gt: 0 },
+      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
+    })
       .populate('artists', 'name spotify_id images')
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
@@ -440,7 +472,8 @@ export const getAlbumsByGenre = async (req, res) => {
     }
     
     const albums = await Album.find({ 
-      genres: { $in: [new RegExp(genre, 'i')] }
+      genres: { $in: [new RegExp(genre, 'i')] },
+      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
     })
       .populate('artists', 'name spotify_id images')
       .sort({ popularity: -1 })
@@ -462,7 +495,8 @@ export const getAlbumsByYear = async (req, res) => {
     }
     
     const albums = await Album.find({ 
-      release_date: { $regex: `^${year}` }
+      release_date: { $regex: `^${year}` },
+      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
     })
       .populate('artists', 'name spotify_id images')
       .sort({ popularity: -1 })

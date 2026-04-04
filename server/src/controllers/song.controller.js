@@ -18,7 +18,88 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicSongsDir = path.resolve(__dirname, '../../../public/songs');
 
+const isAdminRequest = (req) => {
+  const adminCode = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
+  const expected = process.env.ADMIN_ACCESS_CODE;
+  return Boolean(req.isAdmin || (adminCode && expected && String(adminCode) === String(expected)));
+};
+
+const hiddenArtistQuery = {
+  $or: [
+    { is_visible: false },
+    { publish_status: 'hidden' }
+  ]
+};
+
+const visibleSongQuery = {
+  is_visible: { $ne: false },
+  publish_status: { $ne: 'hidden' }
+};
+
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getHiddenArtistIds = async (req) => {
+  if (isAdminRequest(req)) {
+    return [];
+  }
+
+  const hiddenArtists = await Artist.find(hiddenArtistQuery).select('_id').lean();
+  return hiddenArtists.map((artist) => artist._id);
+};
+
+const buildUploadedAudioVisibilityClause = () => ({
+  $or: [
+    { audio_url: { $exists: true, $nin: ['', null] } },
+    { file_path: { $exists: true, $nin: ['', null] } }
+  ]
+});
+
+const buildVisibleSongQuery = async (req, query = {}) => {
+  const baseQuery = isAdminRequest(req)
+    ? query
+    : (query && Object.keys(query).length > 0
+      ? { $and: [query, visibleSongQuery] }
+      : { ...visibleSongQuery });
+
+  if (isAdminRequest(req)) {
+    return baseQuery;
+  }
+
+  const hiddenArtistIds = await getHiddenArtistIds(req);
+  if (hiddenArtistIds.length === 0) {
+    return baseQuery;
+  }
+
+  const visibilityClause = {
+    $or: [
+      { artists: { $nin: hiddenArtistIds } },
+      buildUploadedAudioVisibilityClause()
+    ]
+  };
+  if (!baseQuery || Object.keys(baseQuery).length === 0) {
+    return visibilityClause;
+  }
+
+  return {
+    $and: [baseQuery, visibilityClause]
+  };
+};
+
+const buildHiddenArtistIdSet = async (req) => {
+  const hiddenArtistIds = await getHiddenArtistIds(req);
+  return new Set(hiddenArtistIds.map((artistId) => String(artistId)));
+};
+
+const songHasHiddenArtist = (song = {}, hiddenArtistIdSet = new Set()) => {
+  if (!hiddenArtistIdSet.size) {
+    return false;
+  }
+
+  return Array.isArray(song?.artists) && song.artists.some((artist) => {
+    const artistId = artist?._id || artist;
+    return artistId && hiddenArtistIdSet.has(String(artistId));
+  });
+};
 
 const resolveGenreLabel = (song) => {
   const directGenre = typeof song?.genre === 'string' ? song.genre.trim() : '';
@@ -275,6 +356,9 @@ export const createSong = async (req, res) => {
     if (req.body.cover_art_url) songData.cover_art_url = req.body.cover_art_url; // Allow manual URL too
     if (req.body.popularity !== undefined) songData.popularity = Number(req.body.popularity);
     if (req.body.lyrics) songData.lyrics = req.body.lyrics;
+    if (req.body.is_visible !== undefined) songData.is_visible = req.body.is_visible === 'true' || req.body.is_visible === true;
+    if (req.body.publish_status) songData.publish_status = req.body.publish_status;
+    if (req.body.hidden_reason !== undefined) songData.hidden_reason = String(req.body.hidden_reason || '').trim();
     
     // Genre handling - use ObjectId reference
     if (req.body.genres) {
@@ -506,13 +590,12 @@ export const getSongs = async (req, res) => {
     let total = 0;
 
     if (uploadedOnly) {
-      const candidateSongs = await Song.find({
+      const visibleUploadedQuery = await buildVisibleSongQuery(req, {
         ...query,
-        $or: [
-          { audio_url: { $exists: true, $nin: ['', null] } },
-          { file_path: { $exists: true, $nin: ['', null] } }
-        ]
-      })
+        ...buildUploadedAudioVisibilityClause()
+      });
+
+      const candidateSongs = await Song.find(visibleUploadedQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images release_date')
         .sort(sort)
@@ -524,7 +607,8 @@ export const getSongs = async (req, res) => {
       songsWithAudioState = uploadedSongs.slice(skip, skip + actualLimit).map((song) => annotateSongAudioState(song));
     } else {
       const skip = Math.max(0, (requestedPage - 1) * actualLimit);
-      const songs = await Song.find(query)
+      const visibleQuery = await buildVisibleSongQuery(req, query);
+      const songs = await Song.find(visibleQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images release_date')
         .sort(sort)
@@ -533,7 +617,7 @@ export const getSongs = async (req, res) => {
         .lean();
 
       songsWithAudioState = songs.map((song) => annotateSongAudioState(song));
-      total = await Song.countDocuments(query);
+      total = await Song.countDocuments(visibleQuery);
     }
 
     res.json({
@@ -611,7 +695,8 @@ export const getAudioInventory = async (req, res) => {
 
 export const getSong = async (req, res) => {
   try {
-    const song = await Song.findById(req.params.id)
+    const visibleQuery = await buildVisibleSongQuery(req, { _id: req.params.id });
+    const song = await Song.findOne(visibleQuery)
       .populate('artists', 'name spotify_id images genres')
       .populate('album', 'name images release_date artists genres')
       .lean();
@@ -634,7 +719,8 @@ export const playSong = async (req, res) => {
     const id = req.params.id;
     const userId = req.user ? req.user.id : null;
 
-    const song = await Song.findById(id)
+    const visibleQuery = await buildVisibleSongQuery(req, { _id: id });
+    const song = await Song.findOne(visibleQuery)
       .populate('artists')
       .populate('album');
 
@@ -725,6 +811,7 @@ export const getPersonalizedRecommendations = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
     const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 12, 24));
+    const hiddenArtistIdSet = await buildHiddenArtistIdSet(req);
 
     const [likedEntries, recentHistory] = await Promise.all([
       LikedSong.find({ user: userId })
@@ -751,12 +838,17 @@ export const getPersonalizedRecommendations = async (req, res) => {
         .lean()
     ]);
 
-    const historySongs = recentHistory.map((entry) => entry.song).filter(Boolean);
-    const likedSongs = likedEntries.map((entry) => entry.song).filter(Boolean);
+    const historySongs = recentHistory
+      .map((entry) => entry.song)
+      .filter((song) => song && !songHasHiddenArtist(song, hiddenArtistIdSet));
+    const likedSongs = likedEntries
+      .map((entry) => entry.song)
+      .filter((song) => song && !songHasHiddenArtist(song, hiddenArtistIdSet));
     const seedSongs = [...historySongs, ...likedSongs];
 
     if (seedSongs.length === 0) {
-      const fallbackSongs = await Song.find({})
+      const fallbackQuery = await buildVisibleSongQuery(req, {});
+      const fallbackSongs = await Song.find(fallbackQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images release_date')
         .sort({ popularity: -1, play_count: -1 })
@@ -827,7 +919,8 @@ export const getPersonalizedRecommendations = async (req, res) => {
       candidateQuery.$or = orClauses;
     }
 
-    const candidates = await Song.find(candidateQuery)
+    const visibleCandidateQuery = await buildVisibleSongQuery(req, candidateQuery);
+    const candidates = await Song.find(visibleCandidateQuery)
       .populate('artists', 'name spotify_id images genres')
       .populate('album', 'name images release_date')
       .sort({ popularity: -1, play_count: -1 })
@@ -893,7 +986,10 @@ export const getPersonalizedRecommendations = async (req, res) => {
 
     const fallbackNeeded = scored.length < limit;
     if (fallbackNeeded) {
-      const fallbackSongs = await Song.find({ _id: { $nin: Array.from(excludedSongIds).map((id) => new mongoose.Types.ObjectId(id)) } })
+      const fallbackQuery = await buildVisibleSongQuery(req, {
+        _id: { $nin: Array.from(excludedSongIds).map((id) => new mongoose.Types.ObjectId(id)) }
+      });
+      const fallbackSongs = await Song.find(fallbackQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images release_date')
         .sort({ popularity: -1, play_count: -1 })
@@ -1009,7 +1105,8 @@ export const getListeningAnalytics = async (req, res) => {
 
 export const getSongBySpotifyId = async (req, res) => {
   try {
-    const song = await Song.findOne({ spotify_id: req.params.spotifyId })
+    const visibleQuery = await buildVisibleSongQuery(req, { spotify_id: req.params.spotifyId });
+    const song = await Song.findOne(visibleQuery)
       .populate('artists', 'name spotify_id images genres')
       .populate('album', 'name images release_date artists')
       .lean();
@@ -1027,8 +1124,9 @@ export const getSongBySpotifyId = async (req, res) => {
 export const getPopularSongs = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
+    const visibleQuery = await buildVisibleSongQuery(req, { popularity: { $gt: 0 } });
     
-    const songs = await Song.find({ popularity: { $gt: 0 } })
+    const songs = await Song.find(visibleQuery)
       .populate('artists', 'name spotify_id images')
       .populate('album', 'name images')
       .sort({ popularity: -1 })
@@ -1062,13 +1160,15 @@ export const getSongsByGenre = async (req, res) => {
     }).select('_id');
 
     // Find songs that match the genre directly, OR belong to matching artists, OR belong to matching albums
-    const songs = await Song.find({ 
+    const visibleQuery = await buildVisibleSongQuery(req, { 
       $or: [
         { genre: genreRegex },
         { artists: { $in: artistsWithGenre.map(a => a._id) } },
         { album: { $in: albumsWithGenre.map(a => a._id) } }
       ]
-    })
+    });
+
+    const songs = await Song.find(visibleQuery)
       .populate('artists', 'name spotify_id images')
       .populate('album', 'name images')
       .sort({ popularity: -1 })
@@ -1093,9 +1193,11 @@ export const getSongsByYear = async (req, res) => {
       release_date: { $regex: `^${year}` }
     }).select('_id');
     
-    const songs = await Song.find({ 
+    const visibleQuery = await buildVisibleSongQuery(req, { 
       album: { $in: albumsInYear.map(a => a._id) }
-    })
+    });
+
+    const songs = await Song.find(visibleQuery)
       .populate('artists', 'name spotify_id images')
       .populate('album', 'name images release_date')
       .sort({ popularity: -1 })
@@ -1122,9 +1224,11 @@ export const searchSongs = async (req, res) => {
     let songs;
     try {
       // Try text search first (requires text index)
-      songs = await Song.find({ 
+      const textQuery = await buildVisibleSongQuery(req, { 
         $text: { $search: q }
-      })
+      });
+
+      songs = await Song.find(textQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images')
         .sort({ score: { $meta: 'textScore' }, popularity: -1 })
@@ -1132,13 +1236,15 @@ export const searchSongs = async (req, res) => {
         .lean();
     } catch (textError) {
       // Fallback to regex search if text index doesn't exist or fails
-      songs = await Song.find({ 
+      const regexSearchQuery = await buildVisibleSongQuery(req, { 
         $or: [
           { name: { $regex: regexQuery, $options: 'i' } },
           { title: { $regex: regexQuery, $options: 'i' } },
           { lyrics: { $regex: regexQuery, $options: 'i' } }
         ]
-      })
+      });
+
+      songs = await Song.find(regexSearchQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images')
         .sort({ popularity: -1 })
@@ -1148,13 +1254,15 @@ export const searchSongs = async (req, res) => {
     
     // If no results with text search, try regex as fallback
     if (!songs || songs.length === 0) {
-      songs = await Song.find({ 
+      const fallbackSearchQuery = await buildVisibleSongQuery(req, { 
         $or: [
           { name: { $regex: regexQuery, $options: 'i' } },
           { title: { $regex: regexQuery, $options: 'i' } },
           { lyrics: { $regex: regexQuery, $options: 'i' } }
         ]
-      })
+      });
+
+      songs = await Song.find(fallbackSearchQuery)
         .populate('artists', 'name spotify_id images')
         .populate('album', 'name images')
         .sort({ popularity: -1 })
@@ -1185,9 +1293,11 @@ export const searchSongs = async (req, res) => {
       const missingLyricIds = lyricSongIds.filter((songId) => !existingIds.has(String(songId)));
 
       if (missingLyricIds.length > 0) {
-        const lyricSongs = await Song.find({
+        const lyricSongQuery = await buildVisibleSongQuery(req, {
           _id: { $in: missingLyricIds }
-        })
+        });
+
+        const lyricSongs = await Song.find(lyricSongQuery)
           .populate('artists', 'name spotify_id images')
           .populate('album', 'name images')
           .sort({ popularity: -1 })
@@ -1334,6 +1444,13 @@ export const updateSong = async (req, res) => {
         }
       }
     });
+
+    if (updateData.is_visible !== undefined) {
+      updateData.is_visible = updateData.is_visible === 'true' || updateData.is_visible === true;
+    }
+    if (updateData.hidden_reason !== undefined) {
+      updateData.hidden_reason = String(updateData.hidden_reason || '').trim();
+    }
 
     if (updateData.mood) {
       await ensureMoodsExist([updateData.mood]);

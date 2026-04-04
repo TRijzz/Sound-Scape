@@ -73,7 +73,7 @@ export const listLyrics = async (req, res) => {
   }
 };
 
-export const getLyrics = async (req, res) => {
+export const getLyrics = async (req, res) => {      //Fetches Lyrics from local file or database
   try {
     const { songId } = req.params;
     console.log(`[LyricController] Fetching lyrics for song: ${songId}`);

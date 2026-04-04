@@ -21,7 +21,6 @@ import syncRoutes from './src/routes/sync.routes.js';
 import spotifyRoutes from './src/routes/spotify.routes.js';
 import lyricRoutes from './src/routes/lyric.routes.js';
 import vinylRoutes from './src/routes/vinyl.routes.js';
-import paymentRoutes from './src/routes/payment.routes.js';
 // Lyric routes imported
 import { scheduleDataRefresh } from './src/scripts/scheduler.js';
 import './src/config/passport.js';
@@ -164,7 +163,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/spotify', spotifyRoutes);
 app.use('/api/lyrics', lyricRoutes);
 app.use('/api/vinyls', vinylRoutes);
-app.use('/api/payments', paymentRoutes);
+// Khalti payment routes are intentionally disabled for now until the payment flow is resumed.
 
 if (process.env.NODE_ENV === 'production') {
   const buildPath = path.resolve(__dirname, '../build');

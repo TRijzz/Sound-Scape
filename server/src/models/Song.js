@@ -48,6 +48,9 @@ const songSchema = new mongoose.Schema(
     
     // Popularity
     popularity: { type: Number, min: 0, max: 100 },
+    is_visible: { type: Boolean, default: true, index: true },
+    publish_status: { type: String, enum: ['published', 'draft', 'hidden'], default: 'published', index: true },
+    hidden_reason: { type: String, default: '' },
     
     // Song taxonomy fields used by admin and discovery views
     category: { type: String, index: true },
@@ -76,6 +79,8 @@ const songSchema = new mongoose.Schema(
 songSchema.index(
   { name: 'text', title: 'text', lyrics: 'text' },
   {
+    default_language: 'none',
+    language_override: 'search_language',
     weights: {
       name: 10,
       title: 8,

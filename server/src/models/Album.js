@@ -32,6 +32,9 @@ const albumSchema = new mongoose.Schema(
     
     // Additional metadata
     label: String,
+    is_visible: { type: Boolean, default: true, index: true },
+    publish_status: { type: String, enum: ['published', 'draft', 'hidden'], default: 'published', index: true },
+    hidden_reason: { type: String, default: '' },
     copyrights: [{
       text: String,
       type: String

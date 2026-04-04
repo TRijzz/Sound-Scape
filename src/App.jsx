@@ -13,7 +13,6 @@ import ArtistPage from './pages/ArtistPage';
 import AlbumPage from './pages/AlbumPage';
 import GenrePage from './pages/GenrePage';
 import MoodBrowsePage from './pages/MoodBrowsePage';
-import KhaltiPaymentCallbackPage from './pages/KhaltiPaymentCallbackPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import SettingsPage from './pages/SettingsPage';
@@ -79,7 +78,17 @@ function AuthPromptOverlay() {
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
-  const hideChrome = location.pathname === '/login' || location.pathname === '/signup';
+  const authShellRoutes = [
+    '/login',
+    '/signup',
+    '/forgot-password',
+    '/reset-password',
+    '/verify-email',
+    '/email-verified',
+    '/verification-success',
+    '/onboarding'
+  ];
+  const hideChrome = authShellRoutes.some((route) => location.pathname.startsWith(route));
 
   return (
     <div className="min-h-screen bg-dark-bg text-white font-inter">
@@ -103,7 +112,7 @@ function AppContent() {
                 <Route path="/album/:id" element={<AlbumPage />} />
                 <Route path="/genre/:name" element={<GenrePage />} />
                 <Route path="/moods" element={<MoodBrowsePage />} />
-                <Route path="/payment/khalti/callback" element={<KhaltiPaymentCallbackPage />} />
+                {/* Khalti callback route is intentionally disabled for now until the payment flow is resumed. */}
                 <Route path="/store" element={<VinylStore />} />
                 <Route path="/vinyl/:id" element={<VinylPage />} />
                 <Route path="/login" element={<LoginPage />} />
@@ -139,7 +148,7 @@ function AppContent() {
       </div>
       
       {/* Now Playing Footer */}
-      <NowPlayingFooter />
+      {!hideChrome && <NowPlayingFooter />}
       <AuthPromptOverlay />
     </div>
   );

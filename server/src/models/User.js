@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, index: true },
     password: { type: String, required: true, select: false },
     avatar_url: { type: String },
+    bio: { type: String, default: '' },
     username: { type: String },
     googleId: { type: String, index: true },
     refreshTokenHash: { type: String, select: false },
@@ -23,7 +24,6 @@ const userSchema = new mongoose.Schema(
     preferred_moods: [{ type: String }],
     preferred_languages: [{ type: String }],
     preferred_tags: [{ type: String }],
-    // Vinyl Store Purchases
     purchased_vinyls: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vinyl' }],
     active_vinyl: { type: mongoose.Schema.Types.ObjectId, ref: 'Vinyl' },
   },

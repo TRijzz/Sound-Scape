@@ -163,9 +163,9 @@ const Navbar = () => {
                 onClick={() => setShowDropdown(!showDropdown)}
               >
                 <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
-                  {user?.avatar ? (
+                  {(user?.avatar_url || user?.avatar) ? (
                     <img
-                      src={user.avatar}
+                      src={user.avatar_url || user.avatar}
                       alt={user?.name || 'User'}
                       className="w-full h-full object-cover"
                     />
@@ -246,3 +246,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+

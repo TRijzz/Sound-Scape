@@ -19,6 +19,7 @@ const songDuration = (song) => {
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
+const isHiddenSong = (song) => song?.is_visible === false || song?.publish_status === 'hidden';
 
 export default function AdminSongs() {
   const navigate = useNavigate();
@@ -64,8 +65,12 @@ export default function AdminSongs() {
   const filteredSongs = songs
     .filter((song) => {
       const hiddenLinked = hasHiddenArtistLink(song?.artists);
-      const matchesVisibility = artistContentMode === 'hidden' ? hiddenLinked : !hiddenLinked;
       const matchesUploaded = !uploadedOnly || song.has_uploaded_audio;
+      const matchesVisibility = uploadedOnly
+        ? true
+        : artistContentMode === 'hidden'
+          ? hiddenLinked
+          : !hiddenLinked;
       const query = search.trim().toLowerCase();
       const hiddenArtistText = (song.artists || []).filter((artist) => hiddenArtistIds.has(getArtistEntityId(artist))).map((artist) => artist?.name).filter(Boolean).join(' ');
       const haystack = [song.name, song.album?.name, artistContentMode === 'hidden' ? hiddenArtistText : songArtistsText(song)].filter(Boolean).join(' ').toLowerCase();
@@ -93,6 +98,7 @@ export default function AdminSongs() {
     linkedUploaded: audioInventory.linked_song_count,
     withAlbum: filteredSongs.filter((song) => song.album).length,
     explicit: filteredSongs.filter((song) => song.explicit).length,
+    hidden: songs.filter((song) => isHiddenSong(song)).length,
     hiddenArtistSongs: songs.filter((song) => hasHiddenArtistLink(song?.artists)).length
   };
   const filteredSongIds = filteredSongs.map((song) => String(song._id || song.id));
@@ -111,7 +117,7 @@ export default function AdminSongs() {
     setLoading(true);
     try {
       const [songsRes, inventoryRes, albumsRes, artistsRes] = await Promise.all([
-        apiService.getSongs(1, 1000, '', '', '', '', '', '-createdAt'),
+        apiService.getSongs(1, 2000, '', '', '', '', '', '-createdAt', '', '', '', '', uploadedOnly),
         apiService.getAudioInventory(),
         apiService.getAlbums(1, 1000),
         apiService.getArtists(1, 1000)
@@ -201,6 +207,40 @@ export default function AdminSongs() {
     }
   };
 
+  const updateSongVisibility = async (song, nextVisible) => {
+    try {
+      const updated = await apiService.updateSong(song._id || song.id, {
+        is_visible: nextVisible,
+        publish_status: nextVisible ? 'published' : 'hidden'
+      });
+      setSongs((prev) => prev.map((item) => (
+        String(item._id || item.id) === String(song._id || song.id) ? updated : item
+      )));
+      showToast(`Song ${nextVisible ? 'unhidden' : 'hidden'} successfully.`, 'success', 3000);
+    } catch (error) {
+      showToast(`Failed to update song visibility: ${error?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  const bulkUpdateSongVisibility = async (nextVisible) => {
+    if (selectedIds.length === 0) return;
+    try {
+      const responses = await Promise.all(
+        selectedIds.map((id) => apiService.updateSong(id, {
+          is_visible: nextVisible,
+          publish_status: nextVisible ? 'published' : 'hidden'
+        }))
+      );
+      setSongs((prev) => prev.map((song) => {
+        const match = responses.find((item) => String(item._id || item.id) === String(song._id || song.id));
+        return match || song;
+      }));
+      showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedIds.length} song${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+    } catch (error) {
+      showToast(`Failed to update selected songs: ${error?.message || 'Unknown error'}`, 'error');
+    }
+  };
+
   const toggleSongSelection = (songId) => {
     setSelectedIds((prev) => (
       prev.includes(songId)
@@ -221,6 +261,10 @@ export default function AdminSongs() {
     setSelectedIds([]);
   }, [artistContentMode]);
 
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [uploadedOnly, search, filters.album, filters.artist, filters.sort]);
+
   return (
     <AdminLayout>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -234,12 +278,13 @@ export default function AdminSongs() {
             </div>
             <button onClick={() => navigate('/admin/songs/create')} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add song</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-5">
+          <div className="mt-6 grid gap-3 md:grid-cols-6">
             {[
               { label: 'Total songs', value: stats.total, onClick: uploadedOnly ? () => setSearchParams({}) : null, helper: uploadedOnly ? 'Show all songs' : null },
               { label: 'Uploaded audio', value: stats.uploaded, onClick: () => setSearchParams({ uploaded: '1' }), helper: `${stats.linkedUploaded} linked to songs` },
               { label: 'Linked albums', value: stats.withAlbum },
               { label: 'Explicit', value: stats.explicit },
+              { label: 'Hidden songs', value: stats.hidden },
               { label: 'Hidden artist songs', value: stats.hiddenArtistSongs, onClick: () => setArtistContentMode((prev) => (prev === 'hidden' ? 'visible' : 'hidden')), helper: artistContentMode === 'hidden' ? 'Showing only hidden artist songs' : 'Click to view hidden artist songs' }
             ].map(({ label, value, onClick, helper }) => {
               const clickable = typeof onClick === 'function';
@@ -341,8 +386,12 @@ export default function AdminSongs() {
 
         {selectedIds.length > 0 ? (
           <div className="flex items-center justify-between rounded-[28px] border border-red-500/20 bg-red-500/5 p-5">
-            <p className="text-sm text-gray-200">{selectedIds.length} song{selectedIds.length === 1 ? '' : 's'} selected</p>
-            <button onClick={bulkDeleteSongs} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+            <p className="text-sm text-gray-200">{selectedIds.length} song{selectedIds.length === 1 ? '' : 's'} selected for bulk actions</p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => bulkUpdateSongVisibility(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">Hide selected</button>
+              <button onClick={() => bulkUpdateSongVisibility(true)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">Unhide selected</button>
+              <button onClick={bulkDeleteSongs} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>
+            </div>
           </div>
         ) : null}
 
@@ -372,12 +421,18 @@ export default function AdminSongs() {
                 </div>
                 <div className="truncate text-sm text-gray-300">{song.album?.name || 'No album'}</div>
                 <div className="flex flex-wrap items-start gap-2">
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full border px-3 py-1 text-xs ${
+                    isHiddenSong(song)
+                      ? 'border-red-500/30 bg-red-500/10 text-red-200'
+                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  }`}>{isHiddenSong(song) ? 'Hidden' : 'Active'}</span>
                   {song.explicit ? <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-200">Explicit</span> : null}
                   {song.has_uploaded_audio ? <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">Audio ready</span> : <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs text-orange-200">No audio</span>}
                 </div>
                 <div className="text-sm text-gray-300">{song.genre?.name || song.genre || 'Uncategorized'}</div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => navigate('/admin/songs/edit/' + (song._id || song.id))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit</button>
+                  <button onClick={() => updateSongVisibility(song, isHiddenSong(song))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">{isHiddenSong(song) ? 'Unhide' : 'Hide'}</button>
                   <button onClick={() => deleteSong(song._id || song.id)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20">Delete</button>
                 </div>
               </div>
@@ -404,10 +459,12 @@ export default function AdminSongs() {
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400">
                 <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5">{song.album?.name || 'No album'}</span>
                 <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5">{song.genre?.name || song.genre || 'Uncategorized'}</span>
+                <span className={`rounded-xl border px-3 py-1.5 ${isHiddenSong(song) ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>{isHiddenSong(song) ? 'Hidden' : 'Active'}</span>
                 {song.has_uploaded_audio ? <span className="inline-flex w-fit whitespace-nowrap rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-emerald-200">Audio ready</span> : <span className="inline-flex w-fit whitespace-nowrap rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-1.5 text-orange-200">No audio</span>}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button onClick={() => navigate('/admin/songs/edit/' + (song._id || song.id))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Edit</button>
+                <button onClick={() => updateSongVisibility(song, isHiddenSong(song))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">{isHiddenSong(song) ? 'Unhide' : 'Hide'}</button>
                 <button onClick={() => deleteSong(song._id || song.id)} className="rounded-xl border border-red-500/30 px-3 py-2 text-xs text-red-200">Delete</button>
               </div>
             </div>
