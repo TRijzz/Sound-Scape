@@ -11,6 +11,8 @@ import {
   LikedIcon,
   MoreIcon,
   VinylIcon,
+  QueueIcon,
+  CloseIcon,
   SpeakerIcon,
   MuteIcon,
   MicIcon
@@ -41,6 +43,10 @@ const NowPlayingFooter = () => {
     shuffleEnabled,
     toggleShuffle,
     addToQueue,
+    queue,
+    currentIndex,
+    playTrack,
+    setQueue,
     isAuthenticated,
     setShowAuthPrompt,
     showVinylOverlay,
@@ -52,9 +58,17 @@ const NowPlayingFooter = () => {
   const [showMore, setShowMore] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const { playlists, handleAddToPlaylist, handleCreatePlaylist } = usePlaylistActions();
   const displayTrack = previewSession?.currentTrack || currentTrack;
+  const playbackQueue = Array.isArray(queue) ? queue : [];
+  const safeCurrentIndex = playbackQueue.length ? Math.max(0, Math.min(currentIndex || 0, playbackQueue.length - 1)) : 0;
+  const currentQueueTrack = playbackQueue[safeCurrentIndex];
+  const upcomingQueue = playbackQueue
+    .map((track, index) => ({ track, index }))
+    .filter(({ track }) => track)
+    .filter(({ index }) => index >= safeCurrentIndex);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -154,6 +168,31 @@ const NowPlayingFooter = () => {
     const playlistName = newPlaylistName.trim() || 'My Playlist';
     const created = await handleCreatePlaylist({ name: playlistName, songs: [] });
     await handleAddCurrentTrackToPlaylist(created._id || created.id);
+  };
+
+  const handleQueueTrackSelect = async (index) => {
+    const selectedTrack = playbackQueue[index];
+    if (!selectedTrack) return;
+    setShowQueue(false);
+    await playTrack(selectedTrack, {
+      queue: playbackQueue,
+      currentIndex: index,
+      preserveQueue: true,
+    });
+  };
+
+  const handleRemoveFromQueue = (indexToRemove) => {
+    if (!playbackQueue[indexToRemove]) return;
+    const nextQueue = playbackQueue.filter((_, index) => index !== indexToRemove);
+    let nextIndex = safeCurrentIndex;
+
+    if (indexToRemove < safeCurrentIndex) {
+      nextIndex = Math.max(0, safeCurrentIndex - 1);
+    } else if (indexToRemove === safeCurrentIndex) {
+      nextIndex = Math.max(0, Math.min(safeCurrentIndex, nextQueue.length - 1));
+    }
+
+    setQueue(nextQueue, nextIndex);
   };
 
   if (!displayTrack && !previewSession) {
@@ -340,6 +379,14 @@ const NowPlayingFooter = () => {
               >
                 <VinylIcon className="w-4 h-4" />
               </button>
+              <button
+                onClick={() => setShowQueue((prev) => !prev)}
+                className={`transition-colors ${showQueue ? 'text-neon-blue' : 'text-gray-400 hover:text-neon-blue'}`}
+                title="View queue"
+                aria-label="View queue"
+              >
+                <QueueIcon className="w-4 h-4" />
+              </button>
               <div className="flex items-center space-x-4 border-l border-gray-700 pl-4">
                 <button
                   onClick={(e) => {
@@ -402,6 +449,117 @@ const NowPlayingFooter = () => {
           onClose={() => setShowLyrics(false)}
         />
       </motion.div>
+
+      {showQueue && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/35 z-[54]"
+            onClick={() => setShowQueue(false)}
+          />
+          <motion.aside
+            className="fixed right-0 top-0 h-[calc(100vh-96px)] mt-0 w-full max-w-md bg-[#0d0d0f]/96 backdrop-blur-xl border-l border-gray-800 z-[55] shadow-2xl"
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={{ duration: 0.24 }}
+            style={{ top: 0, paddingTop: 24, paddingBottom: 96 }}
+          >
+            <div className="h-full flex flex-col">
+              <div className="px-6 pb-5 border-b border-gray-800 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-gray-500">Playback</p>
+                  <h3 className="text-2xl font-semibold text-white mt-2">Queue</h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {upcomingQueue.length > 0
+                      ? `${Math.max(0, upcomingQueue.length - 1)} up next`
+                      : 'No queued tracks yet'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowQueue(false)}
+                  className="w-10 h-10 rounded-full border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex items-center justify-center"
+                  aria-label="Close queue"
+                  title="Close queue"
+                >
+                  <CloseIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
+                {currentQueueTrack && (
+                  <div className="rounded-2xl border border-neon-blue/25 bg-neon-blue/8 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-neon-blue mb-3">Now playing</p>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={currentQueueTrack?.album?.images?.[0]?.url || currentQueueTrack?.cover_art_url || currentQueueTrack?._vinylImage || albumArtPlaceholder}
+                        alt={currentQueueTrack?.name || 'Current track'}
+                        className="w-14 h-14 rounded-xl object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{currentQueueTrack?.name || 'Current track'}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {currentQueueTrack?.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between px-2 mb-3">
+                    <p className="text-sm font-medium text-white">Up next</p>
+                    <p className="text-xs text-gray-500">{Math.max(0, upcomingQueue.length - 1)} tracks</p>
+                  </div>
+
+                  {upcomingQueue.length > 1 ? (
+                    <div className="space-y-2">
+                      {upcomingQueue
+                        .filter(({ index }) => index !== safeCurrentIndex)
+                        .map(({ track, index }, order) => (
+                          <div
+                            key={`${track?._id || track?.id || index}-${order}`}
+                            className="group flex items-center gap-3 rounded-2xl border border-transparent bg-white/[0.03] hover:bg-white/[0.06] hover:border-gray-800 px-3 py-3 transition-all"
+                          >
+                            <button
+                              onClick={() => handleQueueTrackSelect(index)}
+                              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                            >
+                              <div className="w-7 text-xs text-gray-500">{order + 1}</div>
+                              <img
+                                src={track?.album?.images?.[0]?.url || track?.cover_art_url || track?._vinylImage || albumArtPlaceholder}
+                                alt={track?.name || 'Queued track'}
+                                className="w-12 h-12 rounded-lg object-cover"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{track?.name || 'Queued track'}</p>
+                                <p className="text-xs text-gray-400 truncate">
+                                  {track?.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist'}
+                                </p>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => handleRemoveFromQueue(index)}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all px-2"
+                              aria-label="Remove from queue"
+                              title="Remove from queue"
+                            >
+                              <CloseIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-gray-800 bg-white/[0.02] px-4 py-8 text-center">
+                      <p className="text-sm text-gray-400">No upcoming tracks yet.</p>
+                      <p className="text-xs text-gray-500 mt-2">Use “Add to queue” from songs, playlists, or albums.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.aside>
+        </>
+      )}
 
       {showAddToPlaylist && (
         <motion.div className="fixed inset-0 z-[60] flex items-center justify-center">
