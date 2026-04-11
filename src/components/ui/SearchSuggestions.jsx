@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SearchIcon } from './Icons';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
+import apiService from '../../services/api';
 
 const SearchSuggestions = ({ 
   suggestions, 
@@ -26,8 +27,40 @@ const SearchSuggestions = ({
             <div className="animate-spin w-5 h-5 border-2 border-neon-blue border-t-transparent rounded-full mx-auto mb-2"></div>
             Searching...
           </div>
-        ) : (suggestions.artists?.length > 0 || suggestions.songs?.length > 0 || suggestions.albums?.length > 0) ? (
+        ) : (suggestions.artists?.length > 0 || suggestions.songs?.length > 0 || suggestions.albums?.length > 0 || suggestions.users?.length > 0) ? (
           <div className="py-2">
+            {suggestions.users && suggestions.users.length > 0 && (
+              <div className="px-4 py-2">
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  Users
+                </h4>
+                {suggestions.users.slice(0, 3).map((user) => (
+                  <motion.div
+                    key={user._id || user.id}
+                    className="flex items-center space-x-3 p-2 hover:bg-light-gray/50 rounded-lg cursor-pointer transition-colors"
+                    onClick={() => onSuggestionClick('user', user)}
+                    whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-light-gray overflow-hidden">
+                      <img
+                        src={apiService.resolveMediaUrl(user.avatar_url || albumArtPlaceholder)}
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {user.name}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {user.username ? `@${user.username}` : 'User'}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
             {/* Artists Section */}
             {suggestions.artists && suggestions.artists.length > 0 && (
               <div className="px-4 py-2">
@@ -43,7 +76,7 @@ const SearchSuggestions = ({
                   >
                     <div className="w-8 h-8 rounded-full bg-light-gray overflow-hidden">
                       <img
-                        src={artist.images?.[0]?.url || albumArtPlaceholder}
+                        src={apiService.resolveMediaUrl(artist.images?.[0]?.url || albumArtPlaceholder)}
                         alt={artist.name}
                         className="w-full h-full object-cover"
                       />
@@ -74,7 +107,7 @@ const SearchSuggestions = ({
                   >
                     <div className="w-8 h-8 rounded bg-light-gray overflow-hidden">
                       <img
-                        src={song.album?.images?.[0]?.url || albumArtPlaceholder}
+                        src={apiService.resolveMediaUrl(song.album?.images?.[0]?.url || albumArtPlaceholder)}
                         alt={song.name}
                         className="w-full h-full object-cover"
                       />
@@ -109,7 +142,7 @@ const SearchSuggestions = ({
                   >
                     <div className="w-8 h-8 rounded bg-light-gray overflow-hidden">
                       <img
-                        src={album.images?.[0]?.url || albumArtPlaceholder}
+                        src={apiService.resolveMediaUrl(album.images?.[0]?.url || albumArtPlaceholder)}
                         alt={album.name}
                         className="w-full h-full object-cover"
                       />

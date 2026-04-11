@@ -5,6 +5,7 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 import { formatDurationFromMs, readAudioDurationFromFile } from '../../utils/audioDuration';
+import { isAdminVisibleAlbum, isAdminVisibleArtist } from '../../utils/adminVisibility';
 
 const DEFAULT_LANGUAGES = ['English', 'Nepali', 'Hindi', 'Spanish', 'French', 'Korean'];
 
@@ -20,7 +21,6 @@ const toDisplayGenre = (value) => {
 
 const uniqueSorted = (values) => Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
   .sort((left, right) => left.localeCompare(right));
-const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
 
 export default function AdminCreateSong() {
   const navigate = useNavigate();
@@ -89,7 +89,7 @@ export default function AdminCreateSong() {
         const genresList = Array.isArray(genresRes) ? genresRes : (genresRes?.genres || []);
 
         setArtists(artistsList.filter(isAdminVisibleArtist));
-        setAlbums(albumsList);
+        setAlbums(albumsList.filter(isAdminVisibleAlbum));
         setCategoryOptions(uniqueSorted(categoriesList.map((item) => item.name || item.collectionName || '')));
         setGenreOptions(uniqueSorted(genresList.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean).map(toDisplayGenre)));
         setMoodOptions(uniqueSorted((moodsRes?.moods || []).concat(songList.map((song) => song.mood))));

@@ -10,6 +10,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,6 +28,12 @@ const Navbar = () => {
       setSearchQuery(q);
     }
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    setShowSuggestions(false);
+    setIsSearchFocused(false);
+    clearSuggestions();
+  }, [location.pathname, location.search, clearSuggestions]);
 
   // Live update search results by updating URL as user types on /search
   useEffect(() => {
@@ -47,7 +54,7 @@ const Navbar = () => {
         setShowSuggestions(false);
         return;
       }
-      if (searchQuery.trim().length >= 2) {
+      if (isSearchFocused && searchQuery.trim().length >= 2) {
         searchSuggestions(searchQuery, 5);
         setShowSuggestions(true);
       } else {
@@ -57,7 +64,7 @@ const Navbar = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchSuggestions, clearSuggestions, location.pathname]);
+  }, [searchQuery, searchSuggestions, clearSuggestions, location.pathname, isSearchFocused]);
 
   // Close suggestions and dropdown when clicking outside
   useEffect(() => {
@@ -72,6 +79,7 @@ const Navbar = () => {
       ) {
         setShowSuggestions(false);
         setShowDropdown(false);
+        setIsSearchFocused(false);
       }
     };
 
@@ -94,6 +102,8 @@ const Navbar = () => {
     
     if (type === 'artist') {
       navigate(`/artist/${item._id || item.id}`);
+    } else if (type === 'user') {
+      navigate(`/user/${item._id || item.id}`);
     } else if (type === 'album') {
       navigate(`/album/${item._id || item.id}`);
     } else if (type === 'song') {
@@ -103,13 +113,19 @@ const Navbar = () => {
   };
 
   const handleInputChange = (e) => {
-    setSearchQuery(e.target.value);
-    if (location.pathname.startsWith('/search') || location.pathname.startsWith('/store')) {
+    const nextValue = e.target.value;
+    setSearchQuery(nextValue);
+    const onResultsPage = location.pathname.startsWith('/search') || location.pathname.startsWith('/store');
+    if (onResultsPage) {
       setShowSuggestions(false);
+      return;
     }
+
+    setShowSuggestions(nextValue.trim().length >= 2 && isSearchFocused);
   };
 
   const handleInputFocus = () => {
+    setIsSearchFocused(true);
     const allowSuggestions = !location.pathname.startsWith('/search') && !location.pathname.startsWith('/store');
     if (!allowSuggestions) {
       setShowSuggestions(false);
@@ -137,6 +153,12 @@ const Navbar = () => {
               value={searchQuery}
               onChange={handleInputChange}
               onFocus={handleInputFocus}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  setIsSearchFocused(false);
+                  setShowSuggestions(false);
+                }, 120);
+              }}
               className="w-full py-2 lg:py-3 pl-10 lg:pl-12 pr-4 rounded-xl bg-light-gray text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-neon-blue focus:bg-dark-gray transition-all duration-200 text-sm lg:text-base"
             />
             <SearchIcon className="absolute left-3 lg:left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
@@ -147,7 +169,12 @@ const Navbar = () => {
             <SearchSuggestions
               suggestions={suggestions}
               isLoading={isLoading}
-              isVisible={showSuggestions && !location.pathname.startsWith('/search')}
+              isVisible={
+                showSuggestions &&
+                searchQuery.trim().length >= 2 &&
+                !location.pathname.startsWith('/search') &&
+                !location.pathname.startsWith('/store')
+              }
               onSuggestionClick={handleSuggestionClick}
               onClose={() => setShowSuggestions(false)}
             />

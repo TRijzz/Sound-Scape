@@ -141,7 +141,7 @@ const HomePage = () => {
   React.useEffect(() => {
     let cancelled = false;
 
-    const loadRecommendations = async () => {
+    const loadRecommendations = async () => {         
       if (!isAuthenticated) {
         setRecommendationData({ title: 'Recommended for everyone', reason: 'Popular picks from the catalog', tracks: [] });
         return;
@@ -149,7 +149,7 @@ const HomePage = () => {
 
       try {
         setRecommendationsLoading(true);
-        const data = await apiService.getPersonalizedRecommendations(6);
+        const data = await apiService.getPersonalizedRecommendations(6);        //Recomendation in frontend
         if (!cancelled) {
           setRecommendationData({
             title: data?.title || 'Because you listened to…',

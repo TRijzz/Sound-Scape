@@ -95,13 +95,13 @@ export const usePopularAlbums = (limit = 20) => {
 
 // Hook for search functionality
 export const useSearch = () => {
-  const [searchResults, setSearchResults] = useState({ artists: [], songs: [], albums: [] });
+  const [searchResults, setSearchResults] = useState({ artists: [], songs: [], albums: [], users: [], categories: [] });
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
 
   const search = useCallback(async (query, limit = 20) => {
     if (!query.trim()) {
-      setSearchResults({ artists: [], songs: [], albums: [] });
+      setSearchResults({ artists: [], songs: [], albums: [], users: [], categories: [] });
       return;
     }
 

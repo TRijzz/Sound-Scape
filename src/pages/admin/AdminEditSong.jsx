@@ -5,6 +5,7 @@ import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 import { formatDurationFromMs, readAudioDurationFromFile, readAudioDurationFromUrl } from '../../utils/audioDuration';
+import { isAdminVisibleAlbum, isAdminVisibleArtist } from '../../utils/adminVisibility';
 
 const DEFAULT_LANGUAGES = ['English', 'Nepali', 'Hindi', 'Spanish', 'French', 'Korean'];
 
@@ -20,7 +21,6 @@ const toDisplayGenre = (value) => {
 
 const uniqueSorted = (values) => Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
   .sort((left, right) => left.localeCompare(right));
-const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
 
 export default function AdminEditSong() {
   const { id } = useParams();
@@ -105,7 +105,7 @@ export default function AdminEditSong() {
         const songsList = songsRes?.songs || (Array.isArray(songsRes) ? songsRes : []);
 
         setAllArtists(artistsList.filter(isAdminVisibleArtist));
-        setAllAlbums(albumsList);
+        setAllAlbums(albumsList.filter(isAdminVisibleAlbum));
 
         const artistNames = (Array.isArray(song.artists) ? song.artists : [])
           .map((artist) => {

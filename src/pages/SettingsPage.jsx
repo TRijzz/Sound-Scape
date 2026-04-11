@@ -6,7 +6,11 @@ import apiService from '../services/api';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 
 const SettingsPage = ({ defaultTab = 'profile' }) => {
-  const { user, logout, syncCurrentUser } = useMusic();
+  const { user, logout, syncCurrentUser, followedArtistIds } = useMusic();
+  const userId = user?._id || user?.id || '';
+  const userName = user?.name || '';
+  const userBio = user?.bio || '';
+  const userAvatar = user?.avatar_url || user?.avatar || '';
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [analytics, setAnalytics] = useState(null);
@@ -62,15 +66,51 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [followedArtists, setFollowedArtists] = useState([]);
+    const [followedArtistsLoading, setFollowedArtistsLoading] = useState(false);
 
     useEffect(() => {
       setProfileData({
-        name: user?.name || '',
-        bio: user?.bio || '',
-        avatar: user?.avatar_url || user?.avatar || ''
+        name: userName,
+        bio: userBio,
+        avatar: userAvatar
       });
       setAvatarFile(null);
-    }, []);
+    }, [userName, userBio, userAvatar]);
+
+    useEffect(() => {
+      let cancelled = false;
+
+      const loadFollowedArtists = async () => {
+        if (!userId) {
+          setFollowedArtists([]);
+          return;
+        }
+
+        try {
+          setFollowedArtistsLoading(true);
+          const data = await apiService.getFollowedArtists();
+          if (!cancelled) {
+            setFollowedArtists(Array.isArray(data) ? data : []);
+          }
+        } catch (loadError) {
+          if (!cancelled) {
+            console.error('Failed to load followed artists:', loadError);
+            setFollowedArtists([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setFollowedArtistsLoading(false);
+          }
+        }
+      };
+
+      loadFollowedArtists();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [userId, followedArtistIds]);
 
     const handleChange = (e) => {
       const { name, value } = e.target;
@@ -89,7 +129,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
       if (!file) {
         setProfileData((prev) => ({
           ...prev,
-          avatar: user?.avatar_url || user?.avatar || ''
+          avatar: userAvatar
         }));
         return;
       }
@@ -194,6 +234,49 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
           >
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
+
+          <div className="mt-8 border-t border-gray-700 pt-8">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h4 className="text-lg font-medium text-white">Followed Artists</h4>
+                <p className="text-sm text-gray-400">Artists you are following will appear here.</p>
+              </div>
+              <span className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300">
+                {followedArtists.length} followed
+              </span>
+            </div>
+
+            {followedArtistsLoading ? (
+              <p className="text-sm text-gray-400">Loading followed artists...</p>
+            ) : followedArtists.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {followedArtists.map((artist) => (
+                  <div
+                    key={artist._id || artist.id}
+                    className="flex items-center gap-3 rounded-xl border border-gray-700 bg-black/20 px-4 py-3"
+                  >
+                    <img
+                      src={
+                        apiService.resolveMediaUrl(
+                          artist?.images?.[0]?.url || artist?.image_url || albumArtPlaceholder
+                        )
+                      }
+                      alt={artist.name || 'Artist'}
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">{artist.name || 'Unknown Artist'}</p>
+                      <p className="truncate text-xs text-gray-400">
+                        {artist.followers?.total ? `${artist.followers.total.toLocaleString()} followers` : 'Followed artist'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No followed artists yet. Follow artists from their page to see them here.</p>
+            )}
+          </div>
         </div>
       </div>
     );

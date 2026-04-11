@@ -4,13 +4,13 @@ import AdminLayout from './AdminLayout';
 import apiService from '../../services/api';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
+import {
+  getAdminEntityId,
+  isAdminVisibleAlbum,
+  isAdminVisibleArtist,
+  isAdminVisibleSong
+} from '../../utils/adminVisibility';
 
-const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
-const getArtistEntityId = (artist) => {
-  if (!artist) return '';
-  if (typeof artist === 'string') return artist;
-  return String(artist._id || artist.id || '');
-};
 const getAlbumTrackCount = (counts, album) => counts[album._id || album.id] || 0;
 
 export default function AdminVinyls() {
@@ -42,7 +42,7 @@ export default function AdminVinyls() {
       albums
         .flatMap((album) => Array.isArray(album?.artists) ? album.artists : [])
         .filter((artist) => !isAdminVisibleArtist(artist))
-        .map((artist) => getArtistEntityId(artist))
+        .map((artist) => getAdminEntityId(artist))
         .filter(Boolean)
     ),
     [albums]
@@ -61,12 +61,12 @@ export default function AdminVinyls() {
   const removeToast = (id) => setToasts((prev) => prev.filter((toast) => toast.id !== id));
 
   const isArtistAllowed = (artist) => {
-    const artistId = getArtistEntityId(artist);
+    const artistId = getAdminEntityId(artist);
     if (artistId && hiddenArtistIds.has(artistId)) return false;
     return showHiddenArtistContent || isAdminVisibleArtist(artist);
   };
 
-  const hasHiddenArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
+  const hasRestrictedArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
 
   const getAlbumArtistLabel = (album) => {
     const names = Array.isArray(album?.artists) ? album.artists.filter(isArtistAllowed).map((artist) => artist.name).filter(Boolean) : [];
@@ -82,7 +82,7 @@ export default function AdminVinyls() {
 
   const sortedAlbums = useMemo(() => {
     return [...albums]
-      .filter((album) => showHiddenArtistContent || !hasHiddenArtistLink(album?.artists))
+      .filter((album) => showHiddenArtistContent || !hasRestrictedArtistLink(album?.artists))
       .sort((left, right) => {
         const leftCount = getAlbumTrackCount(albumTrackCounts, left);
         const rightCount = getAlbumTrackCount(albumTrackCounts, right);
@@ -91,8 +91,17 @@ export default function AdminVinyls() {
       });
   }, [albums, albumTrackCounts, showHiddenArtistContent]);
 
+  const dropdownAlbums = useMemo(
+    () => sortedAlbums.filter(isAdminVisibleAlbum),
+    [sortedAlbums]
+  );
+  const dropdownSongs = useMemo(
+    () => songs.filter(isAdminVisibleSong),
+    [songs]
+  );
+
   const filteredVinyls = useMemo(
-    () => vinyls.filter((vinyl) => showHiddenArtistContent || !hasHiddenArtistLink(vinyl?.albumId?.artists)),
+    () => vinyls.filter((vinyl) => showHiddenArtistContent || !hasRestrictedArtistLink(vinyl?.albumId?.artists)),
     [vinyls, showHiddenArtistContent]
   );
 
@@ -330,7 +339,7 @@ export default function AdminVinyls() {
               <label className="text-xs text-gray-400">Link to Album</label>
               <select value={albumId} onChange={(e) => handleAlbumChange(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none appearance-none">
                 <option value="">None</option>
-                {sortedAlbums.map((album) => (
+                {dropdownAlbums.map((album) => (
                   <option key={album._id} value={album._id}>{formatAlbumOption(album, albumTrackCounts)}</option>
                 ))}
               </select>
@@ -350,7 +359,7 @@ export default function AdminVinyls() {
               <label className="text-xs text-gray-400">Link to Song</label>
               <select value={songId} onChange={(e) => setSongId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:border-neon-blue outline-none appearance-none">
                 <option value="">None</option>
-                {songs.map((song) => <option key={song._id} value={song._id}>{song.name}</option>)}
+                {dropdownSongs.map((song) => <option key={song._id} value={song._id}>{song.name}</option>)}
               </select>
             </div>
 
@@ -399,7 +408,7 @@ export default function AdminVinyls() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading vinyls...' : `${filteredVinyls.length} vinyls shown of ${vinyls.length}${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
+            {loading ? 'Loading vinyls...' : `${filteredVinyls.length} vinyls shown of ${vinyls.length}${selectedIds.length ? ` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${selectedIds.length} selected` : ''}`}
           </div>
           {selectedIds.length > 0 ? (
             <button onClick={bulkDeleteVinyls} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>

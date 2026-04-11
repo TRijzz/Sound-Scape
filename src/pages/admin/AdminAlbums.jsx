@@ -7,14 +7,9 @@ import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import DatePicker from '../../components/ui/DatePicker';
+import { getAdminEntityId, isAdminVisibleArtist } from '../../utils/adminVisibility';
 
 const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
-const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
-const getArtistEntityId = (artist) => {
-  if (!artist) return '';
-  if (typeof artist === 'string') return artist;
-  return String(artist._id || artist.id || '');
-};
 
 const getAlbumDisplayName = (album) => {
   if (album?.name === '\u00F7 (Deluxe)') return 'Divide Deluxe';
@@ -41,7 +36,7 @@ export default function AdminAlbums() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ type: 'all', artist: 'all', sort: 'recent' });
-  const [artistContentMode, setArtistContentMode] = useState('visible');
+  const [visibilityMode, setVisibilityMode] = useState('active');
   const [selectedIds, setSelectedIds] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -63,54 +58,50 @@ export default function AdminAlbums() {
   const [toasts, setToasts] = useState([]);
   const canCreate = useMemo(() => name.trim().length > 0 && !creating, [name, creating]);
   const visibleArtists = useMemo(() => artists.filter(isAdminVisibleArtist), [artists]);
-  const hiddenArtists = useMemo(() => artists.filter((artist) => !isAdminVisibleArtist(artist)), [artists]);
   const hiddenArtistIds = useMemo(
     () => new Set(artists.filter((artist) => !isAdminVisibleArtist(artist)).map((artist) => String(artist._id || artist.id || '')).filter(Boolean)),
     [artists]
   );
 
   const isArtistAllowed = (artist) => {
-    const artistId = getArtistEntityId(artist);
+    const artistId = getAdminEntityId(artist);
     if (artistId && hiddenArtistIds.has(artistId)) return false;
     return isAdminVisibleArtist(artist);
   };
 
   const albumArtistsText = (album) => (album?.artists || []).filter(isArtistAllowed).map((artist) => artist?.name).filter(Boolean).join(', ');
-  const hasHiddenArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
+  const hasRestrictedArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
+  const hiddenAlbumPredicate = (album) => isHiddenAlbum(album) || hasRestrictedArtistLink(album?.artists);
 
   const stats = useMemo(() => ({
     total: albums.length,
     withAudio: Object.values(trackCounts).filter((count) => count > 0).length,
     singles: albums.filter((album) => album.album_type === 'single').length,
     upcoming: albums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length,
-    hidden: albums.filter((album) => isHiddenAlbum(album)).length,
-    hiddenArtistAlbums: albums.filter((album) => hasHiddenArtistLink(album?.artists)).length
+    hidden: albums.filter((album) => hiddenAlbumPredicate(album)).length
   }), [albums, trackCounts]);
 
   const artistOptions = useMemo(
-    () => (artistContentMode === 'hidden' ? hiddenArtists : visibleArtists)
+    () => visibleArtists
       .map((artist) => artist.name)
       .filter(Boolean)
       .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' })),
-    [artistContentMode, hiddenArtists, visibleArtists]
+    [visibleArtists]
   );
 
   const filteredAlbums = useMemo(() => {
     const query = search.trim().toLowerCase();
     const next = albums.filter((album) => {
-      const hiddenLinked = hasHiddenArtistLink(album?.artists);
-      const matchesVisibility = artistContentMode === 'hidden' ? hiddenLinked : !hiddenLinked;
-      const hiddenArtistText = (album?.artists || []).filter((artist) => hiddenArtistIds.has(getArtistEntityId(artist))).map((artist) => artist?.name).filter(Boolean).join(', ');
-      const matchesSearch = !query || [getAlbumDisplayName(album), artistContentMode === 'hidden' ? hiddenArtistText : albumArtistsText(album)]
+      const isHiddenEntry = hiddenAlbumPredicate(album);
+      const matchesHiddenState = visibilityMode === 'hidden' ? isHiddenEntry : !isHiddenEntry;
+      const rawArtistText = (album?.artists || []).map((artist) => artist?.name).filter(Boolean).join(', ');
+      const matchesSearch = !query || [getAlbumDisplayName(album), visibilityMode === 'hidden' ? rawArtistText : albumArtistsText(album)]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query));
       const matchesType = filters.type === 'all' || album.album_type === filters.type;
       const matchesArtist = filters.artist === 'all'
-        || (album.artists || []).some((artist) => String(artist?.name || '').toLowerCase() === filters.artist.toLowerCase()
-          && (artistContentMode === 'hidden'
-            ? hiddenArtistIds.has(getArtistEntityId(artist))
-            : isArtistAllowed(artist)));
-      return matchesVisibility && matchesSearch && matchesType && matchesArtist;
+        || (album.artists || []).some((artist) => String(artist?.name || '').toLowerCase() === filters.artist.toLowerCase());
+      return matchesHiddenState && matchesSearch && matchesType && matchesArtist;
     });
 
     const sorted = [...next];
@@ -122,7 +113,7 @@ export default function AdminAlbums() {
       sorted.sort((left, right) => new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime());
     }
     return sorted;
-  }, [albumArtistsText, albums, artistContentMode, filters, hiddenArtistIds, search]);
+  }, [albumArtistsText, albums, filters, search, visibilityMode]);
   const filteredAlbumIds = filteredAlbums.map((album) => String(album._id || album.id));
   const allFilteredSelected = filteredAlbumIds.length > 0 && filteredAlbumIds.every((id) => selectedIds.includes(id));
 
@@ -332,7 +323,7 @@ export default function AdminAlbums() {
 
   useEffect(() => {
     setSelectedIds([]);
-  }, [artistContentMode]);
+  }, [visibilityMode]);
 
   return (
     <AdminLayout>
@@ -347,26 +338,37 @@ export default function AdminAlbums() {
             </div>
             <button onClick={() => setDrawerOpen(true)} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add album</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-6">
+          <div className="mt-6 grid gap-3 md:grid-cols-5">
             {[
               ['Total albums', stats.total],
               ['With audio', stats.withAudio],
               ['Singles', stats.singles],
               ['Upcoming', stats.upcoming],
-              ['Hidden albums', stats.hidden],
-              ['Hidden artist albums', stats.hiddenArtistAlbums]
+              ['Hidden albums', stats.hidden]
             ].map(([label, value]) => {
-              const isHiddenCard = label === 'Hidden artist albums';
+              const isVisibilityCard = label === 'Hidden albums';
+              const isResetCard = label === 'Total albums';
               return (
               <button
                 type="button"
                 key={label}
-                onClick={isHiddenCard ? () => setArtistContentMode((prev) => (prev === 'hidden' ? 'visible' : 'hidden')) : undefined}
-                className={`rounded-2xl border p-4 text-left ${isHiddenCard && artistContentMode === 'hidden' ? 'border-neon-blue/50 bg-neon-blue/10' : 'border-white/10 bg-black/20'} ${isHiddenCard ? 'transition hover:border-neon-blue/40 hover:bg-neon-blue/5' : ''}`}
+                onClick={
+                  isVisibilityCard
+                    ? () => setVisibilityMode((prev) => (prev === 'hidden' ? 'active' : 'hidden'))
+                    : isResetCard
+                      ? () => { setVisibilityMode('active'); }
+                      : undefined
+                }
+                className={`rounded-2xl border p-4 text-left ${
+                  isVisibilityCard && visibilityMode === 'hidden'
+                    ? 'border-neon-blue/50 bg-neon-blue/10'
+                    : 'border-white/10 bg-black/20'
+                } ${(isVisibilityCard || isResetCard) ? 'transition hover:border-neon-blue/40 hover:bg-neon-blue/5' : ''}`}
               >
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
                 <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-                {isHiddenCard ? <p className="mt-2 text-xs text-neon-blue">{artistContentMode === 'hidden' ? 'Showing only hidden artist albums' : 'Click to view hidden artist albums'}</p> : null}
+                {isVisibilityCard ? <p className="mt-2 text-xs text-neon-blue">{visibilityMode === 'hidden' ? 'Showing hidden albums, including hidden-artist albums' : 'Click to view hidden albums'}</p> : null}
+                {isResetCard ? <p className="mt-2 text-xs text-neon-blue">Click to return to active albums</p> : null}
               </button>
             );})}
           </div>
@@ -453,6 +455,7 @@ export default function AdminAlbums() {
                       ? 'border-red-500/30 bg-red-500/10 text-red-200'
                       : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
                   }`}>{isHiddenAlbum(album) ? 'Hidden' : 'Active'}</span>
+                  {hasRestrictedArtistLink(album?.artists) && !isHiddenAlbum(album) ? <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">Hidden artist</span> : null}
                   <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-white/10 px-3 py-1 text-xs capitalize text-gray-300">{album.album_type || 'album'}</span>
                 </div>
                 <div className="text-sm text-gray-300">{trackCounts[album._id || album.id] || 0}</div>
@@ -487,6 +490,7 @@ export default function AdminAlbums() {
                 <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5">Released {fmtDate(album.release_date)}</span>
                 <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5">Linked tracks {trackCounts[album._id || album.id] || 0}</span>
                 <span className={`rounded-xl border px-3 py-1.5 ${isHiddenAlbum(album) ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>{isHiddenAlbum(album) ? 'Hidden' : 'Active'}</span>
+                {hasRestrictedArtistLink(album?.artists) && !isHiddenAlbum(album) ? <span className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-amber-200">Hidden artist</span> : null}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button onClick={() => navigate(`/admin/albums/edit/${album._id || album.id}`)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Edit</button>
@@ -499,7 +503,7 @@ export default function AdminAlbums() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading albums...' : `${filteredAlbums.length} albums shown of ${albums.length}${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
+            {loading ? 'Loading albums...' : `${filteredAlbums.length} albums shown of ${albums.length}${selectedIds.length ? ` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${selectedIds.length} selected` : ''}`}
           </div>
           <button disabled={loading} onClick={load} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-white/5">
             Refresh

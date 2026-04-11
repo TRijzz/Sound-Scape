@@ -3,9 +3,7 @@ import { motion } from 'framer-motion';
 import AdminLayout from './AdminLayout';
 import apiService from '../../services/api';
 import { ToastContainer } from '../../components/ui/Toast';
-
-const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
-const hasHiddenArtistLink = (artists) => Array.isArray(artists) && artists.some((artist) => !isAdminVisibleArtist(artist));
+import { hasHiddenArtistLink, isAdminVisibleSong } from '../../utils/adminVisibility';
 
 export default function AdminLyrics() {
   const [items, setItems] = useState([]);
@@ -79,7 +77,7 @@ export default function AdminLyrics() {
       try {
         const res = await apiService.getSongs(1, 20, songSearch);
         const results = res?.songs || (Array.isArray(res) ? res : []);
-        setSongs(results.filter((song) => showHiddenArtistContent || !hasHiddenArtistLink(song?.artists)));
+        setSongs(results.filter((song) => isAdminVisibleSong(song)));
       } catch (err) {
         console.error('Song search failed', err);
         setSongs([]);
@@ -405,7 +403,7 @@ export default function AdminLyrics() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading lyrics...' : `${items.length} lyric records shown${selectedIds.length ? ` • ${selectedIds.length} selected` : ''}`}
+            {loading ? 'Loading lyrics...' : `${items.length} lyric records shown${selectedIds.length ? ` Ã¢â‚¬Â¢ ${selectedIds.length} selected` : ''}`}
           </div>
           {selectedIds.length > 0 ? (
             <button onClick={bulkDeleteLyrics} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>

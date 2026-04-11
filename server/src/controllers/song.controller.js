@@ -4,7 +4,7 @@ import { broadcastNotification } from './notification.controller.js'; // Added n
 import Artist from '../models/Artist.js';
 import Album from '../models/Album.js';
 import Lyric from '../models/Lyric.js';
-import LikedSong from '../models/LikedSong.js';
+import User from '../models/User.js';
 import { parseLRC } from '../utils/lrcParser.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
@@ -54,7 +54,7 @@ const buildUploadedAudioVisibilityClause = () => ({
   ]
 });
 
-const buildVisibleSongQuery = async (req, query = {}) => {
+const buildVisibleSongQuery = async (req, query = {}) => {        //Filters out hidden artists songs
   const baseQuery = isAdminRequest(req)
     ? query
     : (query && Object.keys(query).length > 0
@@ -481,7 +481,7 @@ export const createSong = async (req, res) => {
   }
 };
 
-export const getSongs = async (req, res) => {
+export const getSongs = async (req, res) => {       //Gets songs with filters 
   try {
     const { 
       page = 1, 
@@ -813,17 +813,16 @@ export const getPersonalizedRecommendations = async (req, res) => {
     const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 12, 24));
     const hiddenArtistIdSet = await buildHiddenArtistIdSet(req);
 
-    const [likedEntries, recentHistory] = await Promise.all([
-      LikedSong.find({ user: userId })
-        .sort({ createdAt: -1 })
-        .limit(20)
+    const [user, recentHistory] = await Promise.all([
+      User.findById(userId)
         .populate({
-          path: 'song',
+          path: 'likedSongs',
           populate: [
             { path: 'artists', select: 'name genres' },
             { path: 'album', select: 'name genres' }
           ]
         })
+        .select('likedSongs')
         .lean(),
       ListeningHistory.find({ user: userId })
         .sort({ played_at: -1 })
@@ -841,8 +840,7 @@ export const getPersonalizedRecommendations = async (req, res) => {
     const historySongs = recentHistory
       .map((entry) => entry.song)
       .filter((song) => song && !songHasHiddenArtist(song, hiddenArtistIdSet));
-    const likedSongs = likedEntries
-      .map((entry) => entry.song)
+    const likedSongs = (Array.isArray(user?.likedSongs) ? user.likedSongs : [])
       .filter((song) => song && !songHasHiddenArtist(song, hiddenArtistIdSet));
     const seedSongs = [...historySongs, ...likedSongs];
 

@@ -19,6 +19,8 @@ const userSchema = new mongoose.Schema(
     passwordResetTokenHash: { type: String, select: false, index: true },
     passwordResetExpires: { type: Date, select: false },
     likedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
+    followed_artists: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Artist' }],
+    followed_users: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     onboarded: { type: Boolean, default: false },
     preferred_genres: [{ type: String }],
     preferred_moods: [{ type: String }],

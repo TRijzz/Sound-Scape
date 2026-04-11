@@ -38,7 +38,7 @@ router.get('/spotify/:spotifyId', getSongBySpotifyId);
 router.get('/genre-stats', getGenreStats);
 router.get('/moods', getSongMoods);
 router.get('/audio-inventory', requireAdminOrAuth, getAudioInventory);
-router.get('/recommendations', requireAuth, getPersonalizedRecommendations);
+router.get('/recommendations', requireAuth, getPersonalizedRecommendations);   //Backend route for personalized recommendations
 router.get('/analytics/me', requireAuth, getListeningAnalytics);
 router.get('/:id', getSong);
 router.get('/:id/lyrics', getLyrics);

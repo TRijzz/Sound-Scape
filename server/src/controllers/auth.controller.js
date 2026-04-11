@@ -9,7 +9,7 @@ const recentSignups = new Map();
 const SIGNUP_RATE_LIMIT = 3; // Max attempts
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 
-export const register = async (req, res) => {
+export const register = async (req, res) => {        //Registers user and returns tokens  
   try {
     const { name, email, password, username, avatar_url } = req.body || {};
     
@@ -69,11 +69,11 @@ export const register = async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(user);
     user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
-    // Issue initial 6-digit verification code for UI flow
+    // Verification code generation for new users
     const code = (crypto.randomInt(100000, 999999)).toString();
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     user.emailVerificationCodeHash = codeHash;
-    user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes   //Expiry time for the code 
     await user.save();
 
     // In development, always use localhost:3000 for frontend
@@ -86,7 +86,7 @@ export const register = async (req, res) => {
     }
 
     try {
-      await sendMail({
+      await sendMail({          //Sends verification code to the user's email
         to: user.email,
         subject: 'Your verification code',
         html: `
@@ -118,7 +118,7 @@ export const register = async (req, res) => {
 
 export const signup = register;
 
-export const login = async (req, res) => {
+export const login = async (req, res) => {            //Logs user in and returns tokens
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
@@ -340,7 +340,7 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-export const resetPassword = async (req, res) => {
+export const resetPassword = async (req, res) => {      //Reset Password
   try {
     const { token, newPassword } = req.body || {};
     if (!token || !newPassword) return res.status(400).json({ message: 'Missing token or newPassword' });
@@ -398,7 +398,7 @@ export const resendVerification = async (req, res) => {
   res.json({ message: 'Verification code sent' });
 }
 
-// New: verify 6-digit code
+// Verify Email Code
 export const verifyEmailCode = async (req, res) => {
   const { email, code } = req.body || {};
   if (!email || !code) return res.status(400).json({ message: 'Email and code required' });

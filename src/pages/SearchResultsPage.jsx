@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import SongCard from '../components/ui/SongCard';
 import AlbumCard from '../components/ui/AlbumCard';
 import ArtistCard from '../components/ui/ArtistCard';
+import UserCard from '../components/ui/UserCard';
 import { useSearch } from '../hooks/useMusicData';
 import { useMusic } from '../contexts/MusicContext';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +16,7 @@ const SearchResultsPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('songs');
   const query = searchParams.get('q') || '';
+  const tabParam = searchParams.get('tab') || '';
   const { playTrack, isAuthenticated } = useMusic();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [genre, setGenre] = useState('');
@@ -25,6 +27,14 @@ const SearchResultsPage = () => {
   const [genreOptions, setGenreOptions] = useState([]);
   const [genreOptionsLoading, setGenreOptionsLoading] = useState(false);
   const [genreOptionsError, setGenreOptionsError] = useState(null);
+  const [category, setCategory] = useState('');
+  const [categorySongs, setCategorySongs] = useState([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [categoryError, setCategoryError] = useState(null);
+  const [categoryApplied, setCategoryApplied] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [categoryOptionsLoading, setCategoryOptionsLoading] = useState(false);
+  const [categoryOptionsError, setCategoryOptionsError] = useState(null);
   
   // Use the search hook to get real API data
   const { searchResults, searchLoading, searchError, search } = useSearch();
@@ -35,6 +45,15 @@ const SearchResultsPage = () => {
       search(query, 20);
     }
   }, [query, search]);
+
+  useEffect(() => {
+    const allowedTabs = new Set(['songs', 'artists', 'albums', 'users']);
+    if (allowedTabs.has(tabParam)) {
+      setActiveTab(tabParam);
+    } else {
+      setActiveTab('songs');
+    }
+  }, [tabParam]);
 
   useEffect(() => {
     let mounted = true;
@@ -55,6 +74,30 @@ const SearchResultsPage = () => {
       }
     };
     loadGenres();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadCategories = async () => {
+      setCategoryOptionsLoading(true);
+      setCategoryOptionsError(null);
+      try {
+        const categories = await apiService.getCategories();
+        const list = (Array.isArray(categories?.categories) ? categories.categories : Array.isArray(categories) ? categories : [])
+          .map((item) => String(item?.name || '').trim())
+          .filter(Boolean);
+        if (mounted) setCategoryOptions(list);
+      } catch (e) {
+        if (mounted) {
+          setCategoryOptionsError(e.message || 'Failed to load categories');
+          setCategoryOptions([]);
+        }
+      } finally {
+        if (mounted) setCategoryOptionsLoading(false);
+      }
+    };
+    loadCategories();
     return () => { mounted = false; };
   }, []);
 
@@ -126,6 +169,8 @@ const SearchResultsPage = () => {
       });
 
       setGenreSongs(dedup);
+      setCategoryApplied(false);
+      setCategorySongs([]);
       setActiveTab('songs');
       setGenreApplied(true);
     } catch (err) {
@@ -134,6 +179,32 @@ const SearchResultsPage = () => {
       setGenreApplied(true);
     } finally {
       setGenreLoading(false);
+    }
+  };
+
+  const applyCategoryFilter = async () => {
+    if (!category.trim()) {
+      setCategorySongs([]);
+      setCategoryApplied(false);
+      return;
+    }
+    try {
+      setCategoryLoading(true);
+      setCategoryError(null);
+      const selected = category.trim();
+      const response = await apiService.getSongs(1, 24, '', '', '', '', '', '-popularity', '', '', '', selected);
+      const songs = Array.isArray(response?.songs) ? response.songs : Array.isArray(response) ? response : [];
+      setCategorySongs(songs);
+      setGenreApplied(false);
+      setGenreSongs([]);
+      setActiveTab('songs');
+      setCategoryApplied(true);
+    } catch (err) {
+      setCategoryError(err.message || 'Failed to load songs');
+      setCategorySongs([]);
+      setCategoryApplied(true);
+    } finally {
+      setCategoryLoading(false);
     }
   };
 
@@ -163,13 +234,25 @@ const SearchResultsPage = () => {
   };
 
   const tabs = [
-    { id: 'songs', label: 'Songs', count: genreApplied ? genreSongs.length : searchResults.songs.length },
+    { id: 'songs', label: 'Songs', count: genreApplied ? genreSongs.length : categoryApplied ? categorySongs.length : searchResults.songs.length },
     { id: 'artists', label: 'Artists', count: searchResults.artists.length },
-    { id: 'albums', label: 'Albums', count: searchResults.albums.length }
+    { id: 'albums', label: 'Albums', count: searchResults.albums.length },
+    { id: 'users', label: 'Users', count: searchResults.users?.length || 0 }
   ];
 
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    const nextParams = new URLSearchParams(searchParams);
+    if (tabId === 'songs') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tabId);
+    }
+    setSearchParams(nextParams);
+  };
+
   const renderContent = () => {
-    if (searchLoading || (genreApplied && genreLoading && activeTab === 'songs')) {
+    if (searchLoading || (genreApplied && genreLoading && activeTab === 'songs') || (categoryApplied && categoryLoading && activeTab === 'songs')) {
       if (activeTab === 'songs') {
         return (
           <div className="space-y-2">
@@ -206,11 +289,11 @@ const SearchResultsPage = () => {
     switch (activeTab) {
       case 'songs':
         {
-          const songsToRender = genreApplied ? genreSongs : searchResults.songs;
+          const songsToRender = genreApplied ? genreSongs : categoryApplied ? categorySongs : searchResults.songs;
           if (!songsToRender || songsToRender.length === 0) {
             return (
               <div className="text-center py-8 text-gray-400">
-                {genreApplied ? 'No songs found for selected genre' : 'No songs found'}
+                {genreApplied ? 'No songs found for selected genre' : categoryApplied ? 'No songs found for selected category' : 'No songs found'}
               </div>
             );
           }
@@ -253,6 +336,18 @@ const SearchResultsPage = () => {
             ))}
           </div>
         );
+      case 'users':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(searchResults.users || []).map((user, index) => (
+              <UserCard
+                key={user._id || user.id}
+                user={user}
+                index={index}
+              />
+            ))}
+          </div>
+        );
       default:
         return null;
     }
@@ -271,7 +366,7 @@ const SearchResultsPage = () => {
             <SearchIcon className="w-6 h-6 text-neon-blue" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Search</h1>
-          <p className="text-gray-400">Start typing in the search bar to find songs, artists, and albums</p>
+          <p className="text-gray-400">Start typing in the search bar to find songs, artists, albums, and users</p>
         </motion.div>
 
         <motion.div
@@ -344,6 +439,56 @@ const SearchResultsPage = () => {
           )}
         </motion.section>
 
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.18 }}
+          className="mb-8"
+        >
+          <h2 className="text-lg font-semibold text-white mb-3">Filter songs by category</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <select
+              className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+            >
+              <option value="">Select category</option>
+              {categoryOptions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <button
+              onClick={applyCategoryFilter}
+              className="px-3 py-2 rounded-lg bg-neon-blue text-dark-bg"
+            >
+              Apply
+            </button>
+            {categoryLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>}
+            {categoryOptionsLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading categories...</div>}
+          </div>
+          {categoryError && <div className="text-sm text-red-400">{categoryError}</div>}
+          {categoryOptionsError && <div className="text-sm text-red-400">{categoryOptionsError}</div>}
+          {categoryApplied && !categoryLoading && (
+            <div className="mt-4 bg-light-gray/50 rounded-xl p-4">
+              {categorySongs.length > 0 ? (
+                <div className="space-y-2">
+                  {categorySongs.map((song, index) => (
+                    <SongCard
+                      key={song._id || song.id}
+                      song={song}
+                      index={index}
+                      showAlbum={true}
+                      onClick={() => handleTrackSelect(song)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">No songs found for selected category</div>
+              )}
+            </div>
+          )}
+        </motion.section>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -389,7 +534,7 @@ const SearchResultsPage = () => {
           Search results for "{query}"
         </h1>
         <p className="text-gray-400">
-          Found {searchResults.songs.length + searchResults.artists.length + searchResults.albums.length} results
+          Found {searchResults.songs.length + searchResults.artists.length + searchResults.albums.length + (searchResults.users?.length || 0)} results
         </p>
       </motion.div>
 
@@ -424,6 +569,37 @@ const SearchResultsPage = () => {
         {genreOptionsError && <div className="text-sm text-red-400">{genreOptionsError}</div>}
       </motion.section>
 
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.06 }}
+        className="mb-6"
+      >
+        <h2 className="text-lg font-semibold text-white mb-3">Filter songs by category</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <select
+            className="px-3 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700"
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+          >
+            <option value="">Select category</option>
+            {categoryOptions.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <button
+            onClick={applyCategoryFilter}
+            className="px-3 py-2 rounded-lg bg-neon-blue text-dark-bg"
+          >
+            Apply
+          </button>
+          {categoryLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>}
+          {categoryOptionsLoading && <div className="px-3 py-2 text-sm text-gray-400">Loading categories...</div>}
+        </div>
+        {categoryError && <div className="text-sm text-red-400">{categoryError}</div>}
+        {categoryOptionsError && <div className="text-sm text-red-400">{categoryOptionsError}</div>}
+      </motion.section>
+
       {/* Tabs */}
       <motion.div
         className="mb-6"
@@ -435,7 +611,7 @@ const SearchResultsPage = () => {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 activeTab === tab.id
                   ? 'bg-neon-blue text-dark-bg'
@@ -462,7 +638,8 @@ const SearchResultsPage = () => {
       {query && !searchLoading && !searchError && (
         searchResults.songs.length === 0 && 
         searchResults.artists.length === 0 && 
-        searchResults.albums.length === 0
+        searchResults.albums.length === 0 &&
+        (searchResults.users?.length || 0) === 0
       ) && (
         <motion.div
           className="text-center py-12"

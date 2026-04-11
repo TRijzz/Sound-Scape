@@ -1,8 +1,23 @@
 import User from '../models/User.js';
-import LikedSong from '../models/LikedSong.js';
 import Vinyl from '../models/Vinyl.js';
+import Artist from '../models/Artist.js';
+import Playlist from '../models/Playlist.js';
 
 const userIdFromRequest = (req) => req.user?.id || req.user?._id;
+const publicUserSelect = 'name username avatar_url bio preferred_genres';
+
+const mapPublicUser = (user) => {
+  if (!user) return null;
+  return {
+    _id: user._id,
+    id: user._id,
+    name: user.name,
+    username: user.username || '',
+    avatar_url: user.avatar_url || '',
+    bio: user.bio || '',
+    preferred_genres: Array.isArray(user.preferred_genres) ? user.preferred_genres : [],
+  };
+};
 
 const vinylPopulate = [
   {
@@ -30,9 +45,16 @@ const buildUserPayload = async (userId) => {
 
   if (!user) return null;
 
-  const likes = await LikedSong.find({ user: userId }).select('song').lean();
-  const likedSongs = likes.map((like) => like.song).filter(Boolean);
-  return { ...user, likedSongs };
+  const likedSongs = Array.isArray(user.likedSongs)
+    ? user.likedSongs.map((songId) => String(songId)).filter(Boolean)
+    : [];
+  const followedArtists = Array.isArray(user.followed_artists)
+    ? user.followed_artists.map((artistId) => String(artistId)).filter(Boolean)
+    : [];
+  const followedUsers = Array.isArray(user.followed_users)
+    ? user.followed_users.map((followedUserId) => String(followedUserId)).filter(Boolean)
+    : [];
+  return { ...user, likedSongs, followedArtists, followedUsers };
 };
 
 export const me = async (req, res) => {
@@ -46,6 +68,82 @@ export const getUsers = async (req, res) => {
     .populate(vinylPopulate)
     .lean();
   res.json(users);
+};
+
+export const searchPublicUsers = async (req, res) => {
+  const query = String(req.query?.q || req.query?.search || '').trim();
+  const limit = Math.max(1, Math.min(25, Number(req.query?.limit) || 10));
+
+  if (!query) {
+    return res.json({ users: [] });
+  }
+
+  const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const users = await User.find({
+    $or: [
+      { name: regex },
+      { username: regex },
+      { bio: regex }
+    ]
+  })
+    .select(publicUserSelect)
+    .sort({ name: 1 })
+    .limit(limit)
+    .lean();
+
+  res.json({ users: users.map(mapPublicUser).filter(Boolean) });
+};
+
+export const getPublicUser = async (req, res) => {
+  const { id } = req.params;
+  if (!id || (typeof id === 'string' && id.length !== 24)) {
+    return res.status(400).json({ message: 'Invalid user id' });
+  }
+
+  const user = await User.findById(id)
+    .select(`${publicUserSelect} followed_users`)
+    .populate({ path: 'followed_users', select: publicUserSelect })
+    .lean();
+
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  const [followerCount, publicPlaylistCount, followerUsers, publicPlaylists] = await Promise.all([
+    User.countDocuments({ followed_users: id }),
+    Playlist.countDocuments({ user: id, is_public: true }),
+    User.find({ followed_users: id })
+      .select(publicUserSelect)
+      .sort({ updatedAt: -1 })
+      .limit(12)
+      .lean(),
+    Playlist.find({ user: id, is_public: true })
+      .populate({ path: 'user', select: 'name username avatar_url' })
+      .populate({
+        path: 'songs',
+        populate: [
+          { path: 'album', select: 'name images' },
+          { path: 'artists', select: 'name spotify_id images' }
+        ]
+      })
+      .sort({ updatedAt: -1 })
+      .limit(8)
+      .lean()
+  ]);
+
+  const followingUsers = Array.isArray(user.followed_users)
+    ? user.followed_users.map(mapPublicUser).filter(Boolean)
+    : [];
+
+  res.json({
+    ...mapPublicUser(user),
+    stats: {
+      publicPlaylists: publicPlaylistCount,
+      followers: followerCount,
+      following: followingUsers.length,
+    },
+    publicPlaylists,
+    followers: followerUsers.map(mapPublicUser).filter(Boolean),
+    following: followingUsers,
+  });
 };
 
 export const getUser = async (req, res) => {
@@ -66,6 +164,8 @@ export const updateUser = async (req, res) => {
     avatar_url,
     bio,
     onboarded,
+    followed_artists,
+    followed_users,
     preferred_genres,
     preferred_moods,
     preferred_languages,
@@ -87,6 +187,37 @@ export const updateUser = async (req, res) => {
   if (typeof avatar_url === 'string') set.avatar_url = avatar_url;
   if (typeof bio === 'string') set.bio = bio.trim();
   if (typeof onboarded === 'boolean') set.onboarded = onboarded;
+  if (Array.isArray(followed_artists)) {
+    const normalizedArtistIds = Array.from(new Set(followed_artists.map((artistId) => String(artistId)).filter(Boolean)));
+    if (normalizedArtistIds.length > 0) {
+      const existingArtists = await Artist.find({ _id: { $in: normalizedArtistIds } }).select('_id').lean();
+      const existingArtistIds = new Set(existingArtists.map((artist) => String(artist._id)));
+      const invalidArtistIds = normalizedArtistIds.filter((artistId) => !existingArtistIds.has(artistId));
+      if (invalidArtistIds.length > 0) {
+        return res.status(400).json({ message: 'Some artist IDs are invalid', invalid_artist_ids: invalidArtistIds });
+      }
+    }
+    set.followed_artists = normalizedArtistIds;
+  }
+  if (Array.isArray(followed_users)) {
+    const normalizedRequesterId = String(requesterId);
+    const normalizedUserIds = Array.from(
+      new Set(
+        followed_users
+          .map((followedUserId) => String(followedUserId))
+          .filter((followedUserId) => followedUserId && followedUserId !== normalizedRequesterId)
+      )
+    );
+    if (normalizedUserIds.length > 0) {
+      const existingUsers = await User.find({ _id: { $in: normalizedUserIds } }).select('_id').lean();
+      const existingUserIds = new Set(existingUsers.map((user) => String(user._id)));
+      const invalidUserIds = normalizedUserIds.filter((followedUserId) => !existingUserIds.has(followedUserId));
+      if (invalidUserIds.length > 0) {
+        return res.status(400).json({ message: 'Some user IDs are invalid', invalid_user_ids: invalidUserIds });
+      }
+    }
+    set.followed_users = normalizedUserIds;
+  }
   if (Array.isArray(preferred_genres)) set.preferred_genres = preferred_genres.map(String);
   if (Array.isArray(preferred_moods)) set.preferred_moods = preferred_moods.map(String);
   if (Array.isArray(preferred_languages)) set.preferred_languages = preferred_languages.map(String);
@@ -104,7 +235,8 @@ export const updateUser = async (req, res) => {
   ).lean();
 
   if (!user) return res.status(404).json({ message: 'User not found' });
-  res.json(user);
+  const hydratedUser = await buildUserPayload(id);
+  res.json(hydratedUser || user);
 };
 
 export const deleteUser = async (req, res) => {
@@ -117,36 +249,44 @@ export const deleteUser = async (req, res) => {
   res.json({ success: true });
 };
 
-export const getLikedSongs = async (req, res) => {
-  const likes = await LikedSong.find({ user: userIdFromRequest(req) })
+export const getLikedSongs = async (req, res) => {                  //Gets the liked songs of the user
+  const userId = userIdFromRequest(req);
+  const user = await User.findById(userId)
     .populate({
-      path: 'song',
+      path: 'likedSongs',
       populate: [
         { path: 'album', select: 'name images' },
         { path: 'artists', select: 'name spotify_id images' }
       ]
     })
     .lean();
-  const songs = likes.map((like) => like.song).filter(Boolean);
-  res.json(songs);
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  res.json(Array.isArray(user.likedSongs) ? user.likedSongs.filter(Boolean) : []);
 };
 
-export const likeSong = async (req, res) => {
+export const likeSong = async (req, res) => {               //Saves Liked Songs
   const { songId } = req.body || {};
   if (!songId) return res.status(400).json({ message: 'songId required' });
   try {
-    await LikedSong.updateOne(
-      { user: userIdFromRequest(req), song: songId },
-      { $setOnInsert: { user: userIdFromRequest(req), song: songId, createdAt: new Date() } },
-      { upsert: true }
-    );
-    res.json({ success: true });
+    const userId = userIdFromRequest(req);
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { likedSongs: songId } },
+      { new: true }
+    ).select('likedSongs').lean();
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({
+      success: true,
+      likedSongs: Array.isArray(user?.likedSongs)
+        ? user.likedSongs.map((likedSongId) => String(likedSongId)).filter(Boolean)
+        : []
+    });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Failed to like song' });
   }
 };
 
-export const purchaseVinyl = async (req, res) => {
+export const purchaseVinyl = async (req, res) => {          //Saves Purchased Vinyles
   const { vinylId } = req.body;
   const userId = userIdFromRequest(req);
 
@@ -182,14 +322,126 @@ export const purchaseVinyl = async (req, res) => {
   }
 };
 
-export const unlikeSong = async (req, res) => {
+export const unlikeSong = async (req, res) => {           //Removes Liked Songs
   const { songId } = req.body || {};
   if (!songId) return res.status(400).json({ message: 'songId required' });
-  await LikedSong.deleteOne({ user: userIdFromRequest(req), song: songId });
-  res.json({ success: true });
+  const userId = userIdFromRequest(req);
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $pull: { likedSongs: songId } },
+    { new: true }
+  ).select('likedSongs').lean();
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  res.json({
+    success: true,
+    likedSongs: Array.isArray(user?.likedSongs)
+      ? user.likedSongs.map((likedSongId) => String(likedSongId)).filter(Boolean)
+      : []
+  });
 };
 
-export const setActiveVinyl = async (req, res) => {
+export const getFollowedArtists = async (req, res) => {
+  const user = await User.findById(userIdFromRequest(req))
+    .populate({ path: 'followed_artists', select: 'name images image_url followers genres popularity' })
+    .lean();
+
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  res.json(Array.isArray(user.followed_artists) ? user.followed_artists : []);
+};
+
+export const followArtist = async (req, res) => {
+  const { artistId } = req.body || {};
+  if (!artistId) return res.status(400).json({ message: 'artistId required' });
+
+  const artist = await Artist.findById(artistId).select('_id').lean();
+  if (!artist) {
+    return res.status(404).json({ message: 'Artist not found' });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userIdFromRequest(req),
+    { $addToSet: { followed_artists: artistId } },
+    { new: true }
+  ).select('followed_artists').lean();
+
+  res.json({
+    success: true,
+    followedArtists: Array.isArray(user?.followed_artists)
+      ? user.followed_artists.map((followedArtistId) => String(followedArtistId)).filter(Boolean)
+      : []
+  });
+};
+
+export const unfollowArtist = async (req, res) => {
+  const { artistId } = req.body || {};
+  if (!artistId) return res.status(400).json({ message: 'artistId required' });
+
+  const user = await User.findByIdAndUpdate(
+    userIdFromRequest(req),
+    { $pull: { followed_artists: artistId } },
+    { new: true }
+  ).select('followed_artists').lean();
+
+  res.json({
+    success: true,
+    followedArtists: Array.isArray(user?.followed_artists)
+      ? user.followed_artists.map((followedArtistId) => String(followedArtistId)).filter(Boolean)
+      : []
+  });
+};
+
+export const followUser = async (req, res) => {
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ message: 'userId required' });
+
+  const requesterId = String(userIdFromRequest(req) || '');
+  const normalizedUserId = String(userId);
+
+  if (requesterId === normalizedUserId) {
+    return res.status(400).json({ message: 'You cannot follow yourself' });
+  }
+
+  const targetUser = await User.findById(normalizedUserId).select('_id').lean();
+  if (!targetUser) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    requesterId,
+    { $addToSet: { followed_users: normalizedUserId } },
+    { new: true }
+  ).select('followed_users').lean();
+
+  res.json({
+    success: true,
+    followedUsers: Array.isArray(user?.followed_users)
+      ? user.followed_users.map((followedUserId) => String(followedUserId)).filter(Boolean)
+      : []
+  });
+};
+
+export const unfollowUser = async (req, res) => {
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ message: 'userId required' });
+
+  const requesterId = String(userIdFromRequest(req) || '');
+  const normalizedUserId = String(userId);
+
+  const user = await User.findByIdAndUpdate(
+    requesterId,
+    { $pull: { followed_users: normalizedUserId } },
+    { new: true }
+  ).select('followed_users').lean();
+
+  res.json({
+    success: true,
+    followedUsers: Array.isArray(user?.followed_users)
+      ? user.followed_users.map((followedUserId) => String(followedUserId)).filter(Boolean)
+      : []
+  });
+};
+
+export const setActiveVinyl = async (req, res) => {         //Sets the Active Vinyl for the user
   const { vinylId } = req.body;
   const userId = userIdFromRequest(req);
 

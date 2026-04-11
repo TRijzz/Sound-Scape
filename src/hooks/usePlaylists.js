@@ -9,7 +9,7 @@ const broadcastPlaylistUpdate = (detail) => {
   window.dispatchEvent(new CustomEvent(PLAYLISTS_UPDATED_EVENT, { detail }));
 };
 
-export const usePlaylists = () => {
+export const usePlaylists = () => {                  //Loads Playlists of the user and loads it.
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(false);
   const { isAuthenticated, user } = useMusic();
@@ -77,7 +77,7 @@ export const usePlaylists = () => {
     return () => window.removeEventListener(PLAYLISTS_UPDATED_EVENT, handlePlaylistSync);
   }, []);
 
-  const createPlaylist = async (playlistData) => {
+  const createPlaylist = async (playlistData) => {                //Creates Playlist
     const createdResponse = await apiService.createPlaylist({
       name: playlistData.name,
       description: playlistData.description || '',
@@ -125,7 +125,7 @@ export const usePlaylists = () => {
     broadcastPlaylistUpdate({ type: 'delete', playlistId });
   };
 
-  const addSongsToPlaylist = async (playlistId, songs) => {
+  const addSongsToPlaylist = async (playlistId, songs) => {         //Adds songs to the playlist
     let latest = null;
     for (const song of songs) {
       const id = song._id || song.id;
@@ -138,7 +138,7 @@ export const usePlaylists = () => {
     return latest;
   };
 
-  const removeSongFromPlaylist = async (playlistId, songId) => {
+  const removeSongFromPlaylist = async (playlistId, songId) => {                //Removes songs from the playlist
     const updated = await apiService.removeSongFromPlaylist(playlistId, songId);
     setPlaylists(prev => prev.map(p => (getPlaylistId(p) === getPlaylistId(updated) ? updated : p)));
     broadcastPlaylistUpdate({ type: 'update', playlist: updated });

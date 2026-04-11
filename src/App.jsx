@@ -10,6 +10,7 @@ import NowPlayingFooter from './components/layout/NowPlayingFooter';
 import HomePage from './pages/HomePage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ArtistPage from './pages/ArtistPage';
+import UserProfilePage from './pages/UserProfilePage';
 import AlbumPage from './pages/AlbumPage';
 import GenrePage from './pages/GenrePage';
 import MoodBrowsePage from './pages/MoodBrowsePage';
@@ -109,6 +110,7 @@ function AppContent() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/search" element={<SearchResultsPage />} />
                 <Route path="/artist/:id" element={<ArtistPage />} />
+                <Route path="/user/:id" element={<UserProfilePage />} />
                 <Route path="/album/:id" element={<AlbumPage />} />
                 <Route path="/genre/:name" element={<GenrePage />} />
                 <Route path="/moods" element={<MoodBrowsePage />} />
@@ -124,7 +126,7 @@ function AppContent() {
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/verification-success" element={<VerificationSuccess />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/profile" element={<SettingsPage defaultTab="profile" />} />
+                <Route path="/profile" element={<UserProfilePage selfProfile />} />
                 <Route path="/account" element={<SettingsPage defaultTab="account" />} />
                 <Route path="/liked" element={<LikedSongs />} />
                 <Route path="/library" element={<LibraryPage />} />

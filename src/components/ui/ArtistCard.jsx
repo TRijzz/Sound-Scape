@@ -7,7 +7,13 @@ import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 import apiService from '../../services/api';
 
 const ArtistCard = ({ artist, index, isFollowing = false }) => {
-  const { playTrack, isAuthenticated, setShowAuthPrompt } = useMusic();
+  const {
+    playTrack,
+    isAuthenticated,
+    setShowAuthPrompt,
+    toggleFollowArtist,
+    isFollowingArtist
+  } = useMusic();
   const [imageSrc, setImageSrc] = useState(() => {
     const primary =
       (artist.images && Array.isArray(artist.images) && artist.images.length > 0 && artist.images[0]?.url)
@@ -52,9 +58,18 @@ const ArtistCard = ({ artist, index, isFollowing = false }) => {
   const handleFollow = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Toggle follow state
-    console.log('Toggle follow:', artist.name);
+    const artistId = artist._id || artist.id;
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+    if (artistId) {
+      toggleFollowArtist(artistId);
+    }
   };
+
+  const artistId = artist._id || artist.id;
+  const isArtistFollowed = artistId ? isFollowingArtist(artistId) : isFollowing;
 
   return (
     <motion.div
@@ -102,11 +117,11 @@ const ArtistCard = ({ artist, index, isFollowing = false }) => {
             </motion.div>
 
             {/* Follow Button */}
-            <button 
+              <button 
               onClick={handleFollow}
               className="absolute top-3 right-3 p-2 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
             >
-              {isFollowing ? (
+              {isArtistFollowed ? (
                 <FollowingIcon className="w-4 h-4 text-neon-blue" />
               ) : (
                 <FollowIcon className="w-4 h-4 text-white" />

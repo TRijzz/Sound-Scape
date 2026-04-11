@@ -182,7 +182,7 @@ class ApiService {
     this.artistVisibilityPromise = null;
   }
 
-  shouldSanitizePublicContent() {             //Hides hidden content filterinf in public
+  shouldSanitizePublicContent() {             //Hides unhidden content filterinf in public
     if (typeof window === 'undefined') return true;
     return !window.location.pathname.startsWith('/admin');
   }
@@ -712,6 +712,8 @@ class ApiService {
       let artistResults = [];
       let songResults = [];
       let albumResults = [];
+      let userResults = [];
+      let categoryResults = [];
       
       try {
         const artistsResponse = await this.fetchData(`/artists?search=${encodeURIComponent(formattedQuery)}&limit=${limit}`);
@@ -733,22 +735,42 @@ class ApiService {
         console.error('Album search failed:', err);
       }
 
+      try {
+        userResults = await this.searchUsers(formattedQuery, limit) || [];
+      } catch (err) {
+        console.error('User search failed:', err);
+      }
+
+      try {
+        const categoriesResponse = await this.getCategories(formattedQuery);
+        categoryResults = Array.isArray(categoriesResponse?.categories)
+          ? categoriesResponse.categories
+          : Array.isArray(categoriesResponse)
+            ? categoriesResponse
+            : [];
+      } catch (err) {
+        console.error('Category search failed:', err);
+      }
+
       const normalizedResults = {
         artists: await this.sanitizeArtists(Array.isArray(artistResults) ? artistResults : []),
         songs: await this.sanitizeSongs(Array.isArray(songResults) ? songResults : []),
-        albums: await this.sanitizeAlbums(Array.isArray(albumResults) ? albumResults : [])
+        albums: await this.sanitizeAlbums(Array.isArray(albumResults) ? albumResults : []),
+        users: Array.isArray(userResults) ? userResults : [],
+        categories: Array.isArray(categoryResults) ? categoryResults : []
       };
 
-      const totalHits = normalizedResults.artists.length + normalizedResults.songs.length + normalizedResults.albums.length;
+      const totalHits = normalizedResults.artists.length + normalizedResults.songs.length + normalizedResults.albums.length + normalizedResults.users.length + normalizedResults.categories.length;
       if (totalHits > 0) {
         return normalizedResults;
       }
 
       // Fuzzy fallback for typo-tolerant search
-      const [songsFallback, artistsFallback, albumsFallback] = await Promise.all([
+      const [songsFallback, artistsFallback, albumsFallback, categoriesFallback] = await Promise.all([
         this.getSongs(1, 200).catch(() => ({ songs: [] })),
         this.getArtists(1, 200).catch(() => ({ artists: [] })),
         this.getAlbums(1, 200).catch(() => ({ albums: [] })),
+        this.getCategories().catch(() => []),
       ]);
 
       const rankItems = (items, labelGetter) => (Array.isArray(items) ? items : [])
@@ -764,12 +786,14 @@ class ApiService {
       return {
         songs: await this.sanitizeSongs(rankItems(songsFallback?.songs || songsFallback || [], (song) => song?.name || song?.title || '')),
         artists: await this.sanitizeArtists(rankItems(artistsFallback?.artists || artistsFallback || [], (artist) => artist?.name || '')),
-        albums: await this.sanitizeAlbums(rankItems(albumsFallback?.albums || albumsFallback || [], (album) => album?.name || ''))
+        albums: await this.sanitizeAlbums(rankItems(albumsFallback?.albums || albumsFallback || [], (album) => album?.name || '')),
+        users: rankItems(userResults || [], (user) => user?.name || user?.username || ''),
+        categories: rankItems(categoriesFallback?.categories || categoriesFallback || [], (category) => category?.name || '')
       };
     } catch (error) {
       console.error('API searchAll error:', error);
       // Return empty results instead of throwing to prevent UI errors
-      return { artists: [], songs: [], albums: [] };
+      return { artists: [], songs: [], albums: [], users: [], categories: [] };
     }
   }
 
@@ -877,6 +901,38 @@ class ApiService {
     return this.fetchData('/users/me/likes', {
       method: 'DELETE',
       body: JSON.stringify({ songId })
+    });
+  }
+
+  async getFollowedArtists() {
+    return this.fetchData('/users/me/follows');
+  }
+
+  async followArtist(artistId) {
+    return this.fetchData('/users/me/follows', {
+      method: 'POST',
+      body: JSON.stringify({ artistId })
+    });
+  }
+
+  async unfollowArtist(artistId) {
+    return this.fetchData('/users/me/follows', {
+      method: 'DELETE',
+      body: JSON.stringify({ artistId })
+    });
+  }
+
+  async followUser(userId) {
+    return this.fetchData('/users/me/user-follows', {
+      method: 'POST',
+      body: JSON.stringify({ userId })
+    });
+  }
+
+  async unfollowUser(userId) {
+    return this.fetchData('/users/me/user-follows', {
+      method: 'DELETE',
+      body: JSON.stringify({ userId })
     });
   }
 
@@ -1112,6 +1168,15 @@ class ApiService {
 
   async getUsers() {
     return this.fetchData('/users');
+  }
+
+  async searchUsers(query, limit = 10) {
+    const response = await this.fetchData(`/users/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    return Array.isArray(response?.users) ? response.users : Array.isArray(response) ? response : [];
+  }
+
+  async getPublicUser(id) {
+    return this.fetchData(`/users/public/${id}`);
   }
 
   async updateUserVinyls(id, payload) {

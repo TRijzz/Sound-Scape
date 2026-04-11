@@ -41,7 +41,7 @@ export const readAudioDurationFromUrl = (src) => new Promise((resolve, reject) =
   audio.load();
 });
 
-export const readAudioDurationFromFile = async (file) => {
+export const readAudioDurationFromFile = async (file) => {        //Reads duration of audio file 
   if (!file) {
     throw new Error('No audio file provided');
   }

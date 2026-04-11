@@ -12,8 +12,13 @@ import apiService from '../services/api';
 const ArtistPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { playTrack, isAuthenticated, setShowAuthPrompt: setGlobalAuthPrompt } = useMusic();
-  const [isFollowing, setIsFollowing] = useState(false);
+  const {
+    playTrack,
+    isAuthenticated,
+    setShowAuthPrompt: setGlobalAuthPrompt,
+    toggleFollowArtist,
+    isFollowingArtist
+  } = useMusic();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   
   // Use the API hook to get real artist data
@@ -30,7 +35,7 @@ const ArtistPage = () => {
       setShowAuthPrompt(true);
       return;
     }
-    setIsFollowing(!isFollowing);
+    toggleFollowArtist(id);
   };
 
   const handleSignInRedirect = () => {
@@ -63,6 +68,8 @@ const ArtistPage = () => {
       </div>
     );
   }
+
+  const isFollowing = isFollowingArtist(id);
 
   return (
     <div className="min-h-screen pb-28">

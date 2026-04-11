@@ -5,6 +5,20 @@ import { getVinylImageSrc, vinylContainsTrack } from '../utils/vinyl';
 
 const MusicContext = createContext();
 
+const normalizeIdSet = (value) => new Set(
+  (Array.isArray(value) ? value : []).map(String).filter(Boolean)
+);
+
+const getFollowedArtistsFromUser = (user) => {
+  if (!user) return new Set();
+  return normalizeIdSet(user.followedArtists || user.followed_artists);
+};
+
+const getFollowedUsersFromUser = (user) => {
+  if (!user) return new Set();
+  return normalizeIdSet(user.followedUsers || user.followed_users);
+};
+
 const initialState = {
   currentTrack: null,
   isPlaying: false,
@@ -18,6 +32,8 @@ const initialState = {
   isAuthenticated: false,
   repeatMode: 'off',
   likedSongs: new Set(),
+  followedArtists: new Set(),
+  followedUsers: new Set(),
   purchasedVinyls: [],
   activeVinyl: null,
   showVinylOverlay: false,
@@ -48,6 +64,8 @@ function musicReducer(state, action) {
         user: action.payload,
         isAuthenticated: !!action.payload,
         likedSongs: action.payload?.likedSongs ? new Set(action.payload.likedSongs) : new Set(),
+        followedArtists: getFollowedArtistsFromUser(action.payload),
+        followedUsers: getFollowedUsersFromUser(action.payload),
         purchasedVinyls: action.payload?.purchased_vinyls || [],
         activeVinyl: action.payload?.active_vinyl || null,
         showVinylOverlay: false,
@@ -67,6 +85,36 @@ function musicReducer(state, action) {
       }
       return { ...state, likedSongs: newLikedSongs };
     }
+    case 'TOGGLE_FOLLOW_ARTIST': {
+      const artistId = String(action.payload || '');
+      const newFollowedArtists = new Set(state.followedArtists);
+      if (newFollowedArtists.has(artistId)) {
+        newFollowedArtists.delete(artistId);
+      } else if (artistId) {
+        newFollowedArtists.add(artistId);
+      }
+      return { ...state, followedArtists: newFollowedArtists };
+    }
+    case 'SET_FOLLOWED_ARTISTS':
+      return {
+        ...state,
+        followedArtists: normalizeIdSet(action.payload)
+      };
+    case 'TOGGLE_FOLLOW_USER': {
+      const userId = String(action.payload || '');
+      const newFollowedUsers = new Set(state.followedUsers);
+      if (newFollowedUsers.has(userId)) {
+        newFollowedUsers.delete(userId);
+      } else if (userId) {
+        newFollowedUsers.add(userId);
+      }
+      return { ...state, followedUsers: newFollowedUsers };
+    }
+    case 'SET_FOLLOWED_USERS':
+      return {
+        ...state,
+        followedUsers: normalizeIdSet(action.payload)
+      };
     case 'SET_REPEAT_MODE':
       return { ...state, repeatMode: action.payload };
     default:
@@ -386,6 +434,139 @@ export function MusicProvider({ children }) {
     }
   };
 
+  const toggleFollowArtist = async (artistId) => {
+    const normalizedArtistId = String(artistId || '');
+    if (!normalizedArtistId) return;
+
+    if (!stateRef.current.isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    const currentFollowedArtists = Array.from(stateRef.current.followedArtists).map(String).filter(Boolean);
+    const isCurrentlyFollowing = stateRef.current.followedArtists.has(normalizedArtistId);
+    const nextFollowedArtists = isCurrentlyFollowing
+      ? currentFollowedArtists.filter((followedArtistId) => followedArtistId !== normalizedArtistId)
+      : Array.from(new Set([...currentFollowedArtists, normalizedArtistId]));
+
+    dispatch({ type: 'TOGGLE_FOLLOW_ARTIST', payload: normalizedArtistId });
+
+    try {
+      let response;
+      try {
+        response = isCurrentlyFollowing
+          ? await apiService.unfollowArtist(normalizedArtistId)
+          : await apiService.followArtist(normalizedArtistId);
+      } catch (endpointError) {
+        const snapshot = stateRef.current;
+        if (!snapshot.user?._id && !snapshot.user?.id) {
+          throw endpointError;
+        }
+
+        const updatedUser = await apiService.updateUser(snapshot.user._id || snapshot.user.id, {
+          followed_artists: nextFollowedArtists
+        });
+        response = { followedArtists: updatedUser?.followedArtists || nextFollowedArtists };
+      }
+
+      if (Array.isArray(response?.followedArtists)) {
+        dispatch({ type: 'SET_FOLLOWED_ARTISTS', payload: response.followedArtists });
+      } else if (Array.isArray(response?.followed_artists)) {
+        dispatch({ type: 'SET_FOLLOWED_ARTISTS', payload: response.followed_artists });
+      } else {
+        dispatch({ type: 'SET_FOLLOWED_ARTISTS', payload: nextFollowedArtists });
+      }
+
+      try {
+        const refreshedUser = await apiService.getCurrentUser();
+        if (refreshedUser) {
+          const refreshedFollowedArtists = getFollowedArtistsFromUser(refreshedUser);
+          dispatch({
+            type: 'SET_USER',
+            payload: refreshedFollowedArtists.size || !stateRef.current.followedArtists.size
+              ? refreshedUser
+              : { ...refreshedUser, followedArtists: nextFollowedArtists }
+          });
+        }
+      } catch (refreshError) {
+        console.error('Failed to refresh user after updating followed artists:', refreshError);
+      }
+    } catch (error) {
+      console.error('Failed to toggle artist follow state:', error);
+      dispatch({ type: 'TOGGLE_FOLLOW_ARTIST', payload: normalizedArtistId });
+    }
+  };
+
+  const toggleFollowUser = async (userId) => {
+    const normalizedUserId = String(userId || '');
+    if (!normalizedUserId) return;
+
+    if (!stateRef.current.isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    const currentUserId = String(stateRef.current.user?._id || stateRef.current.user?.id || '');
+    if (!currentUserId || currentUserId === normalizedUserId) {
+      return;
+    }
+
+    const currentFollowedUsers = Array.from(stateRef.current.followedUsers).map(String).filter(Boolean);
+    const isCurrentlyFollowing = stateRef.current.followedUsers.has(normalizedUserId);
+    const nextFollowedUsers = isCurrentlyFollowing
+      ? currentFollowedUsers.filter((followedUserId) => followedUserId !== normalizedUserId)
+      : Array.from(new Set([...currentFollowedUsers, normalizedUserId]));
+
+    dispatch({ type: 'TOGGLE_FOLLOW_USER', payload: normalizedUserId });
+
+    try {
+      let response;
+      try {
+        response = isCurrentlyFollowing
+          ? await apiService.unfollowUser(normalizedUserId)
+          : await apiService.followUser(normalizedUserId);
+      } catch (endpointError) {
+        const snapshot = stateRef.current;
+        if (!snapshot.user?._id && !snapshot.user?.id) {
+          throw endpointError;
+        }
+
+        const updatedUser = await apiService.updateUser(snapshot.user._id || snapshot.user.id, {
+          followed_users: nextFollowedUsers
+        });
+        response = {
+          followedUsers: updatedUser?.followedUsers || updatedUser?.followed_users || nextFollowedUsers
+        };
+      }
+
+      if (Array.isArray(response?.followedUsers)) {
+        dispatch({ type: 'SET_FOLLOWED_USERS', payload: response.followedUsers });
+      } else if (Array.isArray(response?.followed_users)) {
+        dispatch({ type: 'SET_FOLLOWED_USERS', payload: response.followed_users });
+      } else {
+        dispatch({ type: 'SET_FOLLOWED_USERS', payload: nextFollowedUsers });
+      }
+
+      try {
+        const refreshedUser = await apiService.getCurrentUser();
+        if (refreshedUser) {
+          const refreshedFollowedUsers = getFollowedUsersFromUser(refreshedUser);
+          dispatch({
+            type: 'SET_USER',
+            payload: refreshedFollowedUsers.size || !stateRef.current.followedUsers.size
+              ? refreshedUser
+              : { ...refreshedUser, followedUsers: nextFollowedUsers }
+          });
+        }
+      } catch (refreshError) {
+        console.error('Failed to refresh user after updating followed users:', refreshError);
+      }
+    } catch (error) {
+      console.error('Failed to toggle user follow state:', error);
+      dispatch({ type: 'TOGGLE_FOLLOW_USER', payload: normalizedUserId });
+    }
+  };
+
   const setRepeatMode = (mode) => {
     dispatch({ type: 'SET_REPEAT_MODE', payload: mode });
   };
@@ -598,13 +779,19 @@ export function MusicProvider({ children }) {
     setProgress,
     setVolume,
     toggleLike,
+    toggleFollowArtist,
+    toggleFollowUser,
     setRepeatMode,
     shuffleEnabled: state.shuffleEnabled,
     setShuffleEnabled,
     toggleShuffle,
     addToQueue,
     isLiked: (songId) => state.likedSongs.has(songId),
+    isFollowingArtist: (artistId) => state.followedArtists.has(String(artistId || '')),
+    isFollowingUser: (userId) => state.followedUsers.has(String(userId || '')),
     likedSongsIds: Array.from(state.likedSongs),
+    followedArtistIds: Array.from(state.followedArtists),
+    followedUserIds: Array.from(state.followedUsers),
     setQueue,
     login,
     logout,

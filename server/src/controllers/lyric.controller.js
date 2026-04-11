@@ -98,7 +98,7 @@ export const getLyrics = async (req, res) => {      //Fetches Lyrics from local 
         lyrics = await Lyric.findOne({ song: objectId });
     }
 
-    const localLyricsFile = findLocalLyricsFile(song);
+    const localLyricsFile = findLocalLyricsFile(song);    
     const shouldUseLocalFile = !!localLyricsFile && (!lyrics || !lyrics.synced || !hasUsableSyncedLines(lyrics.lines));
 
     if (shouldUseLocalFile) {
@@ -200,7 +200,7 @@ export const createOrUpdateLyrics = async (req, res) => {
   }
 };
 
-export const importLyricsFromFile = async (req, res) => {
+export const importLyricsFromFile = async (req, res) => {     //Import Lyrics by Admin and save it to the database
   try {
     const { songId } = req.params;
     
