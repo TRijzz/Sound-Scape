@@ -10,7 +10,7 @@ import { getVinylImageSrc, resolveVinylTracks } from '../utils/vinyl';
 const VinylPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { previewVinylExperience, purchasedVinyls, syncCurrentUser, isAuthenticated } = useMusic();
+  const { previewVinylExperience, purchasedVinyls, isAuthenticated } = useMusic();
 
   const [vinyl, setVinyl] = useState(null);
   const [relatedVinyls, setRelatedVinyls] = useState([]);
@@ -97,44 +97,26 @@ const VinylPage = () => {
     [relatedVinyls]
   );
   const hasEditionSwitcher = relatedVinyls.length > 1;
-  const unownedRelatedVinyls = useMemo(() => {
-    return availableRelatedVinyls.filter((edition) => {
-      const editionId = String(edition._id || edition.id || '');
-      return !(purchasedVinyls || []).some((ownedVinyl) => String(ownedVinyl._id || ownedVinyl.id || '') === editionId);
-    });
-  }, [availableRelatedVinyls, purchasedVinyls]);
-  const ownsEntireSet = unownedRelatedVinyls.length === 0 && availableRelatedVinyls.length > 0;
-  const missingBundlePrice = useMemo(
-    () => unownedRelatedVinyls.reduce((sum, edition) => sum + Number(edition?.price || 0), 0),
-    [unownedRelatedVinyls]
-  );
-
   const handlePurchase = async () => {
     if (!vinyl) return;
 
-    if (ownsEntireSet) {
+    if (ownsCurrentEdition) {
       navigate('/library');
       return;
     }
 
     setPurchasePending(true);
     try {
-      const editionsToPurchase = unownedRelatedVinyls.length > 0 ? unownedRelatedVinyls : [vinyl];
-      for (const edition of editionsToPurchase) {
-        await apiService.purchaseVinyl(edition._id || edition.id);
+      const response = await apiService.initiateKhaltiVinylPayment(vinyl._id || vinyl.id);
+      if (!response?.payment_url) {
+        throw new Error('Khalti did not return a payment URL.');
       }
-      await syncCurrentUser();
-      showToast(
-        editionsToPurchase.length > 1
-          ? `Successfully purchased all ${editionsToPurchase.length} vinyl editions for ${vinyl.name}.`
-          : `Successfully purchased ${vinyl.name}. Added to your vinyl collection.`
-      );
+      window.location.assign(response.payment_url);
     } catch (err) {
       const message = err?.status === 401 && !isAuthenticated
-        ? 'Please log in to purchase this vinyl.'
-        : `Failed to purchase: ${err.message}`;
+        ? 'Please log in to pay with Khalti.'
+        : `Failed to start Khalti payment: ${err.message}`;
       showToast(message, 'error');
-    } finally {
       setPurchasePending(false);
     }
   };
@@ -313,12 +295,7 @@ const VinylPage = () => {
                     {relatedVinyls.length} editions in this set
                   </span>
                 )}
-                {ownsEntireSet && (
-                  <span className="px-3 py-1 bg-emerald-500/10 text-emerald-300 text-xs font-bold rounded-full uppercase tracking-wider border border-emerald-400/20">
-                    Full Set Owned
-                  </span>
-                )}
-                {!ownsEntireSet && ownsCurrentEdition && (
+                {ownsCurrentEdition && (
                   <span className="px-3 py-1 bg-amber-500/10 text-amber-200 text-xs font-bold rounded-full uppercase tracking-wider border border-amber-300/20">
                     This edition owned
                   </span>
@@ -335,7 +312,7 @@ const VinylPage = () => {
                   onClick={handlePurchase}
                   disabled={purchasePending || availableRelatedVinyls.length === 0}
                   className={`px-10 py-4 rounded-2xl font-black text-lg transition-all transform hover:scale-105 active:scale-95 flex items-center shadow-2xl ${
-                    ownsEntireSet
+                    ownsCurrentEdition
                       ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-400/20 hover:bg-emerald-500/20'
                       : availableRelatedVinyls.length > 0
                         ? 'bg-neon-blue text-dark-bg hover:bg-neon-blue/90 shadow-neon-blue/20'
@@ -345,14 +322,14 @@ const VinylPage = () => {
                   <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
-                  {ownsEntireSet
+                  {ownsCurrentEdition
                     ? 'Open in Collection'
                     : purchasePending
-                      ? 'Processing...'
+                      ? 'Redirecting to Khalti...'
                       : availableRelatedVinyls.length > 0
                         ? hasEditionSwitcher
-                          ? `${unownedRelatedVinyls.length !== availableRelatedVinyls.length ? 'Complete set' : 'Buy full set'} for $${missingBundlePrice.toFixed(2)}`
-                          : `Buy for $${Number(vinyl.price || 0).toFixed(2)}`
+                          ? `Buy this edition for Rs. ${Number(vinyl.price || 0).toFixed(2)}`
+                          : `Buy for Rs. ${Number(vinyl.price || 0).toFixed(2)}`
                         : 'Sold Out'}
                 </button>
 
@@ -369,7 +346,7 @@ const VinylPage = () => {
 
               {hasEditionSwitcher && (
                 <p className="text-sm text-gray-500 -mt-4 max-w-2xl">
-                  Buying from the store unlocks every vinyl edition for this album together. After purchase, choose which pressing to spin from your library.
+                  Choose an edition above before checkout. Khalti payment unlocks the selected pressing after verification.
                 </p>
               )}
 

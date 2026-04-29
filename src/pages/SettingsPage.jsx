@@ -239,11 +239,8 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>
                 <h4 className="text-lg font-medium text-white">Followed Artists</h4>
-                <p className="text-sm text-gray-400">Artists you are following will appear here.</p>
+                <p className="text-sm text-gray-400">Artists you follow will appear here.</p>
               </div>
-              <span className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300">
-                {followedArtists.length} followed
-              </span>
             </div>
 
             {followedArtistsLoading ? (
@@ -266,9 +263,7 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
                     />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-white">{artist.name || 'Unknown Artist'}</p>
-                      <p className="truncate text-xs text-gray-400">
-                        {artist.followers?.total ? `${artist.followers.total.toLocaleString()} followers` : 'Followed artist'}
-                      </p>
+                      <p className="truncate text-xs text-gray-400">Artist</p>
                     </div>
                   </div>
                 ))}

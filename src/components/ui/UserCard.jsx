@@ -76,7 +76,7 @@ const UserCard = ({ user, index = 0 }) => {
                   : 'bg-neon-blue text-dark-bg hover:bg-neon-blue/90'
               }`}
             >
-              {following ? 'Following' : 'Follow'}
+              {following ? 'Followed' : 'Follow'}
             </button>
           ) : null}
         </div>

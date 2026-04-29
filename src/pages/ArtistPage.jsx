@@ -121,9 +121,6 @@ const ArtistPage = () => {
                 <h1 className="text-5xl font-bold text-white mb-2">
                   {artist.name}
                 </h1>
-                <p className="text-gray-400 mb-4">
-                  {artist.followers?.total ? artist.followers.total.toLocaleString() : '0'} followers
-                </p>
                 <div className="flex items-center space-x-2 mb-6 relative z-20">
                   {(() => {
                     const list = Array.isArray(artist.genres) && artist.genres.length ? artist.genres : (() => {
@@ -177,7 +174,7 @@ const ArtistPage = () => {
                     ) : (
                       <FollowIcon className="w-5 h-5" />
                     )}
-                    <span>{isFollowing ? 'Following' : 'Follow'}</span>
+                    <span>{isFollowing ? 'Followed' : 'Follow'}</span>
                   </button>
                   
                   <button
@@ -256,7 +253,7 @@ const ArtistPage = () => {
                     artist.genres && artist.genres.length > 0
                       ? artist.genres.join(', ')
                       : 'various genres'
-                  }. ${artist.followers?.total ? `${artist.followers.total.toLocaleString()} followers` : 'Followers data not available'} and a popularity score of ${
+                  }. Popularity score: ${
                     typeof artist.popularity === 'number' ? artist.popularity : 'N/A'
                   }.`}
             </p>

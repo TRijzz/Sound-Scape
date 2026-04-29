@@ -107,8 +107,8 @@ const Navbar = () => {
     } else if (type === 'album') {
       navigate(`/album/${item._id || item.id}`);
     } else if (type === 'song') {
-      // For songs, we could navigate to search results or play the song
-      navigate(`/search?q=${encodeURIComponent(item.name)}`);
+      const albumId = item.album?._id || item.album?.id || item.albumId?._id || item.albumId || '';
+      navigate(albumId ? `/album/${albumId}` : `/search?q=${encodeURIComponent(item.name || item.title || '')}`);
     }
   };
 

@@ -13,6 +13,11 @@ const SearchSuggestions = ({
 }) => {
   if (!isVisible) return null;
 
+  const handleSelect = (event, type, item) => {
+    event.preventDefault();
+    onSuggestionClick(type, item);
+  };
+
   return (
     <AnimatePresence>
       <motion.div
@@ -38,7 +43,9 @@ const SearchSuggestions = ({
                   <motion.div
                     key={user._id || user.id}
                     className="flex items-center space-x-3 p-2 hover:bg-light-gray/50 rounded-lg cursor-pointer transition-colors"
-                    onClick={() => onSuggestionClick('user', user)}
+                    onMouseDown={(event) => handleSelect(event, 'user', user)}
+                    role="button"
+                    tabIndex={0}
                     whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                   >
                     <div className="w-8 h-8 rounded-full bg-light-gray overflow-hidden">
@@ -71,7 +78,9 @@ const SearchSuggestions = ({
                   <motion.div
                     key={artist._id || artist.id}
                     className="flex items-center space-x-3 p-2 hover:bg-light-gray/50 rounded-lg cursor-pointer transition-colors"
-                    onClick={() => onSuggestionClick('artist', artist)}
+                    onMouseDown={(event) => handleSelect(event, 'artist', artist)}
+                    role="button"
+                    tabIndex={0}
                     whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                   >
                     <div className="w-8 h-8 rounded-full bg-light-gray overflow-hidden">
@@ -102,7 +111,9 @@ const SearchSuggestions = ({
                   <motion.div
                     key={song._id || song.id}
                     className="flex items-center space-x-3 p-2 hover:bg-light-gray/50 rounded-lg cursor-pointer transition-colors"
-                    onClick={() => onSuggestionClick('song', song)}
+                    onMouseDown={(event) => handleSelect(event, 'song', song)}
+                    role="button"
+                    tabIndex={0}
                     whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                   >
                     <div className="w-8 h-8 rounded bg-light-gray overflow-hidden">
@@ -137,7 +148,9 @@ const SearchSuggestions = ({
                   <motion.div
                     key={album._id || album.id}
                     className="flex items-center space-x-3 p-2 hover:bg-light-gray/50 rounded-lg cursor-pointer transition-colors"
-                    onClick={() => onSuggestionClick('album', album)}
+                    onMouseDown={(event) => handleSelect(event, 'album', album)}
+                    role="button"
+                    tabIndex={0}
                     whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                   >
                     <div className="w-8 h-8 rounded bg-light-gray overflow-hidden">

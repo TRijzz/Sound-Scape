@@ -6,6 +6,7 @@ import Vinyl from '../models/Vinyl.js';
 const KHALTI_BASE_URL = (process.env.KHALTI_BASE_URL || 'https://dev.khalti.com/api/v2').replace(/\/+$/, '');
 const KHALTI_SECRET_KEY = process.env.KHALTI_SECRET_KEY || '';
 const DEFAULT_APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
+const KHALTI_REQUEST_TIMEOUT_MS = 12000;
 
 const userIdFromRequest = (req) => req.user?.id || req.user?._id;
 
@@ -42,11 +43,27 @@ const khaltiHeaders = () => {
 };
 
 const callKhalti = async (path, payload) => {
-  const response = await fetch(`${KHALTI_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: khaltiHeaders(),
-    body: JSON.stringify(payload),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KHALTI_REQUEST_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(`${KHALTI_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: khaltiHeaders(),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('Khalti request timed out. Please retry verification in a moment.');
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const raw = await response.text();
   let data = null;

@@ -86,20 +86,15 @@ const UserProfilePage = ({ selfProfile = false }) => {
     isAuthenticated,
     isFollowingUser,
     toggleFollowUser,
-    setShowAuthPrompt,
-    followedUserIds
+    setShowAuthPrompt
   } = useMusic();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [ownPlaylists, setOwnPlaylists] = useState([]);
-  const [ownFollowedArtists, setOwnFollowedArtists] = useState([]);
-  const [ownFollowedUsers, setOwnFollowedUsers] = useState([]);
   const [expandedSections, setExpandedSections] = useState({
-    playlists: false,
-    followers: false,
-    following: false
+    playlists: false
   });
 
   useEffect(() => {
@@ -142,49 +137,35 @@ const UserProfilePage = ({ selfProfile = false }) => {
   useEffect(() => {
     let cancelled = false;
 
-    const loadOwnData = async () => {
+    const loadOwnPlaylists = async () => {
       const targetId = selfProfile ? (currentUser?._id || currentUser?.id || '') : id;
       const currentUserId = currentUser?._id || currentUser?.id || '';
       const shouldLoadOwnProfileData = isAuthenticated && targetId && String(targetId) === String(currentUserId);
 
       if (!shouldLoadOwnProfileData) {
         setOwnPlaylists([]);
-        setOwnFollowedArtists([]);
-        setOwnFollowedUsers([]);
         return;
       }
 
       try {
-        const [playlists, artists, users] = await Promise.all([
-          apiService.getMyPlaylists().catch(() => []),
-          apiService.getFollowedArtists().catch(() => []),
-          Promise.all(
-            (Array.isArray(followedUserIds) ? followedUserIds : []).map((followedUserId) =>
-              apiService.getPublicUser(followedUserId).catch(() => null)
-            )
-          ).catch(() => [])
-        ]);
+        const playlists = await apiService.getMyPlaylists().catch(() => []);
 
         if (!cancelled) {
           setOwnPlaylists(Array.isArray(playlists) ? playlists : []);
-          setOwnFollowedArtists(Array.isArray(artists) ? artists : []);
-          setOwnFollowedUsers((Array.isArray(users) ? users : []).filter(Boolean));
         }
       } catch (loadError) {
         if (!cancelled) {
           console.error('Failed to load self profile data:', loadError);
           setOwnPlaylists([]);
-          setOwnFollowedArtists([]);
-          setOwnFollowedUsers([]);
         }
       }
     };
 
-    loadOwnData();
+    loadOwnPlaylists();
     return () => {
       cancelled = true;
     };
-  }, [currentUser?._id, currentUser?.id, followedUserIds, id, isAuthenticated, selfProfile]);
+  }, [currentUser?._id, currentUser?.id, id, isAuthenticated, selfProfile]);
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-gray-400">Loading profile...</div>;
@@ -199,25 +180,13 @@ const UserProfilePage = ({ selfProfile = false }) => {
   const isOwnProfile = selfProfile || (currentUserId && profileUserId && currentUserId === profileUserId);
   const following = isFollowingUser(profileUserId);
   const preferredGenres = Array.isArray(profile.preferred_genres) ? profile.preferred_genres : [];
-  const followers = Array.isArray(profile.followers) ? profile.followers : [];
-  const publicFollowingUsers = Array.isArray(profile.following) ? profile.following : [];
   const playlists = isOwnProfile
     ? ownPlaylists
     : (Array.isArray(profile.publicPlaylists) ? profile.publicPlaylists : []);
-  const followingEntries = isOwnProfile
-    ? [
-        ...ownFollowedUsers.map((user) => ({ type: 'user', item: user })),
-        ...ownFollowedArtists.map((artist) => ({ type: 'artist', item: artist }))
-      ]
-    : publicFollowingUsers.map((user) => ({ type: 'user', item: user }));
 
   const playlistCount = playlists.length;
-  const followerCount = followers.length;
-  const followingCount = followingEntries.length;
 
   const visiblePlaylists = expandedSections.playlists ? playlists : playlists.slice(0, 6);
-  const visibleFollowers = expandedSections.followers ? followers : followers.slice(0, 6);
-  const visibleFollowing = expandedSections.following ? followingEntries : followingEntries.slice(0, 6);
 
   const toggleSection = (section) => {
     setExpandedSections((current) => ({
@@ -233,44 +202,6 @@ const UserProfilePage = ({ selfProfile = false }) => {
     }
 
     toggleFollowUser(profileUserId);
-  };
-
-  const renderUserCard = (person) => (
-    <Link
-      key={person?._id || person?.id}
-      to={`/user/${person?._id || person?.id}`}
-      className="w-[170px] shrink-0 rounded-3xl bg-[#1b1b1b] p-4 transition-transform hover:-translate-y-1 hover:bg-[#202020]"
-    >
-      <UserAvatar user={person} sizeClass="h-36 w-36" iconClass="h-12 w-12" className="mx-auto" />
-      <h3 className="mt-4 line-clamp-2 text-xl font-bold tracking-tight text-white">
-        {person?.name || 'Unknown User'}
-      </h3>
-      <p className="mt-1 text-sm text-gray-400">
-        {person?.username ? `@${person.username}` : 'Profile'}
-      </p>
-    </Link>
-  );
-
-  const renderArtistCard = (artist) => {
-    const imageUrl = apiService.resolveMediaUrl(
-      artist?.images?.[0]?.url || artist?.image_url || albumArtPlaceholder
-    );
-
-    return (
-      <Link
-        key={artist?._id || artist?.id}
-        to={`/artist/${artist?._id || artist?.id}`}
-        className="w-[170px] shrink-0 rounded-3xl bg-[#1b1b1b] p-4 transition-transform hover:-translate-y-1 hover:bg-[#202020]"
-      >
-        <div className="mx-auto h-36 w-36 overflow-hidden rounded-full bg-[#1a1a1d] shadow-[0_24px_72px_rgba(0,0,0,0.35)]">
-          <img src={imageUrl} alt={artist?.name || 'Artist'} className="h-full w-full object-cover" />
-        </div>
-        <h3 className="mt-4 line-clamp-2 text-xl font-bold tracking-tight text-white">
-          {artist?.name || 'Unknown Artist'}
-        </h3>
-        <p className="mt-1 text-sm text-gray-400">Artist</p>
-      </Link>
-    );
   };
 
   return (
@@ -299,10 +230,6 @@ const UserProfilePage = ({ selfProfile = false }) => {
                 ) : null}
                 <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-semibold text-white/68 md:text-base">
                   <span>{formatStatLabel(playlistCount, 'Playlist')}</span>
-                  <span className="text-white/25">&bull;</span>
-                  <span>{formatStatLabel(followerCount, 'Follower')}</span>
-                  <span className="text-white/25">&bull;</span>
-                  <span>{formatStatLabel(followingCount, 'Following', 'Following')}</span>
                 </div>
                 {profile.bio ? (
                   <p className="mt-5 max-w-3xl text-sm leading-7 text-white/68 md:text-base">
@@ -322,7 +249,7 @@ const UserProfilePage = ({ selfProfile = false }) => {
                         : 'bg-white text-[#141414] hover:bg-[#f1f1f1]'
                     }`}
                   >
-                    {following ? 'Following' : 'Follow'}
+                    {following ? 'Followed' : 'Follow'}
                   </button>
                 </div>
               ) : null}
@@ -404,40 +331,6 @@ const UserProfilePage = ({ selfProfile = false }) => {
               <p className="text-sm text-gray-400">
                 {isOwnProfile ? 'You have not created any playlists yet.' : 'No public playlists yet.'}
               </p>
-            )}
-          </SectionShell>
-
-          <SectionShell
-            title="Followers"
-            subtitle="People following this profile."
-            canToggle={followers.length > 6}
-            expanded={expandedSections.followers}
-            onToggle={() => toggleSection('followers')}
-          >
-            {visibleFollowers.length > 0 ? (
-              <div className="flex gap-5 overflow-x-auto pb-2">
-                {visibleFollowers.map(renderUserCard)}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No followers to show yet.</p>
-            )}
-          </SectionShell>
-
-          <SectionShell
-            title="Following"
-            subtitle={isOwnProfile ? 'Artists and profiles you follow.' : 'Profiles this user is following.'}
-            canToggle={followingEntries.length > 6}
-            expanded={expandedSections.following}
-            onToggle={() => toggleSection('following')}
-          >
-            {visibleFollowing.length > 0 ? (
-              <div className="flex gap-5 overflow-x-auto pb-2">
-                {visibleFollowing.map(({ type, item }) => (
-                  type === 'artist' ? renderArtistCard(item) : renderUserCard(item)
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">This profile is not following anyone yet.</p>
             )}
           </SectionShell>
         </div>

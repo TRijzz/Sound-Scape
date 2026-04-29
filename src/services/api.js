@@ -686,13 +686,17 @@ class ApiService {
   }
 
   async initiateKhaltiVinylPayment(vinylId) {
-    // Khalti payment flow is paused for now and will be re-enabled later.
-    throw new Error('Khalti payment is temporarily disabled.');
+    return this.fetchData('/payments/khalti/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ vinylId })
+    });
   }
 
   async verifyKhaltiPayment(payload) {
-    // Khalti payment flow is paused for now and will be re-enabled later.
-    throw new Error('Khalti payment is temporarily disabled.');
+    return this.fetchData('/payments/khalti/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 
   async setActiveVinyl(vinylId) {

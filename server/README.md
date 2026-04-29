@@ -10,6 +10,9 @@ Run a simple music streaming backend with JWT auth and CRUD for Users, Artists, 
 PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/vinyl_demo
 JWT_SECRET=super_secret_change_me
+APP_BASE_URL=http://localhost:3000
+KHALTI_BASE_URL=https://dev.khalti.com/api/v2
+KHALTI_SECRET_KEY=your_khalti_live_secret_key
 ```
 
 2. Install and start:
@@ -94,6 +97,15 @@ server/
   - 200: { token, user }
 
 Use `Authorization: Bearer <token>` for protected endpoints.
+
+## Khalti payments
+
+This app uses Khalti Web Checkout (KPG-2). Keep the Khalti secret key only in `server/.env`; the React app never needs it.
+
+- `POST /api/payments/khalti/initiate` [auth] -> `{ vinylId }`
+- `POST /api/payments/khalti/verify` -> `{ pidx, callback? }`
+
+For sandbox testing, use `KHALTI_BASE_URL=https://dev.khalti.com/api/v2` and the `live_secret_key` from your Khalti sandbox merchant dashboard. The frontend callback route is `/payment/khalti/callback`, so your local return URL becomes `http://localhost:3000/payment/khalti/callback`.
 
 ## Users
 

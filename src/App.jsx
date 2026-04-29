@@ -41,6 +41,7 @@ import AdminGuard from './pages/admin/AdminGuard';
 import NotFound from './pages/NotFound';
 import VinylStore from './pages/VinylStore';
 import VinylPage from './pages/VinylPage';
+import KhaltiPaymentCallbackPage from './pages/KhaltiPaymentCallbackPage';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
@@ -114,7 +115,7 @@ function AppContent() {
                 <Route path="/album/:id" element={<AlbumPage />} />
                 <Route path="/genre/:name" element={<GenrePage />} />
                 <Route path="/moods" element={<MoodBrowsePage />} />
-                {/* Khalti callback route is intentionally disabled for now until the payment flow is resumed. */}
+                <Route path="/payment/khalti/callback" element={<KhaltiPaymentCallbackPage />} />
                 <Route path="/store" element={<VinylStore />} />
                 <Route path="/vinyl/:id" element={<VinylPage />} />
                 <Route path="/login" element={<LoginPage />} />
