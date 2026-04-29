@@ -6,6 +6,7 @@ import SongCard from '../components/ui/SongCard';
 import { useMusic } from '../contexts/MusicContext';
 import { useAlbum } from '../hooks/useMusicData';
 import { usePlaylistActions } from '../hooks/usePlaylists';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const AlbumPage = () => {
   const { id } = useParams();
@@ -49,6 +50,8 @@ const AlbumPage = () => {
     setShowMore(false);
     setNewPlaylistName('');
   };
+
+  useEscapeKey(showMore || showAddToPlaylist, closePlaylistModal);
 
   const handleAddAlbumToQueue = () => {
     if (!albumTracks.length) return;

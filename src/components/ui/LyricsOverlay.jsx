@@ -17,6 +17,7 @@ import {
   MicIcon,
   SyncIcon
 } from '../ui/Icons';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const LYRIC_HIGHLIGHT_LEAD_SECONDS = 0.35;
 
@@ -108,6 +109,8 @@ const LyricsOverlay = ({ isOpen, onClose }) => {        //Lyrics Overlay Compone
   const lineRefs = useRef({});
   const isProgrammaticScrollRef = useRef(false);
   const programmaticScrollTimeoutRef = useRef(null);
+
+  useEscapeKey(isOpen, onClose);
 
   const handleScroll = () => {
     if (isProgrammaticScrollRef.current) return;

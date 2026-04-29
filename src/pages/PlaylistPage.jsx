@@ -6,6 +6,7 @@ import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api';
 import { PlayIcon, ShuffleIcon, MoreIcon } from '../components/ui/Icons';
 import { usePlaylistActions } from '../hooks/usePlaylists';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const PlaylistPage = () => {
   const { id } = useParams();
@@ -57,6 +58,12 @@ const PlaylistPage = () => {
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, [showManageMenu]);
+
+  useEscapeKey(showManageMenu || editMode || Boolean(moveSong), () => {
+    setShowManageMenu(false);
+    setEditMode(false);
+    setMoveSong(null);
+  });
 
   const playlistId = playlist?._id || playlist?.id;
   const ownerId = playlist?.user?._id || playlist?.user?.id || playlist?.user;

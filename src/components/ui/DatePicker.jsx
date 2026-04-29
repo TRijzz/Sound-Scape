@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -18,6 +19,8 @@ export default function DatePicker({ value, onChange, placeholder = "Select Date
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewDate, setViewDate] = useState(new Date()); // For navigation
   const containerRef = useRef(null);
+
+  useEscapeKey(isOpen, () => setIsOpen(false));
 
   // Initialize state from value
   useEffect(() => {

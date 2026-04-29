@@ -1,7 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Delete', cancelText = 'Cancel', isDangerous = false }) => {
+  useEscapeKey(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (

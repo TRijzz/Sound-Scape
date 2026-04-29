@@ -22,6 +22,7 @@ import LyricsOverlay from '../ui/LyricsOverlay';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import { useMusic } from '../../contexts/MusicContext';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const NowPlayingFooter = () => {
   const {
@@ -148,6 +149,17 @@ const NowPlayingFooter = () => {
     setShowMore(false);
     setNewPlaylistName('');
   };
+
+  useEscapeKey(showMore || showAddToPlaylist || showLyrics || showQueue || showVinylOverlay, () => {
+    setShowMore(false);
+    setShowAddToPlaylist(false);
+    setShowLyrics(false);
+    setShowQueue(false);
+    setNewPlaylistName('');
+    if (showVinylOverlay) {
+      closeVinylOverlay();
+    }
+  });
 
   const handleAddCurrentTrackToPlaylist = async (playlistId) => {
     if (!currentTrack) return;

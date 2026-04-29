@@ -4,6 +4,7 @@ import { PlayIcon, MoreIcon, LikeIcon, LikedIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick, menuItems = [], compact = false }) => {
   const {
@@ -79,6 +80,8 @@ const SongCard = ({ song, index, showAlbum = false, isLiked = false, onClick, me
     setMenuOpen(false);
     setNewPlaylistName('');
   };
+
+  useEscapeKey(menuOpen || showAddToPlaylist, closePlaylistModal);
 
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/search?q=${encodeURIComponent(song.name || '')}`;

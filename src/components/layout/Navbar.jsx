@@ -5,6 +5,7 @@ import { SearchIcon, UserIcon, MoreIcon } from '../ui/Icons';
 import { useMusic } from '../../contexts/MusicContext';
 import SearchSuggestions from '../ui/SearchSuggestions';
 import { useSearchSuggestions } from '../../hooks/useSearchSuggestions';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,6 +20,13 @@ const Navbar = () => {
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
   const searchPlaceholder = location.pathname.startsWith('/store') ? 'Search vinyl by album name' : "What's playing in your head?";
+
+  useEscapeKey(showSuggestions || showDropdown || isSearchFocused, () => {
+    setShowSuggestions(false);
+    setShowDropdown(false);
+    setIsSearchFocused(false);
+    searchRef.current?.querySelector('input')?.blur();
+  });
 
   // Keep input in sync with URL query when on /search
   useEffect(() => {

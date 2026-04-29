@@ -8,6 +8,7 @@ import { useMusic } from '../contexts/MusicContext';
 import { useArtist } from '../hooks/useMusicData';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 import apiService from '../services/api';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const ArtistPage = () => {
   const { id } = useParams();
@@ -20,6 +21,7 @@ const ArtistPage = () => {
     isFollowingArtist
   } = useMusic();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  useEscapeKey(showAuthPrompt, () => setShowAuthPrompt(false));
   
   // Use the API hook to get real artist data
   const { artist, artistAlbums, artistTopTracks, loading, error } = useArtist(id);

@@ -9,6 +9,7 @@ import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 import vinylDisc from '../assets/vinyl.svg';
 import { getVinylImageSrc, resolveVinylTracks } from '../utils/vinyl';
 import apiService from '../services/api';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const tabs = ['all', 'vinyls', 'playlists', 'liked'];
 
@@ -163,6 +164,15 @@ const LibraryPage = () => {
     setImageData('');
     navigate(`/playlist/${playlist._id || playlist.id}`);
   };
+
+  useEscapeKey(showCreate, () => {
+    setShowCreate(false);
+    setName('');
+    setDescription('');
+    setVisibility('private');
+    setBgColor('#0B0F1A');
+    setImageData('');
+  });
 
   const handlePlayOwnedVinyl = async (vinyl, track, trackIndex = 0) => {
     const vinylId = vinyl._id || vinyl.id;

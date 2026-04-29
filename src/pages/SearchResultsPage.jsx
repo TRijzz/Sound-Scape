@@ -10,6 +10,7 @@ import { useMusic } from '../contexts/MusicContext';
 import { SearchIcon, HeartIcon, PlayIcon, MusicNoteIcon, UserIcon } from '../components/ui/Icons';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
 import apiService from '../services/api';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const normalize = (value = '') => String(value).toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -143,6 +144,8 @@ const SearchResultsPage = () => {
   const { playTrack, isAuthenticated } = useMusic();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const { searchResults, searchLoading, searchError, search } = useSearch();
+
+  useEscapeKey(showAuthPrompt, () => setShowAuthPrompt(false));
 
   useEffect(() => {
     if (query.trim()) {

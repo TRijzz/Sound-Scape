@@ -4,6 +4,7 @@ import vinylSvg from '../../assets/vinyl.svg';
 import { ReactComponent as Tonearm } from '../../assets/tonearm.svg';
 import { PlayIcon, PauseIcon, SkipNextIcon, SkipPrevIcon, VolumeIcon, RepeatIcon, ShuffleIcon, HeartIcon, LikedIcon, MoreIcon } from './Icons';
 import { useMusic } from '../../contexts/MusicContext';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const VinylPlayer = ({ isOpen, onClose }) => {
   const {
@@ -99,6 +100,11 @@ const VinylPlayer = ({ isOpen, onClose }) => {
   };
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+
+  useEscapeKey(isOpen || showPlaylistMenu, () => {
+    setShowPlaylistMenu(false);
+    if (isOpen) onClose();
+  });
 
   const handleProgressChange = (e) => {
     const newProgress = parseInt(e.target.value);

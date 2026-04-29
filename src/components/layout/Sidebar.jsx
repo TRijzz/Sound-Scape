@@ -12,6 +12,7 @@ import {
 } from '../ui/Icons';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 function Sidebar() {
   const location = useLocation();
@@ -22,6 +23,14 @@ function Sidebar() {
   const { playlists, handleCreatePlaylist, handleEditPlaylist, handleDeletePlaylist } = usePlaylistActions();
   const [editTarget, setEditTarget] = useState(null);
   const [showItemMenuId, setShowItemMenuId] = useState(null);
+
+  useEscapeKey(isMobileMenuOpen || showCreate || Boolean(showItemMenuId), () => {
+    setIsMobileMenuOpen(false);
+    setShowCreate(false);
+    setShowItemMenuId(null);
+    setEditTarget(null);
+    setPlaylistName('');
+  });
 
   const menuItems = [
     { path: '/', icon: HomeIcon, label: 'Home' },

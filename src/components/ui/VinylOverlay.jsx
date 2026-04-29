@@ -19,6 +19,7 @@ import {
   MicIcon
 } from '../ui/Icons';
 import LyricsOverlay from './LyricsOverlay';
+import useEscapeKey from '../../hooks/useEscapeKey';
 
 const ROTATION_PER_SECOND = 22;
 const SCRUB_RESISTANCE = 0.18;
@@ -63,6 +64,12 @@ function VinylOverlay({ isOpen, onClose }) {
   const displayProgress = previewSession?.progress ?? progress;
   const displayDuration = previewSession?.duration ?? duration;
   const scrubIntensity = Math.min(1, Math.abs(scrubVelocity) / 1.8 + Math.abs(releaseBoost) / 20);
+
+  useEscapeKey(isOpen, () => {
+    setShowLyrics(false);
+    setIsActive(false);
+    onClose();
+  });
 
   const getVinylSrc = () => {
     if (previewSession?.vinyl) {
@@ -158,18 +165,10 @@ function VinylOverlay({ isOpen, onClose }) {
       setIsActive(false);
     };
 
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setIsActive(false);
-      }
-    };
-
     document.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isActive, isOpen]);
 

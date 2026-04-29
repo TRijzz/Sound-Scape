@@ -46,11 +46,13 @@ import KhaltiPaymentCallbackPage from './pages/KhaltiPaymentCallbackPage';
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
 import { useMusic } from './contexts/MusicContext';
+import useEscapeKey from './hooks/useEscapeKey';
 
 function AuthPromptOverlay() {
   const { showAuthPrompt, setShowAuthPrompt } = useMusic();
   const navigate = useNavigate();
   const location = useLocation();
+  useEscapeKey(showAuthPrompt, () => setShowAuthPrompt(false));
   React.useEffect(() => {
     if (location.pathname.startsWith('/login') || location.pathname.startsWith('/signup')) {
       if (showAuthPrompt) setShowAuthPrompt(false);
