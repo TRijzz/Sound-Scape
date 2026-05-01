@@ -19,9 +19,7 @@ const __dirname = path.dirname(__filename);
 const publicSongsDir = path.resolve(__dirname, '../../../public/songs');
 
 const isAdminRequest = (req) => {
-  const adminCode = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
-  const expected = process.env.ADMIN_ACCESS_CODE;
-  return Boolean(req.isAdmin || (adminCode && expected && String(adminCode) === String(expected)));
+  return Boolean(req.isAdmin);
 };
 
 const hiddenArtistQuery = {
@@ -157,6 +155,84 @@ const normalizeOptionalText = (value) => {
 
 const audioFilePattern = /\.(mp3|wav|ogg|m4a|flac)$/i;
 
+const sanitizePathSegment = (value = '', fallback = 'Untitled') => {
+  const sanitized = String(value || '')
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .slice(0, 120);
+  return sanitized || fallback;
+};
+
+const getUniqueFilePath = async (targetPath) => {
+  const parsed = path.parse(targetPath);
+  let candidate = targetPath;
+  let count = 2;
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(parsed.dir, `${parsed.name}-${count}${parsed.ext}`);
+    count += 1;
+  }
+  return candidate;
+};
+
+const moveFile = async (sourcePath, targetPath) => {
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+  try {
+    await fs.promises.rename(sourcePath, targetPath);
+  } catch (error) {
+    if (error.code !== 'EXDEV') throw error;
+    await fs.promises.copyFile(sourcePath, targetPath);
+    await fs.promises.unlink(sourcePath);
+  }
+};
+
+const getPrimaryArtistName = async (artistIds = [], albumId = '') => {
+  if (albumId && mongoose.Types.ObjectId.isValid(String(albumId))) {
+    const album = await Album.findById(albumId).select('artists').populate('artists', 'name').lean();
+    const albumArtistName = album?.artists?.[0]?.name;
+    if (albumArtistName) return albumArtistName;
+  }
+
+  const artistId = Array.isArray(artistIds) ? artistIds.find(Boolean) : artistIds;
+  if (!artistId || !mongoose.Types.ObjectId.isValid(String(artistId))) return 'Unknown Artist';
+  const artist = await Artist.findById(artistId).select('name').lean();
+  return artist?.name || 'Unknown Artist';
+};
+
+const getAlbumName = async (albumId) => {
+  if (!albumId || !mongoose.Types.ObjectId.isValid(String(albumId))) return '';
+  const album = await Album.findById(albumId).select('name').lean();
+  return album?.name || '';
+};
+
+const buildAudioUrlFromPath = (filePath) => {
+  const relativePath = path.relative(publicSongsDir, filePath);
+  return `/songs/${relativePath.split(path.sep).map((part) => encodeURIComponent(part)).join('/')}`;
+};
+
+const moveAudioToCatalogPath = async ({ tempPath, originalName, songName, artistIds = [], albumId = '' }) => {
+  if (!tempPath) return null;
+  const ext = path.extname(originalName || tempPath) || path.extname(tempPath);
+  const artistName = await getPrimaryArtistName(artistIds, albumId);
+  const albumName = await getAlbumName(albumId);
+  const folders = [sanitizePathSegment(artistName, 'Unknown Artist')];
+  if (albumName) folders.push(sanitizePathSegment(albumName, 'Unknown Album'));
+
+  const fileName = `${sanitizePathSegment(songName || path.basename(originalName || tempPath, ext), 'Untitled Song')}${ext.toLowerCase()}`;
+  const targetPath = await getUniqueFilePath(path.join(publicSongsDir, ...folders, fileName));
+  const sourcePath = path.resolve(tempPath);
+
+  if (sourcePath !== targetPath) {
+    await moveFile(sourcePath, targetPath);
+  }
+
+  return {
+    file_path: targetPath,
+    audio_url: buildAudioUrlFromPath(targetPath)
+  };
+};
+
 const buildSongFileCandidates = (song = {}) => {
   const candidates = [];
   const filePath = normalizeOptionalText(song?.file_path);
@@ -167,7 +243,7 @@ const buildSongFileCandidates = (song = {}) => {
   }
 
   if (audioUrl && audioUrl.startsWith('/songs/')) {
-    const relativeAudioPath = audioUrl.replace(/^\/songs\//, '').split('/').join(path.sep);
+    const relativeAudioPath = decodeURIComponent(audioUrl.replace(/^\/songs\//, '')).split('/').join(path.sep);
     candidates.push(path.join(publicSongsDir, relativeAudioPath));
   }
 
@@ -318,12 +394,10 @@ export const createSong = async (req, res) => {
       name: req.body.name.trim(),
     };
     
-    // Handle file uploads
+    const uploadedAudio = req.files?.audio?.[0] || null;
+
+    // Handle file uploads that do not depend on song metadata
     if (req.files) {
-      if (req.files.audio) {
-        songData.audio_url = `/songs/${req.files.audio[0].filename}`;
-        songData.file_path = req.files.audio[0].path; // Actual server path for storage location identification
-      }
       if (req.files.cover) {
         songData.cover_art_url = `/images/${req.files.cover[0].filename}`;
       }
@@ -425,6 +499,16 @@ export const createSong = async (req, res) => {
     // Only include spotify_id if it's provided and not empty/null
     if (req.body.spotify_id && typeof req.body.spotify_id === 'string' && req.body.spotify_id.trim()) {
       songData.spotify_id = req.body.spotify_id.trim();
+    }
+
+    if (uploadedAudio) {
+      Object.assign(songData, await moveAudioToCatalogPath({
+        tempPath: uploadedAudio.path,
+        originalName: uploadedAudio.originalname,
+        songName: songData.name,
+        artistIds: songData.artists || [],
+        albumId: songData.album
+      }));
     }
 
     if (songData.mood) {
@@ -1325,7 +1409,7 @@ export const updateSong = async (req, res) => {
   try {
     const updateData = { ...req.body };
     const unsetData = {};
-    const existingSong = await Song.findById(req.params.id).select('file_path audio_url');
+    const existingSong = await Song.findById(req.params.id).select('name artists album file_path audio_url');
 
     if (!existingSong) {
       return res.status(404).json({ message: 'Song not found' });
@@ -1337,19 +1421,10 @@ export const updateSong = async (req, res) => {
     delete updateData.createdAt;
     delete updateData.updatedAt;
 
-    // Handle file uploads
+    const uploadedAudio = req.files?.audio?.[0] || null;
+
+    // Handle file uploads that do not depend on song metadata
     if (req.files) {
-      if (req.files.audio) {
-        if (existingSong.file_path && fs.existsSync(existingSong.file_path)) {
-          try {
-            fs.unlinkSync(existingSong.file_path);
-          } catch (unlinkError) {
-            console.error('Failed to remove previous audio file:', unlinkError);
-          }
-        }
-        updateData.audio_url = `/songs/${req.files.audio[0].filename}`;
-        updateData.file_path = req.files.audio[0].path;
-      }
       if (req.files.cover) {
         updateData.cover_art_url = `/images/${req.files.cover[0].filename}`;
       }
@@ -1484,6 +1559,26 @@ export const updateSong = async (req, res) => {
            updateData.genre = album.genres[0];
          }
        } catch {}
+    }
+
+    if (uploadedAudio) {
+      const nextAudio = await moveAudioToCatalogPath({
+        tempPath: uploadedAudio.path,
+        originalName: uploadedAudio.originalname,
+        songName: updateData.name || existingSong.name,
+        artistIds: updateData.artists || existingSong.artists || [],
+        albumId: updateData.album !== undefined ? updateData.album : existingSong.album
+      });
+      updateData.audio_url = nextAudio.audio_url;
+      updateData.file_path = nextAudio.file_path;
+
+      if (existingSong.file_path && fs.existsSync(existingSong.file_path) && path.resolve(existingSong.file_path) !== nextAudio.file_path) {
+        try {
+          fs.unlinkSync(existingSong.file_path);
+        } catch (unlinkError) {
+          console.error('Failed to remove previous audio file:', unlinkError);
+        }
+      }
     }
 
     const updateOperations = {};

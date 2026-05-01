@@ -15,17 +15,17 @@ const AdminNotifications = () => {
 
       // Check for auth
       const authTokens = JSON.parse(localStorage.getItem('authTokens') || '{}');
-      const adminAccessCode = localStorage.getItem('adminAccessCode');
+      const adminToken = localStorage.getItem('adminToken');
 
-      if (!authTokens.accessToken && !adminAccessCode) {
+      if (!authTokens.accessToken && !adminToken) {
         setStatus('no-auth');
         return;
       }
 
       // Build URL with available credentials
       let url = `http://localhost:5000/api/admin/notifications/events?`;
-      if (authTokens.accessToken) url += `token=${authTokens.accessToken}&`;
-      if (adminAccessCode) url += `admin_code=${adminAccessCode}`;
+      if (authTokens.accessToken) url += `token=${encodeURIComponent(authTokens.accessToken)}&`;
+      if (adminToken) url += `admin_code=${encodeURIComponent(adminToken)}`;
 
       console.log('[AdminNotifications] Connecting to SSE:', url);
       const eventSource = new EventSource(url);

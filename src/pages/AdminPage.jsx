@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api';
 import AdminNotifications from '../components/admin/AdminNotifications';
+import AdminAccountMenu from '../components/admin/AdminAccountMenu';
 
 function Section({ title, children }) {
   return (
@@ -23,15 +24,6 @@ function AdminPage() {
   const [songs, setSongs] = useState([]);
   const [overview, setOverview] = useState({ artists: 0, audios: 0, vinyls: 0 });
   const [categories, setCategories] = useState([]);
-  const [adminVerified, setAdminVerified] = useState(() => {
-    try {
-      return localStorage.getItem('adminVerified') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [adminCode, setAdminCode] = useState('');
-  const [adminError, setAdminError] = useState('');
   const [banner, setBanner] = useState({ type: '', message: '' });
 
   const showError = (message, details) => {
@@ -67,13 +59,6 @@ function AdminPage() {
     const load = async () => {
       setLoading(true);
       try {
-        // Only load data if we have an access token to avoid 401s
-        const storedTokens = localStorage.getItem('authTokens');
-        if (!storedTokens) {
-          console.warn('No auth tokens found, skipping data load');
-          return;
-        }
-
         const [artistsRes, albumsRes, songsRes, vinylsRes, myCats, audioInventoryRes] = await Promise.all([
           apiService.getArtists(1, 20, ''),
           apiService.getAlbums(1, 20, ''),
@@ -99,26 +84,8 @@ function AdminPage() {
         setLoading(false);
       }
     };
-    if (adminVerified) load();
-  }, [adminVerified]);
-
-  const verifyAdmin = async () => {
-    try {
-      setAdminError('');
-      const code = adminCode.trim();
-      if (!code) {
-        setAdminError('Enter access code');
-        return;
-      }
-      apiService.setAdminCode(code);
-      await apiService.verifyAdminAccess(code);
-      localStorage.setItem('adminAccessCode', code); // Consistently save code for notifications
-      localStorage.setItem('adminVerified', 'true');
-      setAdminVerified(true);
-    } catch (err) {
-      setAdminError(err?.message || 'Verification failed');
-    }
-  };
+    load();
+  }, []);
 
   const createArtist = async () => {
     const payload = { name: artistName.trim() };
@@ -269,35 +236,12 @@ function AdminPage() {
 
   
 
-  if (!adminVerified) {
-    return (
-      <div className="p-6">
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto bg-dark-gray/60 border border-gray-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">Admin Access</h2>
-          <p className="text-gray-300 mb-4">Enter the admin access code to continue.</p>
-          <div className="space-y-3">
-            <input
-              type="password"
-              value={adminCode}
-              onChange={(e)=>setAdminCode(e.target.value)}
-              placeholder="Access code"
-              className="w-full px-4 py-2 rounded-lg bg-light-gray/50 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-neon-blue"
-            />
-            {adminError && <div className="text-red-400 text-sm">{adminError}</div>}
-            <div className="flex justify-end">
-              <button onClick={verifyAdmin} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg">Verify</button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 space-y-6 relative">
       <AdminNotifications />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Admin</h1>
+        <AdminAccountMenu />
       </div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
         <div className="mb-4">

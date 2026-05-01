@@ -4,9 +4,7 @@ import Song from '../models/Song.js';
 import { ensureMoodsExist } from '../utils/moodRegistry.js';
 
 const isAdminRequest = (req) => {
-  const adminCode = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
-  const expected = process.env.ADMIN_ACCESS_CODE;
-  return Boolean(req.isAdmin || (adminCode && expected && String(adminCode) === String(expected)));
+  return Boolean(req.isAdmin);
 };
 
 const visibleArtistQuery = {

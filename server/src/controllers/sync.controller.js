@@ -10,18 +10,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const syncService = new SpotifySyncService();
 
-const normalizeFolderGenre = (genre) => {
-  const raw = String(genre || '').trim().toLowerCase();
-  if (!raw) return 'Uncategorized';
-  if (['hiphop', 'hip-hop', 'hip hop', 'rap'].includes(raw)) return 'HipHop';
-  if (['soft pop', 'soft_pop', 'soft-pop'].includes(raw)) return 'Soft Pop';
-  if (['funk rock', 'funk_rock', 'funk-rock'].includes(raw)) return 'Funk Rock';
-  if (['pop'].includes(raw)) return 'Pop';
-  if (['rock'].includes(raw)) return 'Rock';
-  if (['jazz'].includes(raw)) return 'Jazz';
-  if (['nepali'].includes(raw)) return 'Nepali';
-  return String(genre).trim();
+const normalizeFolderName = (value = '') => String(value)
+  .trim()
+  .toLowerCase()
+  .replace(/[_-]+/g, ' ')
+  .replace(/\s+/g, ' ');
+
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const findByNormalizedName = async (Model, name, extraQuery = {}) => {
+  const normalized = normalizeFolderName(name);
+  if (!normalized) return null;
+  const candidates = await Model.find(extraQuery);
+  return candidates.find((item) => normalizeFolderName(item.name) === normalized) || null;
 };
+
+const buildSongNameFromFile = (filePath) => path.basename(filePath, path.extname(filePath)).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+const buildAudioUrl = (songsDir, filePath) => `/songs/${path.relative(songsDir, filePath).split(path.sep).map((part) => encodeURIComponent(part)).join('/')}`;
 
 export const syncData = async (req, res) => {
   try {
@@ -104,51 +110,52 @@ export const syncFromFolders = async (req, res) => {
       try {
         const relPath = path.relative(songsDir, filePath);
         const parts = relPath.split(path.sep);
-        const fileName = path.basename(filePath, path.extname(filePath));
+        if (parts[0]?.toLowerCase() === '_unmatched') {
+          stats.skipped++;
+          continue;
+        }
 
-        let genre = 'Uncategorized';
-        let artistName = 'Unknown Artist';
+        let artistName = '';
         let albumName = '';
+        const songName = buildSongNameFromFile(filePath);
 
-        if (parts.length >= 2) {
-          genre = normalizeFolderGenre(parts[0]);
-          if (parts.length >= 3) {
-            artistName = parts[1];
-            if (parts.length >= 4) {
-              albumName = parts[2];
-            }
-          }
+        if (parts.length === 2) {
+          [artistName] = parts;
+        } else if (parts.length >= 3) {
+          [artistName, albumName] = parts;
+        } else {
+          stats.skipped++;
+          stats.errors_details.push({ file: filePath, error: 'Expected Artist/Song or Artist/Album/Song folder structure' });
+          continue;
         }
 
         let artistId = null;
-        if (artistName !== 'Unknown Artist') {
-          let artist = await Artist.findOne({ name: { $regex: new RegExp(`^${artistName}$`, 'i') } });
-          if (!artist) {
-            artist = await Artist.create({ name: artistName, genres: [genre], images: [] });
-          } else if (!artist.genres.some((value) => value.toLowerCase() === genre.toLowerCase())) {
-            artist.genres.push(genre);
-            await artist.save();
-          }
-          artistId = artist._id;
+        let artist = await findByNormalizedName(Artist, artistName);
+        if (!artist) {
+          artist = await Artist.create({ name: artistName, genres: [], images: [] });
         }
+        artistId = artist._id;
 
         let albumId = null;
         if (albumName) {
-          let album = await Album.findOne({ name: { $regex: new RegExp(`^${albumName}$`, 'i') }, artists: artistId });
+          let album = await findByNormalizedName(Album, albumName, { artists: artistId });
           if (!album) {
             album = await Album.create({
               name: albumName,
               artists: artistId ? [artistId] : [],
-              genres: [genre],
+              genres: artist.genres || [],
               release_date: new Date().toISOString().split('T')[0]
             });
           }
           albumId = album._id;
         }
 
-        const urlPath = '/songs/' + relPath.split(path.sep).join('/');
+        const genre = albumName
+          ? (albumId ? ((await Album.findById(albumId).select('genres').lean())?.genres?.[0] || artist.genres?.[0] || 'Uncategorized') : 'Uncategorized')
+          : (artist.genres?.[0] || 'Uncategorized');
+        const urlPath = buildAudioUrl(songsDir, filePath);
         const songData = {
-          name: fileName,
+          name: songName,
           audio_url: urlPath,
           genre,
           genres: [genre],
@@ -159,7 +166,11 @@ export const syncFromFolders = async (req, res) => {
           category: genre === 'HipHop' ? 'Hip-Hop Essentials' : genre === 'Pop' || genre === 'Soft Pop' ? 'Pop Songs' : 'Uncategorized'
         };
 
-        const song = await Song.findOne({ audio_url: urlPath });
+        const nameRegex = new RegExp(`^${escapeRegex(songName)}$`, 'i');
+        const matchQuery = albumId
+          ? { name: nameRegex, album: albumId }
+          : { name: nameRegex, artists: artistId, $or: [{ album: { $exists: false } }, { album: null }] };
+        const song = await Song.findOne({ $or: [{ audio_url: urlPath }, matchQuery] });
         if (song) {
           song.genre = genre;
           song.genres = [genre];

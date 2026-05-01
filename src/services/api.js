@@ -267,6 +267,10 @@ class ApiService {
     this.adminCode = code || null;
   }
 
+  setAdminToken(token) {
+    this.setAdminCode(token);
+  }
+
   getAuthHeader() {
     if (!this.authToken) {
       try {
@@ -1204,12 +1208,36 @@ class ApiService {
     return response;
   }
 
-  // Admin: Verify access code
+  // Admin: Verify admin token
   async verifyAdminAccess(code) {
     return this.fetchData(`/auth/admin/verify`, {
       method: 'POST',
       body: JSON.stringify({ code })
     });
+  }
+
+  async loginAdmin({ username, password }) {
+    const response = await this.fetchData(`/auth/admin/login`, {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+    if (response.adminToken) this.setAdminToken(response.adminToken);
+    return response;
+  }
+
+  async registerAdmin({ username, password }) {
+    const normalizedUsername = String(username || '').trim();
+    const response = await this.fetchData(`/auth/admin/register`, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: normalizedUsername,
+        password,
+        name: normalizedUsername,
+        email: `${normalizedUsername.toLowerCase()}@admin.local`
+      })
+    });
+    if (response.adminToken) this.setAdminToken(response.adminToken);
+    return response;
   }
 
   async populateSongCategories({ dryRun = false, limit = 1000, overwriteGenre = false, overwriteCategory = false } = {}) {

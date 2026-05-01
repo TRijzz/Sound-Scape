@@ -1,8 +1,10 @@
 import User from '../models/User.js';
+import Admin from '../models/Admin.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { generateTokens, verifyRefreshToken } from '../middlewares/auth.js';
 import { sendMail } from '../config/email.js';
+import { serializeAdmin, signAdminToken, verifyAdminCredential } from '../utils/adminAuth.js';
 
 // Track recent signup attempts
 const recentSignups = new Map();
@@ -447,19 +449,84 @@ export const verifyEmailCode = async (req, res) => {
   });
 }
 
-// Admin access code verification
+export const registerAdmin = async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const errors = {};
+    if (!username?.trim()) errors.username = 'Username is required';
+    if (!password || password.length < 8) errors.password = 'Password must be at least 8 characters';
+
+    if (Object.keys(errors).length) {
+      return res.status(400).json({ message: 'Validation failed', errors });
+    }
+
+    const adminCount = await Admin.countDocuments();
+
+    const normalizedUsername = username.trim().toLowerCase();
+    const exists = await Admin.findOne({ username: normalizedUsername });
+    if (exists) return res.status(409).json({ message: 'Admin username already exists' });
+
+    const admin = await Admin.create({
+      name: username.trim(),
+      username: normalizedUsername,
+      email: `${normalizedUsername}@admin.local`,
+      password,
+      role: adminCount === 0 ? 'superadmin' : 'admin',
+    });
+
+    const adminToken = signAdminToken(admin);
+    admin.last_login_at = new Date();
+    await admin.save();
+
+    return res.status(201).json({
+      success: true,
+      adminToken,
+      admin: serializeAdmin(admin),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to create admin' });
+  }
+};
+
+export const loginAdmin = async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ message: 'Username and password are required' });
+
+    const admin = await Admin.findOne({ username: String(username).trim().toLowerCase() }).select('+password');
+    if (!admin || !admin.is_active) return res.status(401).json({ message: 'Invalid admin credentials' });
+
+    const ok = await admin.comparePassword(password);
+    if (!ok) return res.status(401).json({ message: 'Invalid admin credentials' });
+
+    admin.last_login_at = new Date();
+    await admin.save();
+
+    return res.json({
+      success: true,
+      adminToken: signAdminToken(admin),
+      admin: serializeAdmin(admin),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Admin login failed' });
+  }
+};
+
+// Admin access verification
 export const verifyAdminAccess = async (req, res) => {
   try {
     const { code } = req.body || {};
-    if (!code) return res.status(400).json({ message: 'Access code required' });
-    const expected = process.env.ADMIN_ACCESS_CODE;
-    if (!expected) {
-      return res.json({ success: true, note: 'Admin access not configured; allowing all codes' });
+    if (!code) return res.status(400).json({ message: 'Admin access token required' });
+
+    const credential = await verifyAdminCredential(code);
+    if (!credential) {
+      return res.status(401).json({ message: 'Invalid admin access' });
     }
-    if (String(code) !== String(expected)) {
-      return res.status(401).json({ message: 'Invalid admin access code' });
-    }
-    return res.json({ success: true });
+
+    return res.json({
+      success: true,
+      admin: serializeAdmin(credential.admin),
+    });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Verification failed' });
   }

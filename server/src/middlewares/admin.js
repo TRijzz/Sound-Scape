@@ -1,18 +1,30 @@
 import { requireAuth } from './auth.js';
+import { serializeAdmin, verifyAdminCredential } from '../utils/adminAuth.js';
 
-export const requireAdminOrAuth = (req, res, next) => {
+const getAdminCredential = (req) => {
+  const headerVal = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
+  const bodyVal = req.body && req.body.admin_code;
+  const queryVal = req.query && req.query.admin_code;
+  return headerVal || bodyVal || queryVal;
+};
+
+const applyAdminAccess = (req, credential) => {
+  req.isAdmin = true;
+  if (credential?.admin) {
+    req.admin = serializeAdmin(credential.admin);
+  }
+};
+
+export const requireAdminOrAuth = async (req, res, next) => {
   try {
-    const headerVal = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
-    const bodyVal = req.body && req.body.admin_code;
-    const queryVal = req.query && req.query.admin_code;
-    const adminCode = headerVal || bodyVal || queryVal;
-    const expected = process.env.ADMIN_ACCESS_CODE;
+    const adminCode = getAdminCredential(req);
     if (adminCode) {
-      if (!expected || String(adminCode) === String(expected)) {
-        req.isAdmin = true;
+      const credential = await verifyAdminCredential(adminCode);
+      if (credential) {
+        applyAdminAccess(req, credential);
         return next();
       }
-      return res.status(401).json({ message: 'Invalid admin access code' });
+      return res.status(401).json({ message: 'Invalid admin access' });
     }
   } catch (e) {
     // fall through to auth
@@ -20,16 +32,14 @@ export const requireAdminOrAuth = (req, res, next) => {
   return requireAuth(req, res, next);
 };
 
-export const requireAdmin = (req, res, next) => {
-  const headerVal = req.get('x-admin-code') || req.headers['x-admin-code'] || req.headers['X-Admin-Code'];
-  const bodyVal = req.body && req.body.admin_code;
-  const queryVal = req.query && req.query.admin_code;
-  const adminCode = headerVal || bodyVal || queryVal;
-  const expected = process.env.ADMIN_ACCESS_CODE;
-
-  if (adminCode && expected && String(adminCode) === String(expected)) {
-    req.isAdmin = true;
-    return next();
+export const requireAdmin = async (req, res, next) => {
+  const adminCode = getAdminCredential(req);
+  if (adminCode) {
+    const credential = await verifyAdminCredential(adminCode);
+    if (credential) {
+      applyAdminAccess(req, credential);
+      return next();
+    }
   }
 
   return res.status(403).json({ message: 'Admin access required' });

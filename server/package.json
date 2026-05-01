@@ -13,7 +13,9 @@
     "fix-db": "node -r dotenv/config src/scripts/fix-database.js",
     "check-db": "node -r dotenv/config src/scripts/check-database.js",
     "fix-images": "node -r dotenv/config src/scripts/fix-artist-images.js",
-    "migrate-liked-songs": "node -r dotenv/config scripts/migrate-liked-songs-to-user-field.js"
+    "migrate-liked-songs": "node -r dotenv/config scripts/migrate-liked-songs-to-user-field.js",
+    "migrate-admins": "node -r dotenv/config src/scripts/migrate-admins-to-admin-db.js",
+    "organize-audio": "node -r dotenv/config src/scripts/organize-existing-audio.js"
   },
   "keywords": [],
   "author": "",
