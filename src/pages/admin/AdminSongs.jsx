@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
-import { getAdminEntityId, isAdminVisibleAlbum, isAdminVisibleArtist } from '../../utils/adminVisibility';
+import { getAdminEntityId, isAdminPublishedEntity, isAdminVisibleAlbum, isAdminVisibleArtist } from '../../utils/adminVisibility';
 
 const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
 const songCover = (song) => apiService.resolveMediaUrl(song.cover_art_url || song.album?.images?.[0]?.url || '');
@@ -14,7 +14,7 @@ const songDuration = (song) => {
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
-const isHiddenSong = (song) => song?.is_visible === false || song?.publish_status === 'hidden';
+const isHiddenSong = (song) => !isAdminPublishedEntity(song);
 
 export default function AdminSongs() {
   const navigate = useNavigate();
@@ -44,7 +44,8 @@ export default function AdminSongs() {
 
   const hasRestrictedArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
   const songArtistsText = (song) => (song.artists || []).filter(isArtistAllowed).map((artist) => artist?.name).filter(Boolean).join(', ');
-  const hiddenSongPredicate = (song) => isHiddenSong(song) || hasRestrictedArtistLink(song?.artists);
+  const hasRestrictedAlbumLink = (album) => album && typeof album === 'object' && !isAdminVisibleAlbum(album);
+  const hiddenSongPredicate = (song) => isHiddenSong(song) || hasRestrictedArtistLink(song?.artists) || hasRestrictedAlbumLink(song?.album);
 
   const [toasts, setToasts] = useState([]);
   const [syncingFolders, setSyncingFolders] = useState(false);
@@ -80,13 +81,16 @@ export default function AdminSongs() {
       }
       return new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime();
     });
+  const hiddenSongs = songs.filter((song) => hiddenSongPredicate(song));
+  const unhiddenSongs = songs.filter((song) => !hiddenSongPredicate(song));
   const stats = {
     total: songs.length,
     uploaded: audioInventory.total_files,
     linkedUploaded: audioInventory.linked_song_count,
-    withAlbum: filteredSongs.filter((song) => song.album).length,
-    explicit: filteredSongs.filter((song) => song.explicit).length,
-    hidden: songs.filter((song) => hiddenSongPredicate(song)).length
+    withAlbum: unhiddenSongs.filter((song) => song.album).length,
+    explicit: unhiddenSongs.filter((song) => song.explicit).length,
+    hidden: hiddenSongs.length,
+    unhidden: unhiddenSongs.length
   };
   const filteredSongIds = filteredSongs.map((song) => String(song._id || song.id));
   const allFilteredSelected = filteredSongIds.length > 0 && filteredSongIds.every((id) => selectedIds.includes(id));
@@ -104,10 +108,10 @@ export default function AdminSongs() {
     setLoading(true);
     try {
       const [songsRes, inventoryRes, albumsRes, artistsRes] = await Promise.all([
-        apiService.getSongs(1, 2000, '', '', '', '', '', '-createdAt', '', '', '', '', uploadedOnly),
+        apiService.getSongs(1, 2000, '', '', '', '', '', '-createdAt', '', '', '', '', false, true),
         apiService.getAudioInventory(),
-        apiService.getAlbums(1, 1000),
-        apiService.getArtists(1, 1000)
+        apiService.getAlbums(1, 1000, '', '', '', '-release_date', true),
+        apiService.getArtists(1, 1000, '', '', true)
       ]);
 
       const songList = Array.isArray(songsRes?.songs) ? songsRes.songs : Array.isArray(songsRes) ? songsRes : [];
@@ -131,7 +135,7 @@ export default function AdminSongs() {
 
   useEffect(() => {
     load();
-  }, [uploadedOnly]);
+  }, []);
 
   useEffect(() => {
     const nextSearch = searchParams.get('q') || '';
@@ -183,12 +187,13 @@ export default function AdminSongs() {
 
   const bulkDeleteSongs = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.length} selected song${selectedIds.length === 1 ? '' : 's'}?`)) return;
+    const selectedCount = selectedIds.length;
+    if (!window.confirm(`Delete ${selectedCount} selected song${selectedCount === 1 ? '' : 's'}?`)) return;
     try {
       await Promise.all(selectedIds.map((id) => apiService.deleteSong(id)));
       setSongs((prev) => prev.filter((song) => !selectedIds.includes(String(song._id || song.id))));
       setSelectedIds([]);
-      showToast(`Deleted ${selectedIds.length} song${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+      showToast(`Deleted ${selectedCount} song${selectedCount === 1 ? '' : 's'}.`, 'success', 3000);
     } catch (error) {
       showToast(`Failed to delete selected songs: ${error?.message || 'Unknown error'}`, 'error');
     }
@@ -200,9 +205,12 @@ export default function AdminSongs() {
         is_visible: nextVisible,
         publish_status: nextVisible ? 'published' : 'hidden'
       });
+      const merged = { ...song, ...updated, is_visible: nextVisible, publish_status: nextVisible ? 'published' : 'hidden' };
       setSongs((prev) => prev.map((item) => (
-        String(item._id || item.id) === String(song._id || song.id) ? updated : item
+        String(item._id || item.id) === String(song._id || song.id) ? merged : item
       )));
+      setVisibilityMode(nextVisible ? 'active' : 'hidden');
+      setFilters((prev) => ({ ...prev, album: 'all', artist: 'all' }));
       showToast(`Song ${nextVisible ? 'unhidden' : 'hidden'} successfully.`, 'success', 3000);
     } catch (error) {
       showToast(`Failed to update song visibility: ${error?.message || 'Unknown error'}`, 'error');
@@ -211,18 +219,21 @@ export default function AdminSongs() {
 
   const bulkUpdateSongVisibility = async (nextVisible) => {
     if (selectedIds.length === 0) return;
+    const selectedCount = selectedIds.length;
     try {
-      const responses = await Promise.all(
-        selectedIds.map((id) => apiService.updateSong(id, {
-          is_visible: nextVisible,
-          publish_status: nextVisible ? 'published' : 'hidden'
-        }))
-      );
+      const updatePayload = {
+        is_visible: nextVisible,
+        publish_status: nextVisible ? 'published' : 'hidden'
+      };
+      const responses = await Promise.all(selectedIds.map((id) => apiService.updateSong(id, updatePayload)));
       setSongs((prev) => prev.map((song) => {
         const match = responses.find((item) => String(item._id || item.id) === String(song._id || song.id));
-        return match || song;
+        return match ? { ...song, ...match, ...updatePayload } : song;
       }));
-      showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedIds.length} song${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+      setSelectedIds([]);
+      setVisibilityMode(nextVisible ? 'active' : 'hidden');
+      setFilters((prev) => ({ ...prev, album: 'all', artist: 'all' }));
+      showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedCount} song${selectedCount === 1 ? '' : 's'}.`, 'success', 3000);
     } catch (error) {
       showToast(`Failed to update selected songs: ${error?.message || 'Unknown error'}`, 'error');
     }
@@ -265,13 +276,14 @@ export default function AdminSongs() {
             </div>
             <button onClick={() => navigate('/admin/songs/create')} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add song</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-5">
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             {[
               { label: 'Total songs', value: stats.total, onClick: () => { setVisibilityMode('active'); if (uploadedOnly) setSearchParams({}); }, helper: uploadedOnly ? 'Show all songs' : 'Click to return to active songs' },
               { label: 'Uploaded audio', value: stats.uploaded, onClick: () => setSearchParams({ uploaded: '1' }), helper: `${stats.linkedUploaded} linked to songs` },
               { label: 'Linked albums', value: stats.withAlbum },
               { label: 'Explicit', value: stats.explicit },
-              { label: 'Hidden songs', value: stats.hidden, onClick: () => setVisibilityMode((prev) => (prev === 'hidden' ? 'active' : 'hidden')), helper: visibilityMode === 'hidden' ? 'Showing hidden songs, including hidden-artist songs' : 'Click to view hidden songs' }
+              { label: 'Hidden songs', value: stats.hidden, onClick: () => setVisibilityMode((prev) => (prev === 'hidden' ? 'active' : 'hidden')), helper: visibilityMode === 'hidden' ? 'Showing hidden songs, including hidden-artist songs' : 'Click to view hidden songs' },
+              { label: 'Unhidden songs', value: stats.unhidden, onClick: () => setVisibilityMode('active'), helper: visibilityMode === 'active' ? 'Showing unhidden songs' : 'Click to view unhidden songs' }
             ].map(({ label, value, onClick, helper }) => {
               const clickable = typeof onClick === 'function';
               const Tag = clickable ? 'button' : 'div';
@@ -297,6 +309,25 @@ export default function AdminSongs() {
         ) : null}
 
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
+          <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-black/20 p-1">
+            {[
+              { label: 'Unhidden songs', value: 'active' },
+              { label: 'Hidden songs', value: 'hidden' }
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => { setVisibilityMode(tab.value); setFilters((prev) => ({ ...prev, album: 'all', artist: 'all' })); }}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  visibilityMode === tab.value
+                    ? 'bg-neon-blue text-dark-bg'
+                    : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Search</span>
@@ -461,7 +492,7 @@ export default function AdminSongs() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading songs...' : `${filteredSongs.length} songs shown of ${songs.length}${selectedIds.length ? ` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${selectedIds.length} selected` : ''}`}
+            {loading ? 'Loading songs...' : `${filteredSongs.length} songs shown of ${songs.length}${selectedIds.length ? ` - ${selectedIds.length} selected` : ''}`}
           </div>
           <button disabled={loading} onClick={load} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-white/5">
             Refresh

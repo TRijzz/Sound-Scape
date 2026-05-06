@@ -63,7 +63,11 @@ const findLocalLyricsFile = (song) => {
 export const listLyrics = async (req, res) => {
   try {
     const items = await Lyric.find({})
-      .populate('song', 'name')
+      .populate({
+        path: 'song',
+        select: 'name is_visible publish_status artists',
+        populate: { path: 'artists', select: 'name is_visible publish_status' }
+      })
       .sort({ updatedAt: -1 })
       .lean();
     res.json({ lyrics: items });

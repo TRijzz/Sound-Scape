@@ -403,7 +403,7 @@ export default function AdminLyrics() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading lyrics...' : `${items.length} lyric records shown${selectedIds.length ? ` Ã¢â‚¬Â¢ ${selectedIds.length} selected` : ''}`}
+            {loading ? 'Loading lyrics...' : `${items.length} lyric records shown${selectedIds.length ? ` - ${selectedIds.length} selected` : ''}`}
           </div>
           {selectedIds.length > 0 ? (
             <button onClick={bulkDeleteLyrics} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/20">Delete selected</button>

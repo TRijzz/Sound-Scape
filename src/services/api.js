@@ -379,6 +379,7 @@ class ApiService {
             const retryHeaders = {
               'Content-Type': 'application/json',
               ...this.getAuthHeader(),
+              ...(this.adminCode ? { 'x-admin-code': this.adminCode } : {}),
               ...(options.headers || {})
             };
 
@@ -429,7 +430,7 @@ class ApiService {
     return Array.isArray(response?.genres) ? response.genres : [];
   }
 
-  async getArtists(page = 1, limit = 20, search = '', genre = '') {
+  async getArtists(page = 1, limit = 20, search = '', genre = '', adminAll = false) {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -437,6 +438,7 @@ class ApiService {
     
     if (search) params.append('search', search);
     if (genre) params.append('genre', genre);
+    if (adminAll) params.append('admin_all', '1');
     
     const response = await this.fetchData(`/artists?${params}`);
     if (Array.isArray(response?.artists)) {
@@ -509,7 +511,7 @@ class ApiService {
     return this.fetchData('/songs/analytics/me');
   }
 
-  async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity', mood = '', language = '', tags = '', category = '', hasAudio = false) {
+  async getSongs(page = 1, limit = 20, search = '', genre = '', year = '', artist = '', album = '', sort = '-popularity', mood = '', language = '', tags = '', category = '', hasAudio = false, adminAll = false) {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -526,6 +528,7 @@ class ApiService {
     if (tags) params.append('tags', Array.isArray(tags) ? tags.join(',') : tags);
     if (category) params.append('category', category);
     if (hasAudio) params.append('has_audio', 'true');
+    if (adminAll) params.append('admin_all', '1');
     
     const response = await this.fetchData(`/songs?${params}`);
     if (Array.isArray(response?.songs)) {
@@ -590,7 +593,7 @@ class ApiService {
     return await this.sanitizeAlbums(Array.isArray(response?.albums) ? response.albums : response);
   }
 
-  async getAlbums(page = 1, limit = 20, search = '', genre = '', year = '', sort = '-release_date') {
+  async getAlbums(page = 1, limit = 20, search = '', genre = '', year = '', sort = '-release_date', adminAll = false) {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -600,6 +603,7 @@ class ApiService {
     if (search) params.append('search', search);
     if (genre) params.append('genre', genre);
     if (year) params.append('year', year);
+    if (adminAll) params.append('admin_all', '1');
     
     const response = await this.fetchData(`/albums?${params}`);
     if (Array.isArray(response?.albums)) {

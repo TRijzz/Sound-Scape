@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
+import { isAdminHiddenEntity, isAdminPublishedEntity } from '../../utils/adminVisibility';
 
 const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
 
@@ -27,10 +28,12 @@ const fmtDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Unknown' : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 };
-const isHiddenOrDraft = (artist) => !artist.is_visible || artist.publish_status === 'hidden' || artist.publish_status === 'draft';
+const isDraftArtist = (artist) => String(artist?.publish_status || 'published').toLowerCase() === 'draft';
+const isHiddenArtist = (artist) => isAdminHiddenEntity(artist);
+const isHiddenOrDraft = (artist) => isHiddenArtist(artist) || isDraftArtist(artist);
 const statusMeta = (artist) => {
-  if (!artist.is_visible || artist.publish_status === 'hidden') return { label: 'Hidden', tone: 'bg-red-500/15 text-red-200 border-red-500/30' };
-  if (artist.publish_status === 'draft') return { label: 'Draft', tone: 'bg-amber-500/15 text-amber-200 border-amber-500/30' };
+  if (isHiddenArtist(artist)) return { label: 'Hidden', tone: 'bg-red-500/15 text-red-200 border-red-500/30' };
+  if (isDraftArtist(artist)) return { label: 'Draft', tone: 'bg-amber-500/15 text-amber-200 border-amber-500/30' };
   return { label: 'Active', tone: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30' };
 };
 const validUrl = (value) => {
@@ -125,7 +128,7 @@ export default function AdminArtists() {
   const load = async () => {
     setLoading(true);
     try {
-      const [artistsRes, genresRes] = await Promise.all([apiService.getArtists(1, 1000), apiService.getArtistGenres(200).catch(() => [])]);
+      const [artistsRes, genresRes] = await Promise.all([apiService.getArtists(1, 1000, '', '', true), apiService.getArtistGenres(200).catch(() => [])]);
       const list = Array.isArray(artistsRes?.artists) ? artistsRes.artists : [];
       setArtists(list.map(normalize));
       setGenres(Array.isArray(genresRes) ? genresRes : []);
@@ -171,9 +174,10 @@ export default function AdminArtists() {
   const regions = useMemo(() => Array.from(new Set(artists.map((artist) => artist.region || artist.country).filter(Boolean))).sort(), [artists]);
   const stats = useMemo(() => ({
     total: artists.length,
-    live: artists.filter((artist) => artist.is_visible && artist.publish_status === 'published').length,
+    live: artists.filter(isAdminPublishedEntity).length,
     featured: artists.filter((artist) => artist.is_featured).length,
-    hidden: artists.filter(isHiddenOrDraft).length
+    hidden: artists.filter(isHiddenOrDraft).length,
+    unhidden: artists.filter(isAdminPublishedEntity).length
   }), [artists]);
 
   const filtered = useMemo(() => {
@@ -299,8 +303,14 @@ export default function AdminArtists() {
   const toggleQuick = async (artist, updates, message) => {
     try {
       const saved = await apiService.updateArtist(idOf(artist), updates);
-      patchArtist(saved);
-      if (activeId === idOf(artist)) { setForm(normalize(saved)); setDirty(false); }
+      const merged = { ...artist, ...saved, ...updates };
+      patchArtist(merged);
+      if (updates.publish_status === 'hidden' || updates.is_visible === false) {
+        setFilters((prev) => ({ ...prev, status: 'hidden_or_draft', verified: 'all', genre: 'all', region: 'all' }));
+      } else if (updates.publish_status === 'published' || updates.is_visible === true) {
+        setFilters((prev) => ({ ...prev, status: 'active', verified: 'all', genre: 'all', region: 'all' }));
+      }
+      if (activeId === idOf(artist)) { setForm(normalize(merged)); setDirty(false); }
       toast(message, 'success');
     } catch (error) {
       toast(`Failed to update artist: ${error?.message || 'Unknown error'}`);
@@ -312,11 +322,19 @@ export default function AdminArtists() {
     setSaving(true);
     try {
       const picked = artists.filter((artist) => selectedIds.includes(idOf(artist)));
-      const responses = await Promise.all(picked.map((artist) => apiService.updateArtist(idOf(artist), builder(artist))));
+      const updatesById = new Map(picked.map((artist) => [idOf(artist), builder(artist)]));
+      const responses = await Promise.all(picked.map((artist) => apiService.updateArtist(idOf(artist), updatesById.get(idOf(artist)))));
       setArtists((prev) => prev.map((artist) => {
         const match = responses.find((item) => idOf(item) === idOf(artist));
-        return match ? normalize(match) : artist;
+        const updates = updatesById.get(idOf(artist));
+        return match ? normalize({ ...artist, ...match, ...updates }) : artist;
       }));
+      const firstUpdate = picked.length > 0 ? updatesById.get(idOf(picked[0])) : {};
+      if (firstUpdate.publish_status === 'hidden' || firstUpdate.is_visible === false) {
+        setFilters((prev) => ({ ...prev, status: 'hidden_or_draft', verified: 'all', genre: 'all', region: 'all' }));
+      } else if (firstUpdate.publish_status === 'published' || firstUpdate.is_visible === true) {
+        setFilters((prev) => ({ ...prev, status: 'active', verified: 'all', genre: 'all', region: 'all' }));
+      }
       toast(message, 'success');
       if (onDone) onDone();
     } catch (error) {
@@ -383,12 +401,13 @@ export default function AdminArtists() {
             </div>
             <button onClick={() => openDrawer('create')} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add artist</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {[
               ['Total artists', stats.total, 'all'],
               ['Published', stats.live, 'active'],
               ['Featured', stats.featured, 'all'],
-              ['Hidden or draft', stats.hidden, 'hidden_or_draft']
+              ['Hidden or draft', stats.hidden, 'hidden_or_draft'],
+              ['Unhidden artists', stats.unhidden, 'active']
             ].map(([label, value, nextStatus]) => (
               <button
                 key={label}
@@ -408,6 +427,25 @@ export default function AdminArtists() {
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
+          <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-black/20 p-1">
+            {[
+              { label: 'Unhidden artists', value: 'active' },
+              { label: 'Hidden / draft', value: 'hidden_or_draft' }
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, status: tab.value, verified: 'all', genre: 'all', region: 'all' }))}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  filters.status === tab.value
+                    ? 'bg-neon-blue text-dark-bg'
+                    : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Search</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by artist name" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60" /></label>
             <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Status</span><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} style={{ colorScheme: 'dark' }} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-neon-blue/60"><option style={selectOptionStyle} value="all">All statuses</option><option style={selectOptionStyle} value="active">Active</option><option style={selectOptionStyle} value="hidden_or_draft">Hidden or draft</option><option style={selectOptionStyle} value="draft">Draft</option><option style={selectOptionStyle} value="hidden">Hidden</option><option style={selectOptionStyle} value="inactive">Inactive</option></select></label>
@@ -427,6 +465,8 @@ export default function AdminArtists() {
               <button onClick={toggleFilteredSelection} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5">{allFilteredSelected ? 'Clear page selection' : 'Select filtered'}</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_featured: true }), 'Selected artists featured.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Feature</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_featured: false }), 'Selected artists unfeatured.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Unfeature</button>
+              <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_visible: false, publish_status: 'hidden' }), 'Selected artists hidden.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Hide</button>
+              <button disabled={selectedIds.length === 0 || saving} onClick={() => bulkUpdate(() => ({ is_visible: true, publish_status: 'published' }), 'Selected artists unhidden.')} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-40 hover:bg-white/5">Unhide</button>
               <button disabled={selectedIds.length === 0 || saving} onClick={bulkDeleteArtists} className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 disabled:opacity-40 hover:bg-red-500/20">Delete selected</button>
             </div>
             <div className="flex flex-col gap-3 md:flex-row">
@@ -456,7 +496,7 @@ export default function AdminArtists() {
                   <div className="text-sm text-gray-300">{artist.region || artist.country || 'Not set'}</div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => openDrawer('edit', artist)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit</button>
-                    {artist.is_visible ? <button onClick={() => toggleQuick(artist, { is_visible: false, publish_status: 'hidden' }, 'Artist hidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Hide</button> : <><span className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Hidden</span><button onClick={() => toggleQuick(artist, { is_visible: true, publish_status: 'published' }, 'Artist unhidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Unhide</button></>}
+                    {!isHiddenArtist(artist) ? <button onClick={() => toggleQuick(artist, { is_visible: false, publish_status: 'hidden' }, 'Artist hidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Hide</button> : <><span className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Hidden</span><button onClick={() => toggleQuick(artist, { is_visible: true, publish_status: 'published' }, 'Artist unhidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Unhide</button></>}
                     <button onClick={() => toggleQuick(artist, { is_featured: !artist.is_featured }, artist.is_featured ? 'Artist unfeatured.' : 'Artist featured.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">{artist.is_featured ? 'Unfeature' : 'Feature'}</button>
                     <button onClick={() => removeArtist(artist)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20">Delete</button>
                   </div>
@@ -473,7 +513,7 @@ export default function AdminArtists() {
               <div key={idOf(artist)} className="rounded-[24px] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><input type="checkbox" checked={selectedIds.includes(idOf(artist))} onChange={() => setSelectedIds((prev) => prev.includes(idOf(artist)) ? prev.filter((id) => id !== idOf(artist)) : [...prev, idOf(artist)])} className="h-4 w-4" /><div className="h-14 w-14 overflow-hidden rounded-2xl border border-white/10 bg-white/5">{imageOf(artist) ? <img src={imageOf(artist)} alt={artist.name} className="h-full w-full object-cover" /> : null}</div><div><p className="text-sm font-semibold text-white">{previewName(artist)}</p><p className="text-xs text-gray-400">{artist.region || artist.country || 'Region not set'}</p></div></div><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${meta.tone}`}>{meta.label}</span></div>
                 <div className="mt-4 flex flex-wrap gap-2">{artist.genres.slice(0, 3).map((genre) => <span key={genre} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100">{genre}</span>)}{artist.tags.slice(0, 2).map((tag) => <span key={tag} className="rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-gray-300">#{tag}</span>)}</div>
-                <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => openDrawer('edit', artist)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Edit</button>{artist.is_visible ? <button onClick={() => toggleQuick(artist, { is_visible: false, publish_status: 'hidden' }, 'Artist hidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Hide</button> : <><span className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Hidden</span><button onClick={() => toggleQuick(artist, { is_visible: true, publish_status: 'published' }, 'Artist unhidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Unhide</button></>}<button onClick={() => toggleQuick(artist, { is_featured: !artist.is_featured }, artist.is_featured ? 'Artist unfeatured.' : 'Artist featured.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">{artist.is_featured ? 'Unfeature' : 'Feature'}</button><button onClick={() => removeArtist(artist)} className="rounded-xl border border-red-500/30 px-3 py-2 text-xs text-red-200">Delete</button></div>
+                <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => openDrawer('edit', artist)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Edit</button>{!isHiddenArtist(artist) ? <button onClick={() => toggleQuick(artist, { is_visible: false, publish_status: 'hidden' }, 'Artist hidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Hide</button> : <><span className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Hidden</span><button onClick={() => toggleQuick(artist, { is_visible: true, publish_status: 'published' }, 'Artist unhidden.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Unhide</button></>}<button onClick={() => toggleQuick(artist, { is_featured: !artist.is_featured }, artist.is_featured ? 'Artist unfeatured.' : 'Artist featured.')} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">{artist.is_featured ? 'Unfeature' : 'Feature'}</button><button onClick={() => removeArtist(artist)} className="rounded-xl border border-red-500/30 px-3 py-2 text-xs text-red-200">Delete</button></div>
               </div>
             );
           })}

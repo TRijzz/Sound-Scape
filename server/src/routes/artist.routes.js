@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdminOrAuth } from '../middlewares/admin.js';
+import { optionalAdmin, requireAdminOrAuth } from '../middlewares/admin.js';
 import { upload } from '../middlewares/upload.js';
 import { 
   createArtist, 
@@ -19,14 +19,14 @@ import {
 const router = Router();
 
 // Public routes
-router.get('/', getArtists);
+router.get('/', optionalAdmin, getArtists);
 router.get('/popular', getPopularArtists);
 router.get('/genres', getGenres);
 router.get('/genre', getArtistsByGenre);
 router.get('/spotify/:spotifyId', getArtistBySpotifyId);
-router.get('/:id', getArtist);
-router.get('/:id/albums', getArtistAlbums);
-router.get('/:id/top-tracks', getArtistTopTracks);
+router.get('/:id', optionalAdmin, getArtist);
+router.get('/:id/albums', optionalAdmin, getArtistAlbums);
+router.get('/:id/top-tracks', optionalAdmin, getArtistTopTracks);
 
 // Protected routes (require authentication)
 router.post(

@@ -9,7 +9,7 @@ const isAdminRequest = (req) => {
 
 const visibleArtistQuery = {
   is_visible: { $ne: false },
-  publish_status: { $ne: 'hidden' }
+  publish_status: { $nin: ['hidden', 'draft'] }
 };
 
 const toTrimmedString = (value) => {
@@ -193,7 +193,8 @@ export const getArtists = async (req, res) => {
       search
     } = req.query;
 
-    const query = isAdminRequest(req) ? {} : { ...visibleArtistQuery };
+    const includeAdminHidden = isAdminRequest(req) || (req.query.admin_all === '1' && req.get('x-admin-code'));
+    const query = includeAdminHidden ? {} : { ...visibleArtistQuery };
     
     // Add genre filter
     if (genre) {

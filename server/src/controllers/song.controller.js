@@ -25,13 +25,13 @@ const isAdminRequest = (req) => {
 const hiddenArtistQuery = {
   $or: [
     { is_visible: false },
-    { publish_status: 'hidden' }
+    { publish_status: { $in: ['hidden', 'draft'] } }
   ]
 };
 
 const visibleSongQuery = {
   is_visible: { $ne: false },
-  publish_status: { $ne: 'hidden' }
+  publish_status: { $nin: ['hidden', 'draft'] }
 };
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -7,7 +7,7 @@ import AdminLayout from './AdminLayout';
 import { ToastContainer } from '../../components/ui/Toast';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import DatePicker from '../../components/ui/DatePicker';
-import { getAdminEntityId, isAdminVisibleArtist } from '../../utils/adminVisibility';
+import { getAdminEntityId, isAdminPublishedEntity, isAdminVisibleArtist } from '../../utils/adminVisibility';
 
 const selectOptionStyle = { backgroundColor: '#0b0d14', color: '#ffffff' };
 
@@ -17,7 +17,7 @@ const getAlbumDisplayName = (album) => {
 };
 
 const albumCover = (album) => apiService.resolveMediaUrl(album?.images?.[0]?.url || '');
-const isHiddenAlbum = (album) => album?.is_visible === false || album?.publish_status === 'hidden';
+const isHiddenAlbum = (album) => !isAdminPublishedEntity(album);
 
 const fmtDate = (value) => {
   if (!value) return 'Unknown';
@@ -73,13 +73,16 @@ export default function AdminAlbums() {
   const hasRestrictedArtistLink = (artistList) => Array.isArray(artistList) && artistList.some((artist) => !isArtistAllowed(artist));
   const hiddenAlbumPredicate = (album) => isHiddenAlbum(album) || hasRestrictedArtistLink(album?.artists);
 
-  const stats = useMemo(() => ({
+  const hiddenAlbums = albums.filter((album) => hiddenAlbumPredicate(album));
+  const unhiddenAlbums = albums.filter((album) => !hiddenAlbumPredicate(album));
+  const stats = {
     total: albums.length,
-    withAudio: Object.values(trackCounts).filter((count) => count > 0).length,
-    singles: albums.filter((album) => album.album_type === 'single').length,
-    upcoming: albums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length,
-    hidden: albums.filter((album) => hiddenAlbumPredicate(album)).length
-  }), [albums, trackCounts]);
+    withAudio: unhiddenAlbums.filter((album) => trackCounts[album._id || album.id] > 0).length,
+    singles: unhiddenAlbums.filter((album) => album.album_type === 'single').length,
+    upcoming: unhiddenAlbums.filter((album) => album.release_date && new Date(album.release_date) > new Date()).length,
+    hidden: hiddenAlbums.length,
+    unhidden: unhiddenAlbums.length
+  };
 
   const artistOptions = useMemo(
     () => visibleArtists
@@ -89,7 +92,7 @@ export default function AdminAlbums() {
     [visibleArtists]
   );
 
-  const filteredAlbums = useMemo(() => {
+  const filteredAlbums = (() => {
     const query = search.trim().toLowerCase();
     const next = albums.filter((album) => {
       const isHiddenEntry = hiddenAlbumPredicate(album);
@@ -113,7 +116,7 @@ export default function AdminAlbums() {
       sorted.sort((left, right) => new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime());
     }
     return sorted;
-  }, [albumArtistsText, albums, filters, search, visibilityMode]);
+  })();
   const filteredAlbumIds = filteredAlbums.map((album) => String(album._id || album.id));
   const allFilteredSelected = filteredAlbumIds.length > 0 && filteredAlbumIds.every((id) => selectedIds.includes(id));
 
@@ -130,9 +133,9 @@ export default function AdminAlbums() {
     setLoading(true);
     try {
       const [res, artistsRes, songsRes, moodsRes] = await Promise.all([
-        apiService.getAlbums(1, 1000),
-        apiService.getArtists(1, 1000),
-        apiService.getSongs(1, 2000),
+        apiService.getAlbums(1, 1000, '', '', '', '-release_date', true),
+        apiService.getArtists(1, 1000, '', '', true),
+        apiService.getSongs(1, 2000, '', '', '', '', '', '-createdAt', '', '', '', '', false, true),
         apiService.getSongMoods().catch(() => ({ moods: [] }))
       ]);
 
@@ -260,12 +263,13 @@ export default function AdminAlbums() {
 
   const bulkDeleteAlbums = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.length} selected album${selectedIds.length === 1 ? '' : 's'}?`)) return;
+    const selectedCount = selectedIds.length;
+    if (!window.confirm(`Delete ${selectedCount} selected album${selectedCount === 1 ? '' : 's'}?`)) return;
     try {
       await Promise.all(selectedIds.map((id) => apiService.deleteAlbum(id)));
       setAlbums((prev) => prev.filter((album) => !selectedIds.includes(String(album._id || album.id))));
       setSelectedIds([]);
-      showToast(`Deleted ${selectedIds.length} album${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+      showToast(`Deleted ${selectedCount} album${selectedCount === 1 ? '' : 's'}.`, 'success', 3000);
     } catch (error) {
       showToast(`Failed to delete selected albums: ${error?.message || 'Unknown error'}`, 'error');
     }
@@ -277,9 +281,12 @@ export default function AdminAlbums() {
         is_visible: nextVisible,
         publish_status: nextVisible ? 'published' : 'hidden'
       });
+      const merged = { ...album, ...updated, is_visible: nextVisible, publish_status: nextVisible ? 'published' : 'hidden' };
       setAlbums((prev) => prev.map((item) => (
-        String(item._id || item.id) === String(album._id || album.id) ? updated : item
+        String(item._id || item.id) === String(album._id || album.id) ? merged : item
       )));
+      setVisibilityMode(nextVisible ? 'active' : 'hidden');
+      setFilters((prev) => ({ ...prev, type: 'all', artist: 'all' }));
       showToast(`Album ${nextVisible ? 'unhidden' : 'hidden'} successfully.`, 'success', 3000);
     } catch (error) {
       showToast(`Failed to update album visibility: ${error?.message || 'Unknown error'}`, 'error');
@@ -288,18 +295,23 @@ export default function AdminAlbums() {
 
   const bulkUpdateAlbumVisibility = async (nextVisible) => {
     if (selectedIds.length === 0) return;
+    const selectedCount = selectedIds.length;
     try {
+      const updatePayload = {
+        is_visible: nextVisible,
+        publish_status: nextVisible ? 'published' : 'hidden'
+      };
       const responses = await Promise.all(
-        selectedIds.map((id) => apiService.updateAlbum(id, {
-          is_visible: nextVisible,
-          publish_status: nextVisible ? 'published' : 'hidden'
-        }))
+        selectedIds.map((id) => apiService.updateAlbum(id, updatePayload))
       );
       setAlbums((prev) => prev.map((album) => {
         const match = responses.find((item) => String(item._id || item.id) === String(album._id || album.id));
-        return match || album;
+        return match ? { ...album, ...match, ...updatePayload } : album;
       }));
-      showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedIds.length} album${selectedIds.length === 1 ? '' : 's'}.`, 'success', 3000);
+      setSelectedIds([]);
+      setVisibilityMode(nextVisible ? 'active' : 'hidden');
+      setFilters((prev) => ({ ...prev, type: 'all', artist: 'all' }));
+      showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedCount} album${selectedCount === 1 ? '' : 's'}.`, 'success', 3000);
     } catch (error) {
       showToast(`Failed to update selected albums: ${error?.message || 'Unknown error'}`, 'error');
     }
@@ -338,15 +350,17 @@ export default function AdminAlbums() {
             </div>
             <button onClick={() => setDrawerOpen(true)} className="rounded-2xl bg-neon-blue px-5 py-3 text-sm font-semibold text-dark-bg hover:bg-neon-blue/85">Add album</button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-5">
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             {[
               ['Total albums', stats.total],
               ['With audio', stats.withAudio],
               ['Singles', stats.singles],
               ['Upcoming', stats.upcoming],
-              ['Hidden albums', stats.hidden]
+              ['Hidden albums', stats.hidden],
+              ['Unhidden albums', stats.unhidden]
             ].map(([label, value]) => {
               const isVisibilityCard = label === 'Hidden albums';
+              const isUnhiddenCard = label === 'Unhidden albums';
               const isResetCard = label === 'Total albums';
               return (
               <button
@@ -355,19 +369,20 @@ export default function AdminAlbums() {
                 onClick={
                   isVisibilityCard
                     ? () => setVisibilityMode((prev) => (prev === 'hidden' ? 'active' : 'hidden'))
-                    : isResetCard
+                    : isResetCard || isUnhiddenCard
                       ? () => { setVisibilityMode('active'); }
                       : undefined
                 }
                 className={`rounded-2xl border p-4 text-left ${
-                  isVisibilityCard && visibilityMode === 'hidden'
+                  (isVisibilityCard && visibilityMode === 'hidden') || (isUnhiddenCard && visibilityMode === 'active')
                     ? 'border-neon-blue/50 bg-neon-blue/10'
                     : 'border-white/10 bg-black/20'
-                } ${(isVisibilityCard || isResetCard) ? 'transition hover:border-neon-blue/40 hover:bg-neon-blue/5' : ''}`}
+                } ${(isVisibilityCard || isResetCard || isUnhiddenCard) ? 'transition hover:border-neon-blue/40 hover:bg-neon-blue/5' : ''}`}
               >
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-400">{label}</p>
                 <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
                 {isVisibilityCard ? <p className="mt-2 text-xs text-neon-blue">{visibilityMode === 'hidden' ? 'Showing hidden albums, including hidden-artist albums' : 'Click to view hidden albums'}</p> : null}
+                {isUnhiddenCard ? <p className="mt-2 text-xs text-neon-blue">{visibilityMode === 'active' ? 'Showing unhidden albums' : 'Click to view unhidden albums'}</p> : null}
                 {isResetCard ? <p className="mt-2 text-xs text-neon-blue">Click to return to active albums</p> : null}
               </button>
             );})}
@@ -375,6 +390,25 @@ export default function AdminAlbums() {
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
+          <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-black/20 p-1">
+            {[
+              { label: 'Unhidden albums', value: 'active' },
+              { label: 'Hidden albums', value: 'hidden' }
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => { setVisibilityMode(tab.value); setFilters((prev) => ({ ...prev, type: 'all', artist: 'all' })); }}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  visibilityMode === tab.value
+                    ? 'bg-neon-blue text-dark-bg'
+                    : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Search</span>
@@ -503,7 +537,7 @@ export default function AdminAlbums() {
 
         <div className="flex items-center justify-between rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-gray-300">
-            {loading ? 'Loading albums...' : `${filteredAlbums.length} albums shown of ${albums.length}${selectedIds.length ? ` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${selectedIds.length} selected` : ''}`}
+            {loading ? 'Loading albums...' : `${filteredAlbums.length} albums shown of ${albums.length}${selectedIds.length ? ` - ${selectedIds.length} selected` : ''}`}
           </div>
           <button disabled={loading} onClick={load} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-white/5">
             Refresh

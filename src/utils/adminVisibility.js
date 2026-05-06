@@ -1,4 +1,19 @@
-export const isAdminVisibleArtist = (artist) => artist && artist.is_visible !== false && artist.publish_status !== 'hidden';
+const publishStatus = (entity) => String(entity?.publish_status || 'published').toLowerCase();
+
+export const isAdminHiddenEntity = (entity) => (
+  Boolean(entity)
+  && (entity.is_visible === false || publishStatus(entity) === 'hidden')
+);
+
+export const isAdminDraftEntity = (entity) => Boolean(entity) && publishStatus(entity) === 'draft';
+
+export const isAdminPublishedEntity = (entity) => (
+  Boolean(entity)
+  && entity.is_visible !== false
+  && publishStatus(entity) === 'published'
+);
+
+export const isAdminVisibleArtist = isAdminPublishedEntity;
 
 export const getAdminEntityId = (entity) => {
   if (!entity) return '';
@@ -12,13 +27,12 @@ export const hasHiddenArtistLink = (artists) => (
 
 export const isAdminVisibleAlbum = (album) => (
   Boolean(album)
-  && album.is_visible !== false
-  && album.publish_status !== 'hidden'
+  && isAdminPublishedEntity(album)
   && !hasHiddenArtistLink(album.artists)
 );
 
 export const isAdminVisibleSong = (song) => {
-  if (!song || song.is_visible === false || song.publish_status === 'hidden') {
+  if (!isAdminPublishedEntity(song)) {
     return false;
   }
 

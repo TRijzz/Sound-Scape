@@ -8,7 +8,7 @@ const isAdminRequest = (req) => {
 
 const visibleAlbumQuery = {
   is_visible: { $ne: false },
-  publish_status: { $ne: 'hidden' }
+  publish_status: { $nin: ['hidden', 'draft'] }
 };
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdminOrAuth } from '../middlewares/admin.js';
+import { optionalAdmin, requireAdminOrAuth } from '../middlewares/admin.js';
 import { requireAuth } from '../middlewares/auth.js';
 import { 
   createSong, 
@@ -29,7 +29,7 @@ import { upload } from '../middlewares/upload.js';
 const router = Router();
 
 // Public routes
-router.get('/', getSongs);
+router.get('/', optionalAdmin, getSongs);
 router.get('/popular', getPopularSongs);
 router.get('/genre', getSongsByGenre);
 router.get('/year', getSongsByYear);
@@ -40,8 +40,8 @@ router.get('/moods', getSongMoods);
 router.get('/audio-inventory', requireAdminOrAuth, getAudioInventory);
 router.get('/recommendations', requireAuth, getPersonalizedRecommendations);   //Backend route for personalized recommendations
 router.get('/analytics/me', requireAuth, getListeningAnalytics);
-router.get('/:id', getSong);
-router.get('/:id/lyrics', getLyrics);
+router.get('/:id', optionalAdmin, getSong);
+router.get('/:id/lyrics', optionalAdmin, getLyrics);
 router.post('/:id/play', playSong); // Changed from incrementPlayCount to playSong
 
 // Protected routes (require authentication)

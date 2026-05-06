@@ -44,3 +44,19 @@ export const requireAdmin = async (req, res, next) => {
 
   return res.status(403).json({ message: 'Admin access required' });
 };
+
+export const optionalAdmin = async (req, res, next) => {
+  const adminCode = getAdminCredential(req);
+  if (!adminCode) return next();
+
+  try {
+    const credential = await verifyAdminCredential(adminCode);
+    if (credential) {
+      applyAdminAccess(req, credential);
+    }
+  } catch {
+    // Keep public GET routes public if an optional admin credential is stale.
+  }
+
+  return next();
+};
