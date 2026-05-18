@@ -51,11 +51,12 @@ transporter.verify(function(error, success) {
   }
 });
 
-export const sendMail = async ({ to, subject, html }) => {
+export const sendMail = async ({ to, subject, html, text }) => {
   return transporter.sendMail({
     from: fromEmail,
     to,
     subject,
+    text,
     html,
   });
 };

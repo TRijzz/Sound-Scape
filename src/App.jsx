@@ -135,6 +135,7 @@ function AppContent() {
                 <Route path="/library" element={<LibraryPage />} />
                 <Route path="/playlist/:id" element={<PlaylistPage />} />
                 <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
+                <Route path="/admin/reset-password" element={<AdminGuard><AdminPage /></AdminGuard>} />
                 <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
                 <Route path="/admin/albums" element={<AdminGuard><AdminAlbums /></AdminGuard>} />
                 <Route path="/admin/songs" element={<AdminGuard><AdminSongs /></AdminGuard>} />

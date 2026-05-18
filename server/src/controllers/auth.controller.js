@@ -11,6 +11,127 @@ const recentSignups = new Map();
 const SIGNUP_RATE_LIMIT = 3; // Max attempts
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 
+const getAppBaseUrl = (req) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  if (process.env.NODE_ENV === 'production') {
+    return (req.get('origin') || process.env.APP_BASE_URL || baseUrl).replace(/\/$/, '');
+  }
+  return 'http://localhost:3000';
+};
+
+const isValidEmail = (value) => /^\S+@\S+\.\S+$/.test(String(value || '').trim());
+
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const buildVerificationCodeEmail = ({ name, code }) => {
+  const safeName = escapeHtml(name || 'there');
+  const safeCode = escapeHtml(code || '');
+  const text = [
+    'Sound Scape',
+    '',
+    `Welcome, ${name || 'there'}.`,
+    `Your verification code is: ${code}`,
+    'This code expires in 10 minutes.',
+    '',
+    'If you did not request this code, you can ignore this email.'
+  ].join('\n');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Sound Scape Verification Code</title>
+      </head>
+      <body style="margin:0; padding:0; background:#05060a; color:#f8fafc; font-family:Arial, Helvetica, sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#05060a; padding:36px 12px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px; border-collapse:separate; overflow:hidden; border:1px solid #1f3c48; border-radius:28px; background:#0b0d14; box-shadow:0 28px 80px rgba(0,0,0,0.45);">
+                <tr>
+                  <td style="padding:0;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0f1720;">
+                      <tr>
+                        <td style="padding:34px 34px 28px; background:#101820;">
+                          <div style="font-size:12px; line-height:1; font-weight:800; letter-spacing:7px; text-transform:uppercase; color:#22d3ee;">Sound Scape</div>
+                          <h1 style="margin:18px 0 8px; font-size:42px; line-height:1.05; font-weight:900; color:#ffffff;">Welcome aboard.</h1>
+                          <p style="margin:0; max-width:520px; font-size:16px; line-height:1.7; color:#cbd5e1;">Hi ${safeName}, your listening profile is almost ready. Enter the system code below to verify your account.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #164e63; border-radius:22px; background:#070a10;">
+                      <tr>
+                        <td style="padding:26px 26px 8px;">
+                          <div style="font-size:12px; font-weight:800; letter-spacing:4px; text-transform:uppercase; color:#67e8f9;">System Access Code</div>
+                          <div style="margin-top:10px; height:3px; width:86px; background:#22d3ee; border-radius:99px;"></div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding:18px 26px 24px;">
+                          <div style="display:inline-block; padding:18px 24px; border:1px solid #155e75; border-radius:18px; background:#111827;">
+                            <span style="font-family:Consolas, Monaco, 'Courier New', monospace; font-size:44px; line-height:1; letter-spacing:12px; font-weight:900; color:#67e8f9;">${safeCode}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0 26px 26px;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top:1px solid #1f2937;">
+                            <tr>
+                              <td style="padding-top:18px; font-size:14px; line-height:1.7; color:#cbd5e1;">
+                                This code expires in <strong style="color:#ffffff;">10 minutes</strong>. Keep it private and only enter it inside Sound Scape.
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;">
+                      <tr>
+                        <td style="padding:16px 18px; border:1px solid #1f2937; border-radius:16px; background:#0f172a; color:#94a3b8; font-size:13px; line-height:1.7;">
+                          <strong style="color:#e2e8f0;">Security note:</strong> Sound Scape will never ask for this code outside the app.
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin:22px 0 0; font-size:12px; line-height:1.6; color:#64748b; text-align:center;">If you did not request this code, you can safely ignore this email.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:16px 34px 30px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="height:1px; background:#1f2937;"></td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-top:18px; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:#475569;">
+                          Curated music console
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  return { html, text };
+};
+
 export const register = async (req, res) => {        //Registers user and returns tokens  
   try {
     const { name, email, password, username, avatar_url } = req.body || {};
@@ -88,14 +209,11 @@ export const register = async (req, res) => {        //Registers user and return
     }
 
     try {
+      const verificationEmail = buildVerificationCodeEmail({ name: user.name, code });
       await sendMail({          //Sends verification code to the user's email
         to: user.email,
-        subject: 'Your verification code',
-        html: `
-          <p>Hi ${user.name || 'there'},</p>
-          <p>Your verification code is: <strong>${code}</strong></p>
-          <p>This code expires in 10 minutes.</p>
-        `,
+        subject: 'Sound Scape verification code',
+        ...verificationEmail,
       });
     } catch (mailErr) {
       console.warn('Email send failed:', mailErr.message);
@@ -388,10 +506,11 @@ export const resendVerification = async (req, res) => {
   }
 
   try {
+    const verificationEmail = buildVerificationCodeEmail({ name: user.name, code });
     await sendMail({
       to: user.email,
-      subject: 'Your verification code',
-      html: `<p>Your verification code is: <strong>${code}</strong></p>`,
+      subject: 'Sound Scape verification code',
+      ...verificationEmail,
     });
   } catch (mailErr) {
     console.warn('Email send failed:', mailErr.message);
@@ -451,10 +570,11 @@ export const verifyEmailCode = async (req, res) => {
 
 export const registerAdmin = async (req, res) => {
   try {
-    const { username, password } = req.body || {};
+    const { username, password, email } = req.body || {};
     const errors = {};
     if (!username?.trim()) errors.username = 'Username is required';
     if (!password || password.length < 8) errors.password = 'Password must be at least 8 characters';
+    if (email && !isValidEmail(email)) errors.email = 'Valid recovery email required';
 
     if (Object.keys(errors).length) {
       return res.status(400).json({ message: 'Validation failed', errors });
@@ -466,10 +586,17 @@ export const registerAdmin = async (req, res) => {
     const exists = await Admin.findOne({ username: normalizedUsername });
     if (exists) return res.status(409).json({ message: 'Admin username already exists' });
 
+    const normalizedEmail = isValidEmail(email)
+      ? String(email).trim().toLowerCase()
+      : `${normalizedUsername}@admin.local`;
+
+    const emailExists = await Admin.findOne({ email: normalizedEmail });
+    if (emailExists) return res.status(409).json({ message: 'Admin recovery email already exists' });
+
     const admin = await Admin.create({
       name: username.trim(),
       username: normalizedUsername,
-      email: `${normalizedUsername}@admin.local`,
+      email: normalizedEmail,
       password,
       role: adminCount === 0 ? 'superadmin' : 'admin',
     });
@@ -509,6 +636,87 @@ export const loginAdmin = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Admin login failed' });
+  }
+};
+
+export const forgotAdminPassword = async (req, res) => {
+  try {
+    const { identifier } = req.body || {};
+    const normalizedIdentifier = String(identifier || '').trim().toLowerCase();
+    if (!normalizedIdentifier) {
+      return res.status(400).json({ message: 'Admin username or recovery email is required' });
+    }
+
+    const admin = await Admin.findOne({
+      $or: [
+        { username: normalizedIdentifier },
+        { email: normalizedIdentifier },
+      ],
+    });
+
+    const genericMessage = 'If an admin account matches, reset instructions have been sent.';
+    if (!admin || !admin.is_active) {
+      return res.json({ message: genericMessage });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+
+    admin.passwordResetTokenHash = hash;
+    admin.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+    await admin.save();
+
+    const resetUrlFrontend = `${getAppBaseUrl(req)}/admin/reset-password?token=${encodeURIComponent(token)}`;
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEV] Admin password reset link:', resetUrlFrontend);
+    }
+
+    const canSendEmail = isValidEmail(admin.email) && !admin.email.endsWith('@admin.local');
+    if (canSendEmail) {
+      try {
+        await sendMail({
+          to: admin.email,
+          subject: 'Reset your admin password',
+          html: `
+            <p>Hi ${admin.name || admin.username || 'there'},</p>
+            <p>You requested an admin password reset. This link expires in 1 hour.</p>
+            <p><a href="${resetUrlFrontend}">Click here to reset your admin password</a></p>
+          `,
+        });
+      } catch (mailErr) {
+        console.warn('Admin password reset email failed:', mailErr.message);
+      }
+    }
+
+    return res.json({ message: genericMessage });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to request admin password reset' });
+  }
+};
+
+export const resetAdminPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) return res.status(400).json({ message: 'Missing token or newPassword' });
+    if (newPassword.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    const admin = await Admin.findOne({
+      passwordResetTokenHash: hash,
+      passwordResetExpires: { $gt: new Date() },
+    }).select('+password +passwordResetTokenHash +passwordResetExpires');
+
+    if (!admin || !admin.is_active) return res.status(400).json({ message: 'Invalid or expired token' });
+
+    admin.password = newPassword;
+    admin.passwordResetTokenHash = undefined;
+    admin.passwordResetExpires = undefined;
+    await admin.save();
+
+    return res.json({ message: 'Admin password reset successful' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to reset admin password' });
   }
 };
 

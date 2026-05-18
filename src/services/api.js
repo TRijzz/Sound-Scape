@@ -1229,7 +1229,7 @@ class ApiService {
     return response;
   }
 
-  async registerAdmin({ username, password }) {
+  async registerAdmin({ username, password, email }) {
     const normalizedUsername = String(username || '').trim();
     const response = await this.fetchData(`/auth/admin/register`, {
       method: 'POST',
@@ -1237,11 +1237,25 @@ class ApiService {
         username: normalizedUsername,
         password,
         name: normalizedUsername,
-        email: `${normalizedUsername.toLowerCase()}@admin.local`
+        email: email || undefined
       })
     });
     if (response.adminToken) this.setAdminToken(response.adminToken);
     return response;
+  }
+
+  async forgotAdminPassword(identifier) {
+    return this.fetchData(`/auth/admin/password/forgot`, {
+      method: 'POST',
+      body: JSON.stringify({ identifier })
+    });
+  }
+
+  async resetAdminPassword(token, newPassword) {
+    return this.fetchData(`/auth/admin/password/reset`, {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword })
+    });
   }
 
   async populateSongCategories({ dryRun = false, limit = 1000, overwriteGenre = false, overwriteCategory = false } = {}) {

@@ -13,6 +13,8 @@ const adminSchema = new mongoose.Schema(
     role: { type: String, enum: ['admin', 'superadmin'], default: 'admin' },
     is_active: { type: Boolean, default: true },
     last_login_at: { type: Date },
+    passwordResetTokenHash: { type: String, select: false, index: true },
+    passwordResetExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );

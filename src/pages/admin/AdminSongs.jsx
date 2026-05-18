@@ -46,6 +46,21 @@ export default function AdminSongs() {
   const songArtistsText = (song) => (song.artists || []).filter(isArtistAllowed).map((artist) => artist?.name).filter(Boolean).join(', ');
   const hasRestrictedAlbumLink = (album) => album && typeof album === 'object' && !isAdminVisibleAlbum(album);
   const hiddenSongPredicate = (song) => isHiddenSong(song) || hasRestrictedArtistLink(song?.artists) || hasRestrictedAlbumLink(song?.album);
+  const getLinkedAlbum = (song) => {
+    const albumId = getAdminEntityId(song?.album);
+    if (!albumId) return null;
+    return albums.find((album) => getAdminEntityId(album) === albumId) || song.album;
+  };
+  const getHiddenArtistIdsForSong = (song) => (
+    (song?.artists || [])
+      .map(getAdminEntityId)
+      .filter((artistId) => artistId && hiddenArtistIds.has(artistId))
+  );
+  const getAlbumHiddenArtistIds = (album) => (
+    (album?.artists || [])
+      .map(getAdminEntityId)
+      .filter((artistId) => artistId && hiddenArtistIds.has(artistId))
+  );
 
   const [toasts, setToasts] = useState([]);
   const [syncingFolders, setSyncingFolders] = useState(false);
@@ -62,7 +77,7 @@ export default function AdminSongs() {
     .filter((song) => {
       const matchesUploaded = !uploadedOnly || song.has_uploaded_audio;
       const isHiddenEntry = hiddenSongPredicate(song);
-      const matchesHiddenState = visibilityMode === 'hidden' ? isHiddenEntry : !isHiddenEntry;
+      const matchesHiddenState = visibilityMode === 'all' ? true : visibilityMode === 'hidden' ? isHiddenEntry : !isHiddenEntry;
       const query = search.trim().toLowerCase();
       const rawArtistText = (song.artists || []).map((artist) => artist?.name).filter(Boolean).join(' ');
       const haystack = [song.name, song.album?.name, visibilityMode === 'hidden' ? rawArtistText : songArtistsText(song)].filter(Boolean).join(' ').toLowerCase();
@@ -108,7 +123,7 @@ export default function AdminSongs() {
     setLoading(true);
     try {
       const [songsRes, inventoryRes, albumsRes, artistsRes] = await Promise.all([
-        apiService.getSongs(1, 2000, '', '', '', '', '', '-createdAt', '', '', '', '', false, true),
+        apiService.getSongs(1, uploadedOnly ? 1000 : 2000, '', '', '', '', '', '-createdAt', '', '', '', '', uploadedOnly, true),
         apiService.getAudioInventory(),
         apiService.getAlbums(1, 1000, '', '', '', '-release_date', true),
         apiService.getArtists(1, 1000, '', '', true)
@@ -135,12 +150,18 @@ export default function AdminSongs() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [uploadedOnly]);
 
   useEffect(() => {
     const nextSearch = searchParams.get('q') || '';
     setSearch(nextSearch);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (uploadedOnly) {
+      setVisibilityMode('all');
+    }
+  }, [uploadedOnly]);
 
   const autoPopulate = async () => {
     try {
@@ -201,14 +222,30 @@ export default function AdminSongs() {
 
   const updateSongVisibility = async (song, nextVisible) => {
     try {
-      const updated = await apiService.updateSong(song._id || song.id, {
+      const updatePayload = {
         is_visible: nextVisible,
         publish_status: nextVisible ? 'published' : 'hidden'
-      });
+      };
+      const linkedAlbum = getLinkedAlbum(song);
+      const hiddenArtistIdsToRestore = nextVisible
+        ? Array.from(new Set([...getHiddenArtistIdsForSong(song), ...getAlbumHiddenArtistIds(linkedAlbum)]))
+        : [];
+
+      await Promise.all([
+        ...hiddenArtistIdsToRestore.map((artistId) => apiService.updateArtist(artistId, updatePayload)),
+        nextVisible && linkedAlbum && hasRestrictedAlbumLink(linkedAlbum)
+          ? apiService.updateAlbum(getAdminEntityId(linkedAlbum), updatePayload)
+          : null
+      ].filter(Boolean));
+
+      const updated = await apiService.updateSong(song._id || song.id, updatePayload);
       const merged = { ...song, ...updated, is_visible: nextVisible, publish_status: nextVisible ? 'published' : 'hidden' };
       setSongs((prev) => prev.map((item) => (
         String(item._id || item.id) === String(song._id || song.id) ? merged : item
       )));
+      if (hiddenArtistIdsToRestore.length || (nextVisible && linkedAlbum && hasRestrictedAlbumLink(linkedAlbum))) {
+        await load();
+      }
       setVisibilityMode(nextVisible ? 'active' : 'hidden');
       setFilters((prev) => ({ ...prev, album: 'all', artist: 'all' }));
       showToast(`Song ${nextVisible ? 'unhidden' : 'hidden'} successfully.`, 'success', 3000);
@@ -225,12 +262,34 @@ export default function AdminSongs() {
         is_visible: nextVisible,
         publish_status: nextVisible ? 'published' : 'hidden'
       };
+      const selectedSongs = songs.filter((song) => selectedIds.includes(String(song._id || song.id)));
+      if (nextVisible) {
+        const artistIdsToRestore = new Set();
+        const albumIdsToRestore = new Set();
+        selectedSongs.forEach((song) => {
+          getHiddenArtistIdsForSong(song).forEach((artistId) => artistIdsToRestore.add(artistId));
+          const linkedAlbum = getLinkedAlbum(song);
+          getAlbumHiddenArtistIds(linkedAlbum).forEach((artistId) => artistIdsToRestore.add(artistId));
+          if (linkedAlbum && hasRestrictedAlbumLink(linkedAlbum)) {
+            albumIdsToRestore.add(getAdminEntityId(linkedAlbum));
+          }
+        });
+
+        await Promise.all([
+          ...Array.from(artistIdsToRestore).map((artistId) => apiService.updateArtist(artistId, updatePayload)),
+          ...Array.from(albumIdsToRestore).filter(Boolean).map((albumId) => apiService.updateAlbum(albumId, updatePayload))
+        ]);
+      }
+
       const responses = await Promise.all(selectedIds.map((id) => apiService.updateSong(id, updatePayload)));
       setSongs((prev) => prev.map((song) => {
         const match = responses.find((item) => String(item._id || item.id) === String(song._id || song.id));
         return match ? { ...song, ...match, ...updatePayload } : song;
       }));
       setSelectedIds([]);
+      if (nextVisible) {
+        await load();
+      }
       setVisibilityMode(nextVisible ? 'active' : 'hidden');
       setFilters((prev) => ({ ...prev, album: 'all', artist: 'all' }));
       showToast(`${nextVisible ? 'Unhid' : 'Hid'} ${selectedCount} song${selectedCount === 1 ? '' : 's'}.`, 'success', 3000);
@@ -279,7 +338,7 @@ export default function AdminSongs() {
           <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             {[
               { label: 'Total songs', value: stats.total, onClick: () => { setVisibilityMode('active'); if (uploadedOnly) setSearchParams({}); }, helper: uploadedOnly ? 'Show all songs' : 'Click to return to active songs' },
-              { label: 'Uploaded audio', value: stats.uploaded, onClick: () => setSearchParams({ uploaded: '1' }), helper: `${stats.linkedUploaded} linked to songs` },
+              { label: 'Uploaded audio', value: stats.uploaded, onClick: () => { setVisibilityMode('all'); setSearchParams({ uploaded: '1' }); }, helper: `${stats.linkedUploaded} linked to songs` },
               { label: 'Linked albums', value: stats.withAlbum },
               { label: 'Explicit', value: stats.explicit },
               { label: 'Hidden songs', value: stats.hidden, onClick: () => setVisibilityMode((prev) => (prev === 'hidden' ? 'active' : 'hidden')), helper: visibilityMode === 'hidden' ? 'Showing hidden songs, including hidden-artist songs' : 'Click to view hidden songs' },
@@ -311,6 +370,7 @@ export default function AdminSongs() {
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
           <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-black/20 p-1">
             {[
+              ...(uploadedOnly ? [{ label: 'All uploaded', value: 'all' }] : []),
               { label: 'Unhidden songs', value: 'active' },
               { label: 'Hidden songs', value: 'hidden' }
             ].map((tab) => (
@@ -394,7 +454,7 @@ export default function AdminSongs() {
           </div>
           {uploadedOnly ? (
             <div className="mt-4">
-              <button onClick={() => setSearchParams({})} className="rounded-xl border border-neon-blue/40 px-4 py-2 text-sm text-neon-blue hover:bg-neon-blue/10">
+              <button onClick={() => { setVisibilityMode('active'); setSearchParams({}); }} className="rounded-xl border border-neon-blue/40 px-4 py-2 text-sm text-neon-blue hover:bg-neon-blue/10">
                 Clear uploaded filter
               </button>
             </div>
@@ -450,7 +510,7 @@ export default function AdminSongs() {
                 <div className="text-sm text-gray-300">{song.genre?.name || song.genre || 'Uncategorized'}</div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => navigate('/admin/songs/edit/' + (song._id || song.id))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">Edit</button>
-                  <button onClick={() => updateSongVisibility(song, isHiddenSong(song))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">{isHiddenSong(song) ? 'Unhide' : 'Hide'}</button>
+                  <button onClick={() => updateSongVisibility(song, hiddenSongPredicate(song))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white hover:bg-white/5">{hiddenSongPredicate(song) ? 'Unhide' : 'Hide'}</button>
                   <button onClick={() => deleteSong(song._id || song.id)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20">Delete</button>
                 </div>
               </div>
@@ -483,7 +543,7 @@ export default function AdminSongs() {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button onClick={() => navigate('/admin/songs/edit/' + (song._id || song.id))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Edit</button>
-                <button onClick={() => updateSongVisibility(song, isHiddenSong(song))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">{isHiddenSong(song) ? 'Unhide' : 'Hide'}</button>
+                <button onClick={() => updateSongVisibility(song, hiddenSongPredicate(song))} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">{hiddenSongPredicate(song) ? 'Unhide' : 'Hide'}</button>
                 <button onClick={() => deleteSong(song._id || song.id)} className="rounded-xl border border-red-500/30 px-3 py-2 text-xs text-red-200">Delete</button>
               </div>
             </div>
