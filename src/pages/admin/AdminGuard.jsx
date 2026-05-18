@@ -104,6 +104,10 @@ export default function AdminGuard({ children }) {
         password: form.password,
       };
 
+      if (mode === 'create' && !payload.email) {
+        throw new Error('Recovery email is required for admin password resets');
+      }
+
       const response = mode === 'create'
         ? await apiService.registerAdmin(payload)
         : await apiService.loginAdmin({ username: payload.username, password: payload.password });
@@ -122,12 +126,12 @@ export default function AdminGuard({ children }) {
     const resetting = mode === 'reset';
     const title = resetting ? 'Reset admin password' : forgot ? 'Forgot admin password' : creating ? 'Create admin account' : 'Admin login';
     const description = resetting
-      ? 'Choose a new password for your admin account.'
+        ? 'Choose a new password for your admin account.'
       : forgot
-        ? 'Enter your admin username or recovery email.'
+        ? 'Enter your admin username or recovery email. We will send a reset link to the recovery email on file.'
         : creating
-          ? 'Create an admin account to manage Sound Scape.'
-          : 'Use your admin username and password to continue.';
+          ? 'Create an admin account to manage Sound Scape. A recovery email is required for password resets.'
+          : 'Use your admin username or recovery email and password to continue.';
 
     return (
       <div className="min-h-screen bg-dark-bg p-6 text-white">
@@ -148,7 +152,7 @@ export default function AdminGuard({ children }) {
                 type="text"
                 value={form.username}
                 onChange={(e) => updateField('username', e.target.value)}
-                placeholder={forgot ? 'Admin username or recovery email' : 'Admin username'}
+                placeholder={forgot ? 'Admin username or recovery email' : 'Admin username or email'}
                 autoComplete="username"
                 className="w-full rounded-lg border border-gray-700 bg-light-gray/50 px-4 py-3 text-white outline-none focus:ring-2 focus:ring-neon-blue"
               />
@@ -160,6 +164,7 @@ export default function AdminGuard({ children }) {
                 value={form.email}
                 onChange={(e) => updateField('email', e.target.value)}
                 placeholder="Recovery email"
+                required
                 autoComplete="email"
                 className="w-full rounded-lg border border-gray-700 bg-light-gray/50 px-4 py-3 text-white outline-none focus:ring-2 focus:ring-neon-blue"
               />

@@ -655,7 +655,11 @@ export const registerAdmin = async (req, res) => {
     const errors = {};
     if (!username?.trim()) errors.username = 'Username is required';
     if (!password || password.length < 8) errors.password = 'Password must be at least 8 characters';
-    if (email && !isValidEmail(email)) errors.email = 'Valid recovery email required';
+    if (!email?.trim()) {
+      errors.email = 'Recovery email is required';
+    } else if (!isValidEmail(email)) {
+      errors.email = 'Valid recovery email required';
+    }
 
     if (Object.keys(errors).length) {
       return res.status(400).json({ message: 'Validation failed', errors });
@@ -667,9 +671,7 @@ export const registerAdmin = async (req, res) => {
     const exists = await Admin.findOne({ username: normalizedUsername });
     if (exists) return res.status(409).json({ message: 'Admin username already exists' });
 
-    const normalizedEmail = isValidEmail(email)
-      ? String(email).trim().toLowerCase()
-      : `${normalizedUsername}@admin.local`;
+    const normalizedEmail = String(email).trim().toLowerCase();
 
     const emailExists = await Admin.findOne({ email: normalizedEmail });
     if (emailExists) return res.status(409).json({ message: 'Admin recovery email already exists' });
@@ -699,9 +701,15 @@ export const registerAdmin = async (req, res) => {
 export const loginAdmin = async (req, res) => {
   try {
     const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ message: 'Username and password are required' });
+    if (!username || !password) return res.status(400).json({ message: 'Username/email and password are required' });
 
-    const admin = await Admin.findOne({ username: String(username).trim().toLowerCase() }).select('+password');
+    const credential = String(username).trim().toLowerCase();
+    const admin = await Admin.findOne({
+      $or: [
+        { username: credential },
+        { email: credential },
+      ],
+    }).select('+password');
     if (!admin || !admin.is_active) return res.status(401).json({ message: 'Invalid admin credentials' });
 
     const ok = await admin.comparePassword(password);
@@ -735,9 +743,14 @@ export const forgotAdminPassword = async (req, res) => {
       ],
     });
 
-    const genericMessage = 'If an admin account matches, reset instructions have been sent.';
+    const genericMessage = 'If an admin account matches, reset instructions have been sent to its recovery email.';
     if (!admin || !admin.is_active) {
       return res.json({ message: genericMessage });
+    }
+
+    const canSendEmail = isValidEmail(admin.email) && !admin.email.endsWith('@admin.local');
+    if (!canSendEmail) {
+      return res.status(400).json({ message: 'No recovery email is configured for this admin account.' });
     }
 
     const token = crypto.randomBytes(32).toString('hex');
@@ -753,18 +766,15 @@ export const forgotAdminPassword = async (req, res) => {
       console.log('[DEV] Admin password reset link:', resetUrlFrontend);
     }
 
-    const canSendEmail = isValidEmail(admin.email) && !admin.email.endsWith('@admin.local');
-    if (canSendEmail) {
-      try {
-        const resetEmail = buildPasswordResetEmail({ name: admin.name || admin.username, resetUrl: resetUrlFrontend, isAdmin: true });
-        await sendMail({
-          to: admin.email,
-          subject: 'Reset your Sound Scape admin password',
-          ...resetEmail,
-        });
-      } catch (mailErr) {
-        console.warn('Admin password reset email failed:', mailErr.message);
-      }
+    try {
+      const resetEmail = buildPasswordResetEmail({ name: admin.name || admin.username, resetUrl: resetUrlFrontend, isAdmin: true });
+      await sendMail({
+        to: admin.email,
+        subject: 'Reset your Sound Scape admin password',
+        ...resetEmail,
+      });
+    } catch (mailErr) {
+      console.warn('Admin password reset email failed:', mailErr.message);
     }
 
     return res.json({ message: genericMessage });
