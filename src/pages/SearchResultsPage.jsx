@@ -18,6 +18,14 @@ const getEntityId = (item) => item?._id || item?.id || '';
 
 const getSongAlbumId = (song) => song?.album?._id || song?.album?.id || song?.albumId?._id || song?.albumId || '';
 
+const getSongCover = (song) => (
+  song?.album?.images?.[0]?.url
+  || song?.cover_art_url
+  || song?._vinylImage
+  || song?.images?.[0]?.url
+  || albumArtPlaceholder
+);
+
 const getResultMeta = (entry) => {
   const { type, item } = entry;
 
@@ -27,7 +35,7 @@ const getResultMeta = (entry) => {
       title: item?.name || item?.title || 'Untitled song',
       subtitle: artists || 'Song',
       label: 'Song',
-      image: item?.album?.images?.[0]?.url || item?.images?.[0]?.url || albumArtPlaceholder,
+      image: getSongCover(item),
       path: getSongAlbumId(item) ? `/album/${getSongAlbumId(item)}` : `/search?q=${encodeURIComponent(item?.name || item?.title || '')}`,
     };
   }
@@ -86,10 +94,17 @@ const SectionHeader = ({ title, count }) => (
 );
 
 const BestMatchCard = ({ match, onSongSelect }) => {
-  if (!match) return null;
+  const [imageFailed, setImageFailed] = useState(false);
+  const meta = match ? getResultMeta(match) : null;
+  const matchImageKey = match && meta ? `${match.type}:${getEntityId(match.item)}:${meta.image}` : '';
 
-  const meta = getResultMeta(match);
-  const imageSrc = apiService.resolveMediaUrl(meta.image);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [matchImageKey]);
+
+  if (!match || !meta) return null;
+
+  const imageSrc = imageFailed ? albumArtPlaceholder : apiService.resolveMediaUrl(meta.image);
   const content = (
     <motion.div
       initial={{ opacity: 0, y: 18 }}
@@ -99,7 +114,7 @@ const BestMatchCard = ({ match, onSongSelect }) => {
     >
       <div className="flex flex-col gap-6 md:flex-row md:items-center">
         <div className={`h-32 w-32 shrink-0 overflow-hidden bg-light-gray shadow-2xl ${match.type === 'artist' || match.type === 'user' ? 'rounded-full' : 'rounded-3xl'}`}>
-          <img src={imageSrc} alt={meta.title} className="h-full w-full object-cover" />
+          <img src={imageSrc} alt={meta.title} onError={() => setImageFailed(true)} className="h-full w-full object-cover" />
         </div>
         <div className="min-w-0 flex-1 text-left">
           <p className="text-xs font-black uppercase tracking-[0.35em] text-neon-blue">Best Match</p>
