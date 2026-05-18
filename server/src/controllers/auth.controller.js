@@ -132,6 +132,90 @@ const buildVerificationCodeEmail = ({ name, code }) => {
   return { html, text };
 };
 
+const buildPasswordResetEmail = ({ name, resetUrl, isAdmin = false }) => {
+  const safeName = escapeHtml(name || 'there');
+  const safeResetUrl = escapeHtml(resetUrl || '#');
+  const accountType = isAdmin ? 'admin console' : 'listening profile';
+  const text = [
+    'Sound Scape',
+    '',
+    `Hi ${name || 'there'},`,
+    `We received a request to reset the password for your Sound Scape ${accountType}.`,
+    `Reset your password here: ${resetUrl}`,
+    'This link expires in 1 hour.',
+    '',
+    'If you did not request this, you can ignore this email.'
+  ].join('\n');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Reset your Sound Scape password</title>
+      </head>
+      <body style="margin:0; padding:0; background:#05060a; color:#f8fafc; font-family:Arial, Helvetica, sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#05060a; padding:36px 12px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px; border-collapse:separate; overflow:hidden; border:1px solid #1f3c48; border-radius:28px; background:#0b0d14; box-shadow:0 28px 80px rgba(0,0,0,0.45);">
+                <tr>
+                  <td style="padding:34px 34px 28px; background:#101820;">
+                    <div style="font-size:12px; line-height:1; font-weight:800; letter-spacing:7px; text-transform:uppercase; color:#22d3ee;">Sound Scape</div>
+                    <h1 style="margin:18px 0 8px; font-size:40px; line-height:1.08; font-weight:900; color:#ffffff;">Password reset request.</h1>
+                    <p style="margin:0; max-width:540px; font-size:16px; line-height:1.7; color:#cbd5e1;">Hi ${safeName}, we received a request to reset your Sound Scape ${escapeHtml(accountType)} password.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #164e63; border-radius:22px; background:#070a10;">
+                      <tr>
+                        <td style="padding:26px 26px 12px;">
+                          <div style="font-size:12px; font-weight:800; letter-spacing:4px; text-transform:uppercase; color:#67e8f9;">Secure Reset Link</div>
+                          <div style="margin-top:10px; height:3px; width:86px; background:#22d3ee; border-radius:99px;"></div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding:18px 26px 26px;">
+                          <a href="${safeResetUrl}" style="display:inline-block; border-radius:16px; background:#22d3ee; color:#061014; font-size:15px; font-weight:900; letter-spacing:2px; text-transform:uppercase; text-decoration:none; padding:16px 28px;">Reset Password</a>
+                          <p style="margin:20px 0 0; font-size:13px; line-height:1.7; color:#94a3b8;">This link expires in <strong style="color:#ffffff;">1 hour</strong>.</p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;">
+                      <tr>
+                        <td style="padding:16px 18px; border:1px solid #1f2937; border-radius:16px; background:#0f172a; color:#94a3b8; font-size:13px; line-height:1.7;">
+                          <strong style="color:#e2e8f0;">Security note:</strong> If you did not request this reset, ignore this email and your password will stay unchanged.
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin:22px 0 0; font-size:12px; line-height:1.6; color:#64748b; text-align:center;">Button not working? Open this link:<br><span style="color:#94a3b8; word-break:break-all;">${safeResetUrl}</span></p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:16px 34px 30px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr><td style="height:1px; background:#1f2937;"></td></tr>
+                      <tr>
+                        <td align="center" style="padding-top:18px; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:#475569;">Curated music console</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  return { html, text };
+};
+
 export const register = async (req, res) => {        //Registers user and returns tokens  
   try {
     const { name, email, password, username, avatar_url } = req.body || {};
@@ -441,14 +525,11 @@ export const forgotPassword = async (req, res) => {
     }
 
     try {
+      const resetEmail = buildPasswordResetEmail({ name: user.name, resetUrl: resetUrlFrontend });
       await sendMail({
         to: user.email,
-        subject: 'Reset your password',
-        html: `
-          <p>Hi ${user.name || 'there'},</p>
-          <p>You requested a password reset. This link expires in 1 hour.</p>
-          <p><a href="${resetUrlFrontend}">Click here to reset your password</a></p>
-        `,
+        subject: 'Reset your Sound Scape password',
+        ...resetEmail,
       });
     } catch (mailErr) {
       console.warn('Email send failed:', mailErr.message);
@@ -675,14 +756,11 @@ export const forgotAdminPassword = async (req, res) => {
     const canSendEmail = isValidEmail(admin.email) && !admin.email.endsWith('@admin.local');
     if (canSendEmail) {
       try {
+        const resetEmail = buildPasswordResetEmail({ name: admin.name || admin.username, resetUrl: resetUrlFrontend, isAdmin: true });
         await sendMail({
           to: admin.email,
-          subject: 'Reset your admin password',
-          html: `
-            <p>Hi ${admin.name || admin.username || 'there'},</p>
-            <p>You requested an admin password reset. This link expires in 1 hour.</p>
-            <p><a href="${resetUrlFrontend}">Click here to reset your admin password</a></p>
-          `,
+          subject: 'Reset your Sound Scape admin password',
+          ...resetEmail,
         });
       } catch (mailErr) {
         console.warn('Admin password reset email failed:', mailErr.message);
