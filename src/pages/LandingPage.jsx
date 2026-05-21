@@ -213,21 +213,26 @@ const MusicStationLanding = () => {
           ))}
         </div>
 
-        <motion.button
-          type="button"
-          onClick={openVinylStore}
-          className="absolute z-10 hidden cursor-pointer border-0 bg-transparent p-0 lg:block"
-          aria-label="Open vinyl store"
-          style={{
-            x: heroVinylX,
-            y: heroVinylY,
-            rotate: heroVinylRotate,
-            translateX: `${(cursor.x - 50) * 0.12}px`,
-            translateY: `${(cursor.y - 50) * 0.12}px`
-          }}
+        <motion.div
+          className="absolute z-10 hidden lg:block"
+          style={{ x: heroVinylX, y: heroVinylY, rotate: heroVinylRotate }}
         >
-          <VinylRecord className="vinyl-hero-main" imageSrc={heroVinylImage} size="hero" />
-        </motion.button>
+          <div
+            className="vinyl-cursor-parallax"
+            style={{
+              transform: `translate3d(${(cursor.x - 50) * 0.12}px, ${(cursor.y - 50) * 0.12}px, 0)`
+            }}
+          >
+            <button
+              type="button"
+              onClick={openVinylStore}
+              aria-label="Open vinyl store"
+              className="vinyl-hover-button"
+            >
+              <VinylRecord className="vinyl-hero-main" imageSrc={heroVinylImage} size="hero" />
+            </button>
+          </div>
+        </motion.div>
 
         <div className="relative z-20 mx-auto grid w-full min-w-0 max-w-7xl items-center gap-12 lg:grid-cols-[1fr_0.95fr]">
           <motion.div
@@ -258,17 +263,21 @@ const MusicStationLanding = () => {
             </div>
           </motion.div>
 
-          <motion.button
-            type="button"
-            onClick={openVinylStore}
+          <motion.div
             initial={{ opacity: 0, scale: 0.88, rotate: -8 }}
             animate={{ opacity: 1, scale: 1, rotate: 0 }}
             transition={{ duration: 1, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="relative mx-auto block border-0 bg-transparent p-0 lg:hidden"
-            aria-label="Open vinyl store"
+            className="relative mx-auto block lg:hidden"
           >
-            <VinylRecord className="vinyl-hero-main" imageSrc={heroVinylImage} size="hero" />
-          </motion.button>
+            <button
+              type="button"
+              onClick={openVinylStore}
+              aria-label="Open vinyl store"
+              className="vinyl-hover-button"
+            >
+              <VinylRecord className="vinyl-hero-main" imageSrc={heroVinylImage} size="hero" />
+            </button>
+          </motion.div>
 
           <div className="pointer-events-none relative hidden min-h-[560px] lg:block" aria-hidden="true" />
         </div>
@@ -345,17 +354,19 @@ const StoryPanel = ({ story, index }) => {
         </motion.div>
 
         <div className="relative z-10 flex min-h-[420px] items-center justify-center">
-          <motion.button
-            type="button"
-            onClick={() => navigate('/store')}
+          <motion.div
             className="story-vinyl-wrap"
-            aria-label="Open vinyl store"
             style={{ x, y, rotate, scale, opacity }}
-            whileHover={{ scale: 1.12, filter: 'drop-shadow(0 0 42px rgba(0,191,255,0.55))' }}
-            transition={{ type: 'spring', stiffness: 160, damping: 18 }}
           >
-            <VinylRecord className={story.className} imageSrc={story.imageSrc} />
-          </motion.button>
+            <button
+              type="button"
+              onClick={() => navigate('/store')}
+              aria-label="Open vinyl store"
+              className="vinyl-hover-button"
+            >
+              <VinylRecord className={story.className} imageSrc={story.imageSrc} />
+            </button>
+          </motion.div>
         </div>
       </div>
       <div className={`section-index ${index % 2 ? 'right-8' : 'left-8'}`}>0{index + 1}</div>

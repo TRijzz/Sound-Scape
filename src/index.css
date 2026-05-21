@@ -378,12 +378,35 @@ img[src$=".svg"] {
 }
 
 .story-vinyl-wrap {
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 28px 70px rgba(0,0,0,0.6));
+  will-change: transform, opacity;
+}
+
+.vinyl-cursor-parallax {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.vinyl-hover-button {
   border: 0;
   background: transparent;
   padding: 0;
+  margin: 0;
   cursor: pointer;
-  transform-style: preserve-3d;
-  filter: drop-shadow(0 28px 70px rgba(0,0,0,0.6));
+  display: block;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.vinyl-hover-button:hover {
+  transform: scale(1.06);
+}
+
+.vinyl-hover-button:focus-visible {
+  outline: 2px solid rgba(0, 191, 255, 0.7);
+  outline-offset: 6px;
+  border-radius: 999px;
 }
 
 .section-index {
