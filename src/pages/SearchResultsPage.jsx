@@ -152,12 +152,21 @@ const BestMatchCard = ({ match, onSongSelect }) => {
   );
 };
 
+const CATEGORY_OPTIONS = [
+  'Alternative Rock', 'Amapiano', 'Funk', 'Funk De Bh', 'HipHop', 'Nepali',
+  'Nepali Pop', 'Other', 'Pop', 'R&B', 'Rap', 'Rock', 'Singer-songwriter',
+  'Soft Pop', 'Uncategorized'
+];
+
 const SearchResultsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get('q') || '';
+  const selectedCategory = searchParams.get('category') || '';
   const { playTrack, isAuthenticated } = useMusic();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [categorySongs, setCategorySongs] = useState([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
   const { searchResults, searchLoading, searchError, search } = useSearch();
 
   useEscapeKey(showAuthPrompt, () => setShowAuthPrompt(false));
@@ -168,19 +177,98 @@ const SearchResultsPage = () => {
     }
   }, [query, search]);
 
+  // When a category is selected without a query, fetch songs in that category directly.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedCategory || query.trim()) {
+      setCategorySongs([]);
+      return undefined;
+    }
+    (async () => {
+      try {
+        setCategoryLoading(true);
+        const response = await apiService.getSongs(
+          1, 24, '', '', '', '', '', '-popularity', '', '', '', selectedCategory
+        );
+        if (!cancelled) {
+          const songs = Array.isArray(response?.songs) ? response.songs : (Array.isArray(response) ? response : []);
+          setCategorySongs(songs);
+        }
+      } catch (err) {
+        if (!cancelled) setCategorySongs([]);
+      } finally {
+        if (!cancelled) setCategoryLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedCategory, query]);
+
+  const updateCategoryParam = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('category', value);
+    else next.delete('category');
+    setSearchParams(next, { replace: true });
+  };
+
+  const filteredSongs = useMemo(() => {
+    const baseSongs = (query.trim() ? (searchResults.songs || []) : categorySongs);
+    if (!selectedCategory) return baseSongs;
+    if (!query.trim()) return baseSongs;
+    return baseSongs.filter((song) => {
+      const cat = String(song?.category || '').toLowerCase();
+      return cat === selectedCategory.toLowerCase();
+    });
+  }, [searchResults.songs, categorySongs, selectedCategory, query]);
+
   const allResults = useMemo(() => {
     const entries = [
-      ...(searchResults.songs || []).map((item) => ({ type: 'song', item })),
+      ...filteredSongs.map((item) => ({ type: 'song', item })),
       ...(searchResults.artists || []).map((item) => ({ type: 'artist', item })),
       ...(searchResults.albums || []).map((item) => ({ type: 'album', item })),
       ...(searchResults.users || []).map((item) => ({ type: 'user', item })),
     ];
 
     return entries.sort((left, right) => scoreEntry(right, query) - scoreEntry(left, query));
-  }, [searchResults, query]);
+  }, [filteredSongs, searchResults, query]);
 
   const bestMatch = allResults[0] || null;
   const totalResults = allResults.length;
+  const hasQuery = query.trim().length > 0;
+
+  const CategoryDropdown = () => (
+    <div className="flex items-center gap-2">
+      <label htmlFor="category-filter" className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400">
+        Category
+      </label>
+      <div className="relative">
+        <select
+          id="category-filter"
+          value={selectedCategory}
+          onChange={(e) => updateCategoryParam(e.target.value)}
+          className="appearance-none rounded-lg border border-gray-700 bg-light-gray/40 px-3 py-2 pr-9 text-sm text-white outline-none transition hover:border-neon-blue/40 focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/20"
+        >
+          <option value="">All categories</option>
+          {CATEGORY_OPTIONS.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd"/>
+          </svg>
+        </span>
+      </div>
+      {selectedCategory && (
+        <button
+          type="button"
+          onClick={() => updateCategoryParam('')}
+          className="rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:border-neon-blue/40 hover:text-white"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
 
   const handleTrackSelect = async (track) => {
     const name = String(track?.name || '').toLowerCase();
@@ -207,7 +295,7 @@ const SearchResultsPage = () => {
     setSearchParams({ q: term });
   };
 
-  if (!query.trim()) {
+  if (!hasQuery) {
     return (
       <div className="p-6">
         <motion.div
@@ -220,8 +308,49 @@ const SearchResultsPage = () => {
             <SearchIcon className="h-6 w-6 text-neon-blue" />
           </div>
           <h1 className="mb-2 text-2xl font-bold text-white">Search</h1>
-          <p className="text-gray-400">Start typing in the search bar to find songs, artists, albums, and users.</p>
+          <p className="text-gray-400">Start typing in the search bar, or pick a category below to browse.</p>
         </motion.div>
+
+        <motion.div
+          className="mb-8 flex flex-wrap items-center justify-center gap-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+        >
+          <CategoryDropdown />
+        </motion.div>
+
+        {selectedCategory && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-10"
+          >
+            <SectionHeader title={`Songs in "${selectedCategory}"`} count={categorySongs.length} />
+            {categoryLoading ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-16 animate-pulse rounded-2xl bg-light-gray/30" />
+                ))}
+              </div>
+            ) : categorySongs.length > 0 ? (
+              <div className="space-y-2">
+                {categorySongs.map((song, index) => (
+                  <SongCard
+                    key={song._id || song.id}
+                    song={song}
+                    index={index}
+                    showAlbum={true}
+                    onClick={() => handleTrackSelect(song)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No songs in this category yet.</p>
+            )}
+          </motion.section>
+        )}
 
         <motion.section
           initial={{ opacity: 0, y: 20 }}
@@ -278,15 +407,20 @@ const SearchResultsPage = () => {
   return (
     <div className="p-6">
       <motion.div
-        className="mb-8"
+        className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="mb-2 text-2xl font-bold text-white">Search results for "{query}"</h1>
-        <p className="text-gray-400">
-          {searchLoading ? 'Searching across Sound Scape...' : `Found ${totalResults} ${totalResults === 1 ? 'result' : 'results'}`}
-        </p>
+        <div>
+          <h1 className="mb-2 text-2xl font-bold text-white">Search results for "{query}"</h1>
+          <p className="text-gray-400">
+            {searchLoading
+              ? 'Searching across Sound Scape...'
+              : `Found ${totalResults} ${totalResults === 1 ? 'result' : 'results'}${selectedCategory ? ` in "${selectedCategory}"` : ''}`}
+          </p>
+        </div>
+        <CategoryDropdown />
       </motion.div>
 
       {searchLoading ? (
@@ -305,10 +439,13 @@ const SearchResultsPage = () => {
           <BestMatchCard match={bestMatch} onSongSelect={handleTrackSelect} />
 
           <section>
-            <SectionHeader title="Songs" count={(searchResults.songs || []).length} />
-            {(searchResults.songs || []).length > 0 ? (
+            <SectionHeader
+              title={selectedCategory ? `Songs in "${selectedCategory}"` : 'Songs'}
+              count={filteredSongs.length}
+            />
+            {filteredSongs.length > 0 ? (
               <div className="space-y-2">
-                {(searchResults.songs || []).slice(0, 8).map((song, index) => (
+                {filteredSongs.slice(0, 8).map((song, index) => (
                   <SongCard
                     key={song._id || song.id}
                     song={song}
@@ -319,7 +456,9 @@ const SearchResultsPage = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">No songs found.</p>
+              <p className="text-sm text-gray-500">
+                {selectedCategory ? `No "${selectedCategory}" songs match "${query}".` : 'No songs found.'}
+              </p>
             )}
           </section>
 
