@@ -326,7 +326,16 @@ export const getArtistTopTracks = async (req, res) => {
       return res.status(404).json({ message: 'Artist not found' });
     }
 
-    const tracks = await Song.find({ artists: req.params.id })
+    // Only show tracks that have audio uploaded — the rest are Spotify-only
+    // metadata and aren't actually playable on this site.
+    const trackQuery = {
+      artists: req.params.id,
+      $or: [
+        { audio_url: { $exists: true, $nin: ['', null] } },
+        { file_path: { $exists: true, $nin: ['', null] } }
+      ]
+    };
+    const tracks = await Song.find(trackQuery)
       .populate('album', 'name images')
       .populate('artists', 'name spotify_id images')
       .sort({ popularity: -1 })
