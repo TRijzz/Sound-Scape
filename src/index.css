@@ -446,6 +446,13 @@ img[src$=".svg"] {
   background: linear-gradient(180deg, #8be9ff, #00bfff 55%, rgba(0,191,255,0.18));
   box-shadow: 0 0 18px rgba(0,191,255,0.35);
   animation: waveformPulse 1.4s ease-in-out infinite alternate;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.waveform.is-live span {
+  animation: none;
+  transition: transform 70ms linear, opacity 70ms linear;
 }
 
 @keyframes waveformPulse {

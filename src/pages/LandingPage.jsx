@@ -289,38 +289,208 @@ const MusicStationLanding = () => {
         ))}
       </section>
 
-      <section id="experience" className="relative overflow-hidden px-5 py-28 sm:px-8 lg:py-36">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,191,255,0.18),transparent_34%),linear-gradient(180deg,#02040a,#000)]" />
-        <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.5em] text-cyan-300">Live Atmosphere</p>
-            <h2 className="mt-5 text-4xl font-black leading-none text-white sm:text-6xl">Every scroll has a rhythm.</h2>
-            <p className="mt-6 max-w-xl text-base leading-8 text-slate-300">
-              Ambient waveforms, glowing particles, rolling records, and glass layers move together to make discovery feel tactile and premium.
-            </p>
+      <LiveExperience />
+    </div>
+  );
+};
+
+const GOD_DID_SRC = encodeURI('/songs/DJ Khaled/GOD DID/GOD DID (feat. Rick Ross, Lil Wayne, Jay-Z, John Legend & Fridayy).mp3');
+const SEGMENT_START = 138;
+const SEGMENT_END = 160;
+const FADE_DURATION = 3;
+
+const LiveExperience = () => {
+  const sectionRef = React.useRef(null);
+  const audioRef = React.useRef(null);
+  const audioCtxRef = React.useRef(null);
+  const analyserRef = React.useRef(null);
+  const sourceRef = React.useRef(null);
+  const barsRef = React.useRef([]);
+  const rafRef = React.useRef(null);
+  const inViewRef = React.useRef(false);
+  const userPausedRef = React.useRef(false);
+  const hasPlayedRef = React.useRef(false);
+  const [isLive, setIsLive] = React.useState(false);
+  const [needsUnlock, setNeedsUnlock] = React.useState(false);
+
+  const ensureAudioGraph = React.useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || sourceRef.current) return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const source = ctx.createMediaElementSource(audio);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.78;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+      sourceRef.current = source;
+    } catch (err) {
+      console.warn('Audio graph setup failed:', err);
+    }
+  }, []);
+
+  const attemptPlay = React.useCallback(async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    ensureAudioGraph();
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {});
+    }
+    if (audio.currentTime < SEGMENT_START || audio.currentTime >= SEGMENT_END - 0.05) {
+      audio.currentTime = SEGMENT_START;
+      audio.volume = 1;
+    }
+    try {
+      await audio.play();
+      setIsLive(true);
+      setNeedsUnlock(false);
+    } catch (err) {
+      setIsLive(false);
+      setNeedsUnlock(true);
+    }
+  }, [ensureAudioGraph]);
+
+  const togglePlay = React.useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      userPausedRef.current = false;
+      hasPlayedRef.current = false;
+      audio.volume = 1;
+      attemptPlay();
+    } else {
+      userPausedRef.current = true;
+      audio.pause();
+      setIsLive(false);
+    }
+  }, [attemptPlay]);
+
+  React.useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.45;
+        inViewRef.current = visible;
+        if (visible) {
+          if (!userPausedRef.current && !hasPlayedRef.current) attemptPlay();
+        } else {
+          audio.pause();
+          setIsLive(false);
+        }
+      },
+      { threshold: [0, 0.45, 0.85] }
+    );
+    if (sectionRef.current) observer.observe(sectionRef.current);
+
+    const tick = () => {
+      if (!audio.paused) {
+        const remaining = SEGMENT_END - audio.currentTime;
+        if (remaining <= 0) {
+          audio.pause();
+          audio.volume = 1;
+          hasPlayedRef.current = true;
+          setIsLive(false);
+        } else if (remaining <= FADE_DURATION) {
+          const t = remaining / FADE_DURATION;
+          audio.volume = Math.max(0, Math.min(1, t * t));
+        } else {
+          audio.volume = 1;
+        }
+      }
+
+      const analyser = analyserRef.current;
+      const bars = barsRef.current;
+      if (analyser && bars.length) {
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        const step = Math.max(1, Math.floor(data.length / bars.length));
+        for (let i = 0; i < bars.length; i++) {
+          const bar = bars[i];
+          if (!bar) continue;
+          const raw = data[i * step] / 255;
+          const scale = Math.max(0.16, Math.min(1, raw * 1.25));
+          bar.style.transform = `scaleY(${scale})`;
+          bar.style.opacity = `${Math.max(0.5, raw)}`;
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      observer.disconnect();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      audio.pause();
+    };
+  }, [attemptPlay]);
+
+  return (
+    <section
+      id="experience"
+      ref={sectionRef}
+      className="relative overflow-hidden px-5 py-28 sm:px-8 lg:py-36"
+    >
+      <audio ref={audioRef} src={GOD_DID_SRC} preload="auto" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,191,255,0.18),transparent_34%),linear-gradient(180deg,#02040a,#000)]" />
+      <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.5em] text-cyan-300">Live Atmosphere</p>
+          <h2 className="mt-5 text-4xl font-black leading-none text-white sm:text-6xl">Every scroll has a rhythm.</h2>
+          <p className="mt-6 max-w-xl text-base leading-8 text-slate-300">
+            Ambient waveforms, glowing particles, rolling records, and glass layers move together to make discovery feel tactile and premium.
+          </p>
+        </div>
+        <div className="glass-console">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.32em] text-cyan-200/70">Now visualizing</p>
+              <h3 className="mt-2 text-2xl font-black text-white">GOD DID</h3>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-white/55">DJ Khaled</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] ${isLive ? 'border-cyan-300/40 bg-cyan-300/10 text-cyan-200' : 'border-white/15 bg-white/5 text-white/55'}`}>
+                <span className={`h-2 w-2 rounded-full ${isLive ? 'bg-cyan-300 animate-pulse' : 'bg-white/40'}`} />
+                {isLive ? 'Live' : needsUnlock ? 'Muted' : 'Paused'}
+              </div>
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={isLive ? 'Pause GOD DID preview' : 'Play GOD DID preview'}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-300/15 text-cyan-100 transition hover:scale-105 hover:border-cyan-200 hover:bg-cyan-300 hover:text-black"
+              >
+                {isLive ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="5" width="4" height="14" rx="1" />
+                    <rect x="14" y="5" width="4" height="14" rx="1" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4 translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5v14l11-7L8 5z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
-          <div className="glass-console">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.32em] text-cyan-200/70">Now visualizing</p>
-                <h3 className="mt-2 text-2xl font-black text-white">Blue Hour Transmission</h3>
-              </div>
-              <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-                Live
-              </div>
-            </div>
-            <div className="waveform mt-10">
-              {waveformBars.map((bar) => (
-                <span
-                  key={bar.id}
-                  style={{ height: `${bar.height}px`, animationDelay: `${bar.delay}s` }}
-                />
-              ))}
-            </div>
+          <div className={`waveform mt-10 ${isLive ? 'is-live' : ''}`}>
+            {waveformBars.map((bar, index) => (
+              <span
+                key={bar.id}
+                ref={(el) => { barsRef.current[index] = el; }}
+                style={{ height: `${bar.height}px`, animationDelay: `${bar.delay}s` }}
+              />
+            ))}
           </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 };
 
