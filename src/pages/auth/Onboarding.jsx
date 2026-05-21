@@ -25,9 +25,6 @@ export default function Onboarding() {
           setMoods(me.preferred_moods || []);
           setLanguages(me.preferred_languages || []);
           setTags(me.preferred_tags || []);
-          if (me.onboarded) {
-            navigate('/home');
-          }
         }
       } catch (e) {
         // continue silently
@@ -36,7 +33,7 @@ export default function Onboarding() {
       }
     };
     init();
-  }, [navigate, setUser]);
+  }, [setUser]);
 
   const toggle = (list, setList, item) => {
     setList(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);

@@ -19,6 +19,7 @@ import {
   playSong,
   getGenreStats,
   getPersonalizedRecommendations,
+  getForYouFeed,
   getListeningAnalytics,
   getAudioInventory,
   getSongMoods
@@ -39,6 +40,7 @@ router.get('/genre-stats', getGenreStats);
 router.get('/moods', getSongMoods);
 router.get('/audio-inventory', requireAdminOrAuth, getAudioInventory);
 router.get('/recommendations', requireAuth, getPersonalizedRecommendations);   //Backend route for personalized recommendations
+router.get('/for-you', requireAuth, getForYouFeed);   //Onboarding-driven personalized feed
 router.get('/analytics/me', requireAuth, getListeningAnalytics);
 router.get('/:id', optionalAdmin, getSong);
 router.get('/:id/lyrics', optionalAdmin, getLyrics);

@@ -891,6 +891,130 @@ export const getGenreStats = async (req, res) => {
   }
 };
 
+export const getForYouFeed = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 24, 60));
+
+    const user = await User.findById(userId)
+      .select('preferred_genres preferred_moods preferred_languages preferred_tags onboarded')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const cleanList = (value) =>
+      Array.isArray(value)
+        ? value.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+
+    const genres = cleanList(user.preferred_genres);
+    const moods = cleanList(user.preferred_moods);
+    const languages = cleanList(user.preferred_languages);
+    const tags = cleanList(user.preferred_tags);
+
+    const preferences = { genres, moods, languages, tags };
+    const hasAny = genres.length || moods.length || languages.length || tags.length;
+
+    if (!hasAny) {
+      return res.json({ songs: [], preferences, matched: false });
+    }
+
+    const buildGenreClause = async () => {
+      if (!genres.length) return null;
+      const regexes = genres.map((g) => new RegExp(escapeRegex(g), 'i'));
+      const [artistIds, albumIds] = await Promise.all([
+        Artist.find({ genres: { $in: regexes } }).select('_id').lean(),
+        Album.find({ genres: { $in: regexes } }).select('_id').lean()
+      ]);
+      const orClauses = [
+        { genre: { $in: regexes } },
+        { genres: { $in: regexes } }
+      ];
+      if (artistIds.length) orClauses.push({ artists: { $in: artistIds.map((a) => a._id) } });
+      if (albumIds.length) orClauses.push({ album: { $in: albumIds.map((a) => a._id) } });
+      return { $or: orClauses };
+    };
+
+    const buildMoodClause = async () => {
+      if (!moods.length) return null;
+      const regexes = moods.map((m) => new RegExp(escapeRegex(m), 'i'));
+      const albumIds = await Album.find({ moods: { $in: regexes } }).select('_id').lean();
+      const orClauses = [{ mood: { $in: regexes } }];
+      if (albumIds.length) orClauses.push({ album: { $in: albumIds.map((a) => a._id) } });
+      return { $or: orClauses };
+    };
+
+    const buildLanguageClause = () => {
+      if (!languages.length) return null;
+      const regexes = languages.map((l) => new RegExp(escapeRegex(l), 'i'));
+      return { language: { $in: regexes } };
+    };
+
+    const buildTagsClause = () => {
+      if (!tags.length) return null;
+      return { tags: { $in: tags } };
+    };
+
+    const [genreClause, moodClause] = await Promise.all([
+      buildGenreClause(),
+      buildMoodClause()
+    ]);
+    const languageClause = buildLanguageClause();
+    const tagsClause = buildTagsClause();
+
+    const allClauses = [genreClause, moodClause, languageClause, tagsClause].filter(Boolean);
+
+    const runQuery = async (clauses) => {
+      if (!clauses.length) return [];
+      const matchQuery = clauses.length === 1 ? clauses[0] : { $and: clauses };
+      const visibleQuery = await buildVisibleSongQuery(req, matchQuery);
+      return Song.find(visibleQuery)
+        .populate('artists', 'name spotify_id images')
+        .populate('album', 'name images release_date')
+        .sort({ popularity: -1, play_count: -1 })
+        .limit(limit)
+        .lean();
+    };
+
+    let songs = await runQuery(allClauses);
+
+    // Relax progressively if too few results: drop tags, then language, then mood
+    const fallbackOrder = [tagsClause, languageClause, moodClause];
+    let workingClauses = [...allClauses];
+    for (const clauseToDrop of fallbackOrder) {
+      if (songs.length >= Math.min(limit, 8)) break;
+      if (!clauseToDrop) continue;
+      workingClauses = workingClauses.filter((c) => c !== clauseToDrop);
+      const relaxed = await runQuery(workingClauses);
+      const seen = new Set(songs.map((s) => String(s._id)));
+      for (const candidate of relaxed) {
+        if (!seen.has(String(candidate._id))) {
+          songs.push(candidate);
+          seen.add(String(candidate._id));
+        }
+        if (songs.length >= limit) break;
+      }
+    }
+
+    const annotated = songs.slice(0, limit).map((song) => annotateSongAudioState(song));
+
+    res.json({
+      songs: annotated,
+      preferences,
+      matched: annotated.length > 0
+    });
+  } catch (error) {
+    console.error('getForYouFeed error:', error);
+    res.status(500).json({ message: 'Failed to fetch personalized feed', error: error.message });
+  }
+};
+
 export const getPersonalizedRecommendations = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;

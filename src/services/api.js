@@ -507,6 +507,14 @@ class ApiService {
     };
   }
 
+  async getForYouFeed(limit = 24) {          //Onboarding-preference-driven personalized feed
+    const response = await this.fetchData(`/songs/for-you?limit=${limit}`);
+    return {
+      ...response,
+      songs: await this.sanitizeSongs(response?.songs)
+    };
+  }
+
   async getListeningAnalytics() {
     return this.fetchData('/songs/analytics/me');
   }

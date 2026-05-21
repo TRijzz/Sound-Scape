@@ -32,7 +32,7 @@ const shuffleList = (items = []) => {
 };
 
 const HomePage = () => {
-  const { playTrack, isAuthenticated } = useMusic();
+  const { playTrack, isAuthenticated, user } = useMusic();
   const navigate = useNavigate();
   const [categorySections, setCategorySections] = React.useState([]);
   const [sectionsLoading, setSectionsLoading] = React.useState(false);
@@ -42,7 +42,19 @@ const HomePage = () => {
   const [selectedMood, setSelectedMood] = React.useState('');
   const [moodSongs, setMoodSongs] = React.useState([]);
   const [moodLoading, setMoodLoading] = React.useState(false);
+  const [forYouSongs, setForYouSongs] = React.useState([]);
+  const [forYouPreferences, setForYouPreferences] = React.useState({ genres: [], moods: [], languages: [], tags: [] });
+  const [forYouLoading, setForYouLoading] = React.useState(false);
   const featuredMoodOptions = React.useMemo(() => moodOptions.slice(0, 4), [moodOptions]);
+
+  const hasPreferences = Boolean(
+    user?.onboarded && (
+      (Array.isArray(user.preferred_genres) && user.preferred_genres.length) ||
+      (Array.isArray(user.preferred_moods) && user.preferred_moods.length) ||
+      (Array.isArray(user.preferred_languages) && user.preferred_languages.length) ||
+      (Array.isArray(user.preferred_tags) && user.preferred_tags.length)
+    )
+  );
   
   // Use API hooks to fetch real data
   const { artists: topArtists, loading: artistsLoading, error: artistsError } = usePopularArtists(6);
@@ -177,6 +189,43 @@ const HomePage = () => {
   React.useEffect(() => {
     let cancelled = false;
 
+    const loadForYou = async () => {
+      if (!isAuthenticated || !hasPreferences) {
+        setForYouSongs([]);
+        return;
+      }
+      try {
+        setForYouLoading(true);
+        const data = await apiService.getForYouFeed(18);
+        if (!cancelled) {
+          setForYouSongs(Array.isArray(data?.songs) ? data.songs : []);
+          if (data?.preferences) {
+            setForYouPreferences({
+              genres: data.preferences.genres || [],
+              moods: data.preferences.moods || [],
+              languages: data.preferences.languages || [],
+              tags: data.preferences.tags || []
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load for-you feed:', error);
+        if (!cancelled) setForYouSongs([]);
+      } finally {
+        if (!cancelled) setForYouLoading(false);
+      }
+    };
+
+    loadForYou();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, hasPreferences, user?._id]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
     const loadMoods = async () => {
       try {
         const response = await apiService.getSongMoods();
@@ -291,6 +340,72 @@ const HomePage = () => {
           💡 Click the vinyl icon in the player below to experience the immersive vinyl animation
         </p>
       </motion.div>
+
+      {hasPreferences && (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <div className="flex flex-col gap-4 mb-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.32em] text-neon-blue">Made for you</span>
+                <span className="h-1 w-1 rounded-full bg-neon-blue/60" />
+                <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500">Based on your onboarding</span>
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-white">Picked from your taste profile</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {forYouPreferences.genres.map((g) => (
+                  <span key={`g-${g}`} className="rounded-full border border-neon-blue/40 bg-neon-blue/10 px-3 py-1 text-xs font-semibold text-neon-blue">
+                    {g}
+                  </span>
+                ))}
+                {forYouPreferences.moods.map((m) => (
+                  <span key={`m-${m}`} className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-3 py-1 text-xs font-semibold text-fuchsia-300">
+                    {m}
+                  </span>
+                ))}
+                {forYouPreferences.languages.map((l) => (
+                  <span key={`l-${l}`} className="rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200">
+                    {l}
+                  </span>
+                ))}
+                {forYouPreferences.tags.map((t) => (
+                  <span key={`t-${t}`} className="rounded-full border border-emerald-300/40 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/onboarding')}
+              className="rounded-xl border border-gray-700 px-4 py-2 text-sm font-semibold text-gray-300 hover:border-neon-blue/50 hover:text-white w-fit"
+            >
+              Update preferences
+            </button>
+          </div>
+          <div className="bg-light-gray/40 rounded-xl p-4">
+            {forYouLoading ? (
+              <div className="text-gray-400 py-8 text-center">Curating songs from your taste profile...</div>
+            ) : forYouSongs.length > 0 ? (
+              forYouSongs.map((song, index) => (
+                <SongCard
+                  key={song._id || song.id}
+                  song={song}
+                  index={index}
+                  showAlbum={true}
+                  onClick={() => handleTrackSelect(song)}
+                />
+              ))
+            ) : (
+              <div className="text-gray-400 py-8 text-center">
+                No matches yet for your preferences. Try adjusting them.
+              </div>
+            )}
+          </div>
+        </motion.section>
+      )}
 
       <motion.section
         initial={{ opacity: 0, y: 20 }}
