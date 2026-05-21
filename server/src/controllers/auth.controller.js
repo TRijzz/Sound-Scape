@@ -11,6 +11,22 @@ const recentSignups = new Map();
 const SIGNUP_RATE_LIMIT = 3; // Max attempts
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 
+const buildAuthUserPayload = (user) => ({
+  id: user._id,
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  username: user.username,
+  avatar_url: user.avatar_url,
+  isVerified: user.emailVerified,
+  emailVerified: user.emailVerified,
+  onboarded: Boolean(user.onboarded),
+  preferred_genres: Array.isArray(user.preferred_genres) ? user.preferred_genres : [],
+  preferred_moods: Array.isArray(user.preferred_moods) ? user.preferred_moods : [],
+  preferred_languages: Array.isArray(user.preferred_languages) ? user.preferred_languages : [],
+  preferred_tags: Array.isArray(user.preferred_tags) ? user.preferred_tags : []
+});
+
 const getAppBaseUrl = (req) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   if (process.env.NODE_ENV === 'production') {
@@ -306,14 +322,7 @@ export const register = async (req, res) => {        //Registers user and return
     res.status(201).json({
       accessToken,
       refreshToken,
-      user: { 
-        id: user._id, 
-        name: user.name, 
-        email: user.email, 
-        username: user.username, 
-        avatar_url: user.avatar_url,
-        isVerified: user.emailVerified
-      }
+      user: buildAuthUserPayload(user)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -338,14 +347,7 @@ export const login = async (req, res) => {            //Logs user in and returns
     res.json({
       accessToken,
       refreshToken,
-      user: { 
-        id: user._id, 
-        name: user.name, 
-        email: user.email, 
-        username: user.username, 
-        avatar_url: user.avatar_url,
-        isVerified: user.emailVerified
-      }
+      user: buildAuthUserPayload(user)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -398,7 +400,7 @@ export const googleCallback = async (req, res) => {
     res.json({
       accessToken,
       refreshToken,
-      user: { id: user._id, name: user.name, email: user.email, username: user.username, avatar_url: user.avatar_url }
+      user: buildAuthUserPayload(user)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

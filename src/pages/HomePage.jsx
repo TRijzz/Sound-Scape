@@ -32,7 +32,7 @@ const shuffleList = (items = []) => {
 };
 
 const HomePage = () => {
-  const { playTrack, isAuthenticated, user } = useMusic();
+  const { playTrack, isAuthenticated, user, setUser } = useMusic();
   const navigate = useNavigate();
   const [categorySections, setCategorySections] = React.useState([]);
   const [sectionsLoading, setSectionsLoading] = React.useState(false);
@@ -46,6 +46,30 @@ const HomePage = () => {
   const [forYouPreferences, setForYouPreferences] = React.useState({ genres: [], moods: [], languages: [], tags: [] });
   const [forYouLoading, setForYouLoading] = React.useState(false);
   const featuredMoodOptions = React.useMemo(() => moodOptions.slice(0, 4), [moodOptions]);
+
+  const hasPreferenceFields = user && (
+    'onboarded' in user ||
+    'preferred_genres' in user ||
+    'preferred_moods' in user ||
+    'preferred_languages' in user ||
+    'preferred_tags' in user
+  );
+
+  // Re-sync the user from /users/me if the auth payload didn't include preference fields
+  // (older sessions from before the auth response was enriched).
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated || !user || hasPreferenceFields) return undefined;
+    (async () => {
+      try {
+        const fresh = await apiService.getCurrentUser();
+        if (!cancelled && fresh) setUser(fresh);
+      } catch (err) {
+        console.error('Failed to refresh user preferences:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user, hasPreferenceFields, setUser]);
 
   const hasPreferences = Boolean(
     user?.onboarded && (
