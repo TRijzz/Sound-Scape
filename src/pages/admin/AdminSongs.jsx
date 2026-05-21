@@ -123,7 +123,7 @@ export default function AdminSongs() {
     setLoading(true);
     try {
       const [songsRes, inventoryRes, albumsRes, artistsRes] = await Promise.all([
-        apiService.getSongs(1, uploadedOnly ? 1000 : 2000, '', '', '', '', '', '-createdAt', '', '', '', '', uploadedOnly, true),
+        apiService.getSongs(1, uploadedOnly ? 5000 : 5000, '', '', '', '', '', '-createdAt', '', '', '', '', uploadedOnly, true),
         apiService.getAudioInventory(),
         apiService.getAlbums(1, 1000, '', '', '', '-release_date', true),
         apiService.getArtists(1, 1000, '', '', true)

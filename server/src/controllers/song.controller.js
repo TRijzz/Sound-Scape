@@ -667,7 +667,10 @@ export const getSongs = async (req, res) => {       //Gets songs with filters
 
     const limitNum = parseInt(limit, 10);
     const requestedPage = parseInt(page, 10) || 1;
-    const actualLimit = limitNum > 1000 ? 1000 : limitNum;
+    // Admin requests can pull the whole catalog at once for the admin tables;
+    // public requests stay capped at 1000 to protect against accidental DOS.
+    const maxLimit = isAdminRequest(req) ? 10000 : 1000;
+    const actualLimit = limitNum > maxLimit ? maxLimit : limitNum;
     const uploadedOnly = has_audio === 'true' || has_audio === '1';
 
     let songsWithAudioState = [];

@@ -213,8 +213,10 @@ export const getArtists = async (req, res) => {
 
     const skip = (page - 1) * limit;
     const limitNum = parseInt(limit);
-    // Allow high limits for admin pages (up to 1000)
-    const actualLimit = limitNum > 1000 ? 1000 : limitNum;
+    // Public requests stay capped at 1000; admin tools can pull more so search
+    // covers the full catalog when it grows past 1000.
+    const maxLimit = isAdminRequest(req) ? 10000 : 1000;
+    const actualLimit = limitNum > maxLimit ? maxLimit : limitNum;
     
     const artists = await Artist.find(query)
       .sort(sort)
