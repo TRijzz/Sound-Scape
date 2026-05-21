@@ -12,7 +12,7 @@ const VerificationSuccess = ({ user, onLogin }) => {
       if (user && onLogin) {
         onLogin(user);
       }
-      navigate('/'); // Redirect to home page after login
+      navigate('/home'); // Redirect to the music home page after login
     }, 2000);
 
     return () => clearTimeout(timer);
@@ -44,7 +44,7 @@ const VerificationSuccess = ({ user, onLogin }) => {
             <button 
               onClick={() => {
                 if (user && onLogin) onLogin(user);
-                navigate('/');
+                navigate('/home');
               }} 
               className="text-neon-blue hover:text-neon-blue/80 ml-1 font-medium"
             >

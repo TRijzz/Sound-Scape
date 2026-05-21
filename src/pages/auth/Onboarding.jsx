@@ -26,7 +26,7 @@ export default function Onboarding() {
           setLanguages(me.preferred_languages || []);
           setTags(me.preferred_tags || []);
           if (me.onboarded) {
-            navigate('/');
+            navigate('/home');
           }
         }
       } catch (e) {
@@ -72,7 +72,7 @@ export default function Onboarding() {
           preferred_tags: tags,
         });
       }
-      navigate('/');
+      navigate('/home');
     } catch (e) {
       setError(e.message || 'Failed to save preferences');
     } finally {
@@ -144,7 +144,7 @@ export default function Onboarding() {
         {error && <div className="text-red-400 mt-4">{error}</div>}
 
         <div className="mt-6 flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="px-4 py-2 rounded-lg bg-gray-700">Skip</button>
+          <button onClick={() => navigate('/home')} className="px-4 py-2 rounded-lg bg-gray-700">Skip</button>
           <button onClick={save} disabled={loading} className="px-4 py-2 rounded-lg bg-neon-blue text-dark-bg disabled:opacity-50">{loading ? 'Saving...' : 'Save preferences'}</button>
         </div>
       </motion.div>

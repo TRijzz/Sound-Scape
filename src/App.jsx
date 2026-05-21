@@ -8,6 +8,7 @@ import NowPlayingFooter from './components/layout/NowPlayingFooter';
 
 // Pages
 import HomePage from './pages/HomePage';
+import LandingPage from './pages/LandingPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ArtistPage from './pages/ArtistPage';
 import UserProfilePage from './pages/UserProfilePage';
@@ -82,6 +83,7 @@ function AuthPromptOverlay() {
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  const isLandingPage = location.pathname === '/';
   const authShellRoutes = [
     '/login',
     '/signup',
@@ -92,7 +94,7 @@ function AppContent() {
     '/verification-success',
     '/onboarding'
   ];
-  const hideChrome = authShellRoutes.some((route) => location.pathname.startsWith(route));
+  const hideChrome = isLandingPage || authShellRoutes.some((route) => location.pathname.startsWith(route));
 
   return (
     <div className="min-h-screen bg-dark-bg text-white font-inter">
@@ -110,7 +112,8 @@ function AppContent() {
               transition={{ duration: 0.3 }}
             >
               <Routes>
-                <Route path="/" element={<HomePage />} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/home" element={<HomePage />} />
                 <Route path="/search" element={<SearchResultsPage />} />
                 <Route path="/artist/:id" element={<ArtistPage />} />
                 <Route path="/user/:id" element={<UserProfilePage />} />

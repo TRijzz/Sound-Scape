@@ -64,3 +64,396 @@ img[src$=".svg"] {
   stroke: currentColor !important;
   color: inherit;
 }
+
+.music-station-landing {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  text-align: left;
+  isolation: isolate;
+}
+
+.music-station-landing p,
+.music-station-landing h1,
+.music-station-landing h2,
+.music-station-landing h3 {
+  overflow-wrap: anywhere;
+}
+
+.music-station-landing::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  background:
+    radial-gradient(circle at var(--cursor-x) var(--cursor-y), rgba(0, 191, 255, 0.18), transparent 24rem),
+    radial-gradient(circle at 20% 15%, rgba(0, 191, 255, 0.15), transparent 28rem),
+    radial-gradient(circle at 78% 22%, rgba(147, 51, 234, 0.14), transparent 24rem),
+    linear-gradient(135deg, #02040a 0%, #050816 46%, #000 100%);
+}
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  height: 3px;
+  width: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, #00bfff, #83f7ff, #7c3aed);
+  box-shadow: 0 0 24px rgba(0, 191, 255, 0.8);
+}
+
+.cursor-glow {
+  position: fixed;
+  left: var(--cursor-x);
+  top: var(--cursor-y);
+  z-index: 2;
+  width: 22rem;
+  height: 22rem;
+  pointer-events: none;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(0, 191, 255, 0.18), rgba(0, 191, 255, 0.04) 42%, transparent 70%);
+  filter: blur(10px);
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+}
+
+.ambient-orbit {
+  position: fixed;
+  z-index: -1;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0, 191, 255, 0.16), transparent 68%);
+  filter: blur(24px);
+  transform: translate(-50%, -50%);
+}
+
+.noise-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 42px 42px, 42px 42px;
+  mask-image: radial-gradient(circle at 50% 35%, black, transparent 78%);
+}
+
+.hero-gradient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(0, 191, 255, 0.16), transparent 26rem),
+    linear-gradient(180deg, rgba(2, 4, 10, 0) 0%, #02040a 100%);
+}
+
+.brand-disc {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, #02040a 0 12%, #00bfff 13% 20%, transparent 21%),
+    repeating-radial-gradient(circle, #141823 0 4px, #05070d 5px 9px);
+  border: 1px solid rgba(0, 191, 255, 0.5);
+  box-shadow: 0 0 22px rgba(0, 191, 255, 0.42);
+}
+
+.landing-cta {
+  display: inline-flex;
+  min-height: 3.35rem;
+  min-width: 12.8rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.95rem 1.45rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
+}
+
+.landing-cta:hover {
+  transform: translateY(-3px);
+}
+
+.landing-cta-primary {
+  background: linear-gradient(135deg, #00bfff, #8be9ff);
+  color: #000711;
+  box-shadow: 0 0 32px rgba(0, 191, 255, 0.35), inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+.landing-cta-secondary {
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
+  color: white;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  backdrop-filter: blur(18px);
+}
+
+.landing-cta-secondary:hover {
+  border-color: rgba(0, 191, 255, 0.55);
+  box-shadow: 0 0 28px rgba(0, 191, 255, 0.18), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+
+.particle-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.music-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #8be9ff;
+  box-shadow: 0 0 18px rgba(0, 191, 255, 0.9);
+  opacity: 0;
+  animation: floatParticle 8s ease-in-out infinite;
+}
+
+@keyframes floatParticle {
+  0% { opacity: 0; transform: translate3d(0, 40px, 0) scale(0.55); }
+  22% { opacity: 0.85; }
+  65% { opacity: 0.45; }
+  100% { opacity: 0; transform: translate3d(34px, -95px, 0) scale(1.1); }
+}
+
+.vinyl-record {
+  position: relative;
+  width: min(66vw, 30rem);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 9%, rgba(0, 191, 255, 0.9) 9.5% 11%, #03060d 11.5% 13%, transparent 13.5%),
+    repeating-radial-gradient(circle, #101522 0 2px, #05070d 3px 7px, #141a25 8px 9px),
+    conic-gradient(from 140deg, #05070d, #181d28, #04060a, #222a36, #07090f, #05070d);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow:
+    0 0 0 1px rgba(0, 191, 255, 0.12),
+    0 34px 100px rgba(0,0,0,0.72),
+    0 0 55px rgba(0, 191, 255, 0.2);
+  animation: vinylSpin 18s linear infinite;
+  will-change: transform;
+}
+
+.vinyl-artwork {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  opacity: 1;
+}
+
+.vinyl-record-image {
+  background: #0a0a0a;
+}
+
+.vinyl-record-hero {
+  width: min(82vw, 38rem);
+}
+
+.vinyl-grooves {
+  position: absolute;
+  inset: 9%;
+  border-radius: inherit;
+  background: repeating-radial-gradient(circle, transparent 0 10px, rgba(255,255,255,0.08) 11px, transparent 12px);
+  opacity: 0.75;
+}
+
+.vinyl-ring {
+  position: absolute;
+  border-radius: inherit;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.vinyl-ring-one {
+  inset: 20%;
+}
+
+.vinyl-ring-two {
+  inset: 34%;
+  border-color: rgba(0, 191, 255, 0.22);
+}
+
+.vinyl-label {
+  position: absolute;
+  inset: 36%;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.85), rgba(0,191,255,0.95) 34%, rgba(8,16,33,0.95) 70%);
+  box-shadow: inset 0 0 28px rgba(255,255,255,0.24), 0 0 36px rgba(0,191,255,0.42);
+}
+
+.vinyl-label span {
+  max-width: 5.5rem;
+  text-align: center;
+  font-size: clamp(0.46rem, 1.1vw, 0.7rem);
+  font-weight: 950;
+  letter-spacing: 0.22em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: #00131d;
+}
+
+.vinyl-hole {
+  position: absolute;
+  inset: 48%;
+  border-radius: 999px;
+  background: #02040a;
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.3);
+}
+
+@keyframes vinylSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.vinyl-hero-main {
+  filter: drop-shadow(0 0 52px rgba(0,191,255,0.34));
+}
+
+.vinyl-cyberpunk {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 8%, #00bfff 9% 12%, #090514 13% 16%, transparent 17%),
+    repeating-radial-gradient(circle, #101525 0 3px, #050713 4px 8px),
+    conic-gradient(#00bfff, #111827, #a855f7, #001a2d, #00bfff);
+}
+
+.vinyl-glass {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 9%, rgba(255,255,255,0.78) 10% 12%, rgba(0,191,255,0.2) 13% 15%, transparent 16%),
+    repeating-radial-gradient(circle, rgba(255,255,255,0.09) 0 2px, rgba(0,191,255,0.03) 4px 9px),
+    conic-gradient(from 30deg, rgba(255,255,255,0.16), rgba(0,191,255,0.26), rgba(255,255,255,0.04), rgba(125,211,252,0.2), rgba(255,255,255,0.14));
+}
+
+.vinyl-synthwave {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 8%, #f97316 9% 11%, #ff3dd8 12% 15%, transparent 16%),
+    repeating-radial-gradient(circle, #170822 0 3px, #07040e 4px 8px),
+    conic-gradient(from 80deg, #ff3dd8, #19062b, #00bfff, #ff8a00, #ff3dd8);
+  box-shadow: 0 36px 120px rgba(255,61,216,0.18), 0 0 70px rgba(0,191,255,0.18);
+}
+
+.vinyl-chrome {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 8%, #dff9ff 9% 11%, #00bfff 12% 14%, transparent 15%),
+    repeating-radial-gradient(circle, rgba(255,255,255,0.15) 0 2px, rgba(4,6,10,0.9) 3px 7px),
+    conic-gradient(from 10deg, #f8fbff, #3b4450, #05080d, #9eefff, #101827, #ffffff);
+}
+
+.vinyl-matte {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 9%, #00bfff 10% 11%, #05070d 12% 16%, transparent 17%),
+    repeating-radial-gradient(circle, #0b0d12 0 3px, #010205 4px 10px),
+    conic-gradient(from 180deg, #05070d, #0e1118, #020305, #171b22, #05070d);
+  box-shadow: 0 36px 120px rgba(0,0,0,0.8), 0 0 34px rgba(0,191,255,0.12);
+}
+
+.story-panel {
+  scroll-snap-align: start;
+}
+
+.panel-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(0,191,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 90px 90px;
+  mask-image: linear-gradient(90deg, transparent, black 20%, black 80%, transparent);
+}
+
+.story-vinyl-wrap {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 28px 70px rgba(0,0,0,0.6));
+}
+
+.section-index {
+  position: absolute;
+  bottom: 2rem;
+  z-index: 4;
+  font-size: clamp(4rem, 14vw, 12rem);
+  font-weight: 950;
+  line-height: 0.8;
+  color: rgba(255,255,255,0.035);
+  pointer-events: none;
+}
+
+.glass-console {
+  border-radius: 2rem;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(135deg, rgba(255,255,255,0.11), rgba(255,255,255,0.035));
+  box-shadow: 0 36px 120px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.18);
+  padding: clamp(1.4rem, 3vw, 2.4rem);
+  backdrop-filter: blur(24px);
+}
+
+.waveform {
+  display: flex;
+  min-height: 8.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.38rem;
+  overflow: hidden;
+}
+
+.waveform span {
+  width: 100%;
+  max-width: 0.68rem;
+  min-width: 0.24rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #8be9ff, #00bfff 55%, rgba(0,191,255,0.18));
+  box-shadow: 0 0 18px rgba(0,191,255,0.35);
+  animation: waveformPulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes waveformPulse {
+  from { transform: scaleY(0.36); opacity: 0.45; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .cursor-glow,
+  .ambient-orbit {
+    display: none;
+  }
+
+  .vinyl-record {
+    width: min(82vw, 22rem);
+  }
+
+  .vinyl-record-hero {
+    width: min(88vw, 25rem);
+  }
+
+  .landing-cta {
+    width: 100%;
+    max-width: 20rem;
+  }
+
+  .story-panel {
+    overflow-x: hidden;
+  }
+
+  .section-index {
+    opacity: 0.8;
+  }
+}

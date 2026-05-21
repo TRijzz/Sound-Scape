@@ -33,7 +33,7 @@ function Sidebar() {
   });
 
   const menuItems = [
-    { path: '/', icon: HomeIcon, label: 'Home' },
+    { path: '/home', icon: HomeIcon, label: 'Home' },
     { path: '/search', icon: SearchIcon, label: 'Search' },
     { path: '/store', icon: VinylIcon, label: 'Vinyl Store' },
     { path: '/liked', icon: HeartIcon, label: 'Liked Songs' },

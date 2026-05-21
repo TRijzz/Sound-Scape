@@ -1,5 +1,6 @@
 import Album from '../models/Album.js';
 import Song from '../models/Song.js';
+import Artist from '../models/Artist.js';
 import { ensureMoodsExist } from '../utils/moodRegistry.js';
 
 const isAdminRequest = (req) => {
@@ -9,6 +10,48 @@ const isAdminRequest = (req) => {
 const visibleAlbumQuery = {
   is_visible: { $ne: false },
   publish_status: { $nin: ['hidden', 'draft'] }
+};
+
+const hiddenArtistQuery = {
+  $or: [
+    { is_visible: false },
+    { publish_status: { $in: ['hidden', 'draft'] } }
+  ]
+};
+
+const albumArtistPopulateFields = 'name spotify_id images popularity genres is_visible publish_status hidden_reason';
+
+const getHiddenArtistIds = async (req) => {
+  if (isAdminRequest(req)) {
+    return [];
+  }
+
+  const hiddenArtists = await Artist.find(hiddenArtistQuery).select('_id').lean();
+  return hiddenArtists.map((artist) => artist._id);
+};
+
+const buildVisibleAlbumQuery = async (req, query = {}) => {
+  const baseQuery = isAdminRequest(req)
+    ? query
+    : (query && Object.keys(query).length > 0
+      ? { $and: [query, visibleAlbumQuery] }
+      : { ...visibleAlbumQuery });
+
+  if (isAdminRequest(req)) {
+    return baseQuery;
+  }
+
+  const hiddenArtistIds = await getHiddenArtistIds(req);
+  if (hiddenArtistIds.length === 0) {
+    return baseQuery;
+  }
+
+  return {
+    $and: [
+      ...(baseQuery && Object.keys(baseQuery).length > 0 ? [baseQuery] : []),
+      { artists: { $nin: hiddenArtistIds } }
+    ]
+  };
 };
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -149,7 +192,7 @@ export const createAlbum = async (req, res) => {
     }
 
     // Populate artists for response
-    await album.populate('artists', 'name spotify_id images');
+    await album.populate('artists', albumArtistPopulateFields);
     res.status(201).json(album);
   } catch (error) {
     console.error('Error creating album:', error);
@@ -172,7 +215,7 @@ export const getAlbums = async (req, res) => {
       search
     } = req.query;
 
-    const query = isAdminRequest(req) ? {} : { ...visibleAlbumQuery };
+    const query = {};
     
     // Add genre filter
     if (genre) {
@@ -199,14 +242,16 @@ export const getAlbums = async (req, res) => {
     // Allow high limits for admin pages (up to 1000)
     const actualLimit = limitNum > 1000 ? 1000 : limitNum;
     
-    const albums = await Album.find(query)
-      .populate('artists', 'name spotify_id images popularity')
+    const visibleQuery = await buildVisibleAlbumQuery(req, query);
+
+    const albums = await Album.find(visibleQuery)
+      .populate('artists', albumArtistPopulateFields)
       .sort(sort)
       .skip(skip)
       .limit(actualLimit)
       .lean();
 
-    const total = await Album.countDocuments(query);
+    const total = await Album.countDocuments(visibleQuery);
 
     res.json({
       albums,
@@ -224,11 +269,9 @@ export const getAlbums = async (req, res) => {
 
 export const getAlbum = async (req, res) => {
   try {
-    const album = await Album.findOne({
-      _id: req.params.id,
-      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
-    })
-      .populate('artists', 'name spotify_id images popularity genres')
+    const visibleQuery = await buildVisibleAlbumQuery(req, { _id: req.params.id });
+    const album = await Album.findOne(visibleQuery)
+      .populate('artists', albumArtistPopulateFields)
       .lean();
     
     if (!album) {
@@ -243,11 +286,9 @@ export const getAlbum = async (req, res) => {
 
 export const getAlbumBySpotifyId = async (req, res) => {
   try {
-    const album = await Album.findOne({
-      spotify_id: req.params.spotifyId,
-      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
-    })
-      .populate('artists', 'name spotify_id images popularity genres')
+    const visibleQuery = await buildVisibleAlbumQuery(req, { spotify_id: req.params.spotifyId });
+    const album = await Album.findOne(visibleQuery)
+      .populate('artists', albumArtistPopulateFields)
       .lean();
     
     if (!album) {
@@ -265,16 +306,14 @@ export const getAlbumTracks = async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (page - 1) * limit;
 
-    const album = await Album.findOne({
-      _id: req.params.id,
-      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
-    });
+    const visibleQuery = await buildVisibleAlbumQuery(req, { _id: req.params.id });
+    const album = await Album.findOne(visibleQuery);
     if (!album) {
       return res.status(404).json({ message: 'Album not found' });
     }
 
     const tracks = await Song.find({ album: req.params.id })
-      .populate('artists', 'name spotify_id images')
+      .populate('artists', albumArtistPopulateFields)
       .populate('album', 'name images release_date')
       .sort({ disc_number: 1, track_number: 1 })
       .skip(skip)
@@ -393,7 +432,7 @@ export const updateAlbum = async (req, res) => {
       req.params.id, 
       updates, 
       { new: true, runValidators: true }
-    ).populate('artists', 'name spotify_id images');
+    ).populate('artists', albumArtistPopulateFields);
     
     if (!album) {
       return res.status(404).json({ message: 'Album not found' });
@@ -446,11 +485,9 @@ export const getPopularAlbums = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    const albums = await Album.find({
-      popularity: { $gt: 0 },
-      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
-    })
-      .populate('artists', 'name spotify_id images')
+    const visibleQuery = await buildVisibleAlbumQuery(req, { popularity: { $gt: 0 } });
+    const albums = await Album.find(visibleQuery)
+      .populate('artists', albumArtistPopulateFields)
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
       .lean();
@@ -469,11 +506,11 @@ export const getAlbumsByGenre = async (req, res) => {
       return res.status(400).json({ message: 'Genre parameter is required' });
     }
     
-    const albums = await Album.find({ 
-      genres: { $in: [new RegExp(genre, 'i')] },
-      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
-    })
-      .populate('artists', 'name spotify_id images')
+    const visibleQuery = await buildVisibleAlbumQuery(req, {
+      genres: { $in: [new RegExp(genre, 'i')] }
+    });
+    const albums = await Album.find(visibleQuery)
+      .populate('artists', albumArtistPopulateFields)
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
       .lean();
@@ -492,11 +529,11 @@ export const getAlbumsByYear = async (req, res) => {
       return res.status(400).json({ message: 'Year parameter is required' });
     }
     
-    const albums = await Album.find({ 
-      release_date: { $regex: `^${year}` },
-      ...(isAdminRequest(req) ? {} : visibleAlbumQuery)
-    })
-      .populate('artists', 'name spotify_id images')
+    const visibleQuery = await buildVisibleAlbumQuery(req, {
+      release_date: { $regex: `^${year}` }
+    });
+    const albums = await Album.find(visibleQuery)
+      .populate('artists', albumArtistPopulateFields)
       .sort({ popularity: -1 })
       .limit(parseInt(limit))
       .lean();

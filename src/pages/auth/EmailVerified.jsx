@@ -94,7 +94,7 @@ const EmailVerified = () => {
           >
             <h1 className="text-3xl font-bold text-white mb-3">Email Verified!</h1>
             <p className="text-gray-300 mb-8">
-              Welcome to Music Station, <span className="font-medium text-white">{user?.username || 'User'}</span>!<br />
+              Welcome to Sound Scape, <span className="font-medium text-white">{user?.username || 'User'}</span>!<br />
               Your email has been successfully verified.
             </p>
             
