@@ -43,10 +43,13 @@ import NotFound from './pages/NotFound';
 import VinylStore from './pages/VinylStore';
 import VinylPage from './pages/VinylPage';
 import KhaltiPaymentCallbackPage from './pages/KhaltiPaymentCallbackPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import ChangePassword from './pages/security/ChangePassword';
 
 // Context Providers
 import { MusicProvider } from './contexts/MusicContext';
 import { useMusic } from './contexts/MusicContext';
+import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
 import useEscapeKey from './hooks/useEscapeKey';
 
 function AuthPromptOverlay() {
@@ -82,6 +85,7 @@ function AuthPromptOverlay() {
 
 function AppContent() {
   const location = useLocation();
+  const { collapsed } = useSidebar();
   const isAdmin = location.pathname.startsWith('/admin');
   const isLandingPage = location.pathname === '/';
   const authShellRoutes = [
@@ -95,14 +99,16 @@ function AppContent() {
     '/onboarding'
   ];
   const hideChrome = isLandingPage || authShellRoutes.some((route) => location.pathname.startsWith(route));
+  const showSidebar = !isAdmin && !hideChrome;
+  const sidebarMarginClass = showSidebar ? (collapsed ? 'lg:ml-[76px]' : 'lg:ml-64') : '';
 
   return (
     <div className="min-h-screen bg-dark-bg text-white font-inter">
       <div className="flex">
-        {!isAdmin && !hideChrome && <Sidebar />}
+        {showSidebar && <Sidebar />}
 
-        <div className={`flex-1 flex flex-col ${!isAdmin && !hideChrome ? 'lg:ml-64' : ''}`}>
-          {!isAdmin && !hideChrome && <Navbar />}
+        <div className={`flex-1 flex flex-col transition-[margin] duration-300 ease-out ${sidebarMarginClass}`}>
+          {showSidebar && <Navbar />}
 
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
@@ -137,6 +143,8 @@ function AppContent() {
                 <Route path="/liked" element={<LikedSongs />} />
                 <Route path="/library" element={<LibraryPage />} />
                 <Route path="/playlist/:id" element={<PlaylistPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/security/change-password" element={<ChangePassword />} />
                 <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
                 <Route path="/admin/reset-password" element={<AdminGuard><AdminPage /></AdminGuard>} />
                 <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
@@ -166,9 +174,11 @@ function AppContent() {
 function App() {
   return (
     <MusicProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <SidebarProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </SidebarProvider>
     </MusicProvider>
   );
 }

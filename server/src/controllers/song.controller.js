@@ -1242,12 +1242,12 @@ export const getListeningAnalytics = async (req, res) => {
     const userId = req.user?.id || req.user?._id;
     const history = await ListeningHistory.find({ user: userId })
       .sort({ played_at: -1 })
-      .limit(250)
+      .limit(500)
       .populate({
         path: 'song',
         populate: [
-          { path: 'artists', select: 'name' },
-          { path: 'album', select: 'name' }
+          { path: 'artists', select: 'name images' },
+          { path: 'album', select: 'name images' }
         ]
       })
       .lean();
@@ -1258,8 +1258,12 @@ export const getListeningAnalytics = async (req, res) => {
 
     const songCounts = new Map();
     const artistCounts = new Map();
+    const artistThisWeekCounts = new Map();
     const genreCounts = new Map();
     const trendCounts = new Map(getRecentDayLabels(7).map((label) => [label, 0]));
+    const hourCounts = new Array(24).fill(0);
+    const dailyPlaySet = new Set();
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
     validHistory.forEach((entry) => {
       const song = entry.song;
@@ -1272,6 +1276,12 @@ export const getListeningAnalytics = async (req, res) => {
           artist,
           count: (artistCounts.get(artistId)?.count || 0) + 1
         });
+        if (new Date(entry.played_at).getTime() >= oneWeekAgo) {
+          artistThisWeekCounts.set(artistId, {
+            artist,
+            count: (artistThisWeekCounts.get(artistId)?.count || 0) + 1
+          });
+        }
       });
 
       const genreName = String(entry.genre || song.genre || 'Unknown').trim() || 'Unknown';
@@ -1281,11 +1291,60 @@ export const getListeningAnalytics = async (req, res) => {
       if (trendCounts.has(dayKey)) {
         trendCounts.set(dayKey, (trendCounts.get(dayKey) || 0) + 1);
       }
+      dailyPlaySet.add(dayKey);
+
+      const hour = new Date(entry.played_at).getHours();
+      if (hour >= 0 && hour < 24) hourCounts[hour] += 1;
     });
 
     const topSong = Array.from(songCounts.values()).sort((left, right) => right.count - left.count)[0] || null;
     const topArtist = Array.from(artistCounts.values()).sort((left, right) => right.count - left.count)[0] || null;
     const topGenre = Array.from(genreCounts.entries()).sort((left, right) => right[1] - left[1])[0] || null;
+    const topArtistWeek = Array.from(artistThisWeekCounts.values()).sort((left, right) => right.count - left.count)[0] || null;
+
+    // Peak listening hour
+    let peakHour = -1;
+    let peakHourPlays = 0;
+    for (let h = 0; h < 24; h++) {
+      if (hourCounts[h] > peakHourPlays) {
+        peakHourPlays = hourCounts[h];
+        peakHour = h;
+      }
+    }
+
+    // Listening streak: consecutive days ending today with at least one play
+    let streak = 0;
+    const dayMs = 24 * 60 * 60 * 1000;
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(Date.now() - i * dayMs).toISOString().slice(0, 10);
+      if (dailyPlaySet.has(d)) streak += 1;
+      else break;
+    }
+
+    // Genre distribution - top 6 + Other bucket
+    const sortedGenres = Array.from(genreCounts.entries()).sort((a, b) => b[1] - a[1]);
+    const topGenres = sortedGenres.slice(0, 6).map(([name, count]) => ({ name, count }));
+    const otherCount = sortedGenres.slice(6).reduce((sum, [, c]) => sum + c, 0);
+    if (otherCount > 0) topGenres.push({ name: 'Other', count: otherCount });
+
+    // Recently played: latest 12 with art
+    const recentlyPlayed = validHistory.slice(0, 12).map((entry) => ({
+      played_at: entry.played_at,
+      song: {
+        _id: entry.song._id,
+        name: entry.song.name,
+        artists: (entry.song.artists || []).map((a) => ({ _id: a._id, name: a.name })),
+        album: entry.song.album ? {
+          _id: entry.song.album._id,
+          name: entry.song.album.name,
+          images: entry.song.album.images || []
+        } : null,
+        cover_art_url: entry.song.cover_art_url || null
+      }
+    }));
+
+    // Hourly distribution for chart
+    const hourlyDistribution = hourCounts.map((plays, hour) => ({ hour, plays }));
 
     res.json({
       totalPlays,
@@ -1304,7 +1363,18 @@ export const getListeningAnalytics = async (req, res) => {
         name: topGenre[0],
         count: topGenre[1]
       } : null,
-      weeklyTrend: Array.from(trendCounts.entries()).map(([date, plays]) => ({ date, plays }))
+      topArtistThisWeek: topArtistWeek ? {
+        _id: topArtistWeek.artist._id,
+        name: topArtistWeek.artist.name,
+        count: topArtistWeek.count
+      } : null,
+      weeklyTrend: Array.from(trendCounts.entries()).map(([date, plays]) => ({ date, plays })),
+      genreDistribution: topGenres,
+      hourlyDistribution,
+      peakHour: peakHour >= 0 ? peakHour : null,
+      peakHourPlays,
+      listeningStreak: streak,
+      recentlyPlayed
     });
   } catch (error) {
     console.error('Failed to fetch listening analytics:', error);

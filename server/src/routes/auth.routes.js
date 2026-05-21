@@ -4,7 +4,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { body } from 'express-validator';
 import { register, signup, login, refresh, googleCallback, verifyAdminAccess, loginAdmin, registerAdmin, forgotAdminPassword, resetAdminPassword } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.js';
-import { requestEmailVerification, verifyEmail, forgotPassword, resetPassword, resendVerification, verifyEmailCode } from '../controllers/auth.controller.js';
+import { requestEmailVerification, verifyEmail, forgotPassword, resetPassword, resendVerification, verifyEmailCode, changePassword, initChangePassword } from '../controllers/auth.controller.js';
 
 const router = Router();
 
@@ -63,6 +63,19 @@ router.post('/email/request-verification', requestEmailVerification);
 router.get('/email/verify', verifyEmail);
 router.post('/password/forgot', forgotPassword);
 router.post('/password/reset', resetPassword);
+router.post(
+  '/password/change/init',
+  requireAuth,
+  body('currentPassword').isString().isLength({ min: 1 }).withMessage('Current password required'),
+  initChangePassword
+);
+router.post(
+  '/password/change',
+  requireAuth,
+  body('otp').isString().isLength({ min: 4, max: 10 }).withMessage('Verification code required'),
+  body('newPassword').isString().isLength({ min: 8 }).withMessage('New password min 8 chars'),
+  changePassword
+);
 
 // Admin access verification (requires login)
 router.post('/admin/register', loginLimiter, registerAdmin);

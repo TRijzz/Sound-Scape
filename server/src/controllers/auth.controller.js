@@ -569,6 +569,350 @@ export const resetPassword = async (req, res) => {      //Reset Password
   }
 };
 
+// In-memory rate-limit maps for change-password flow
+const recentPasswordChangeInits = new Map();
+const recentPasswordChanges = new Map();
+const CHANGE_PASSWORD_LIMIT = 5;          // password attempts
+const CHANGE_PASSWORD_WINDOW = 15 * 60 * 1000;  // 15 minutes
+const OTP_INIT_LIMIT = 4;                 // OTP send requests
+const OTP_INIT_WINDOW = 10 * 60 * 1000;   // 10 minutes
+const OTP_EXPIRY_MS = 10 * 60 * 1000;     // OTP lifetime: 10 minutes
+const OTP_MAX_ATTEMPTS = 5;               // verify attempts before invalidating OTP
+
+const buildPasswordChangeOtpEmail = ({ name, code }) => {
+  const safeName = escapeHtml(name || 'there');
+  const safeCode = escapeHtml(code || '');
+  const text = [
+    'Sound Scape',
+    '',
+    `Hi ${name || 'there'},`,
+    '',
+    `Your password change verification code is: ${code}`,
+    'This code expires in 10 minutes.',
+    '',
+    'If you did not request a password change, you can ignore this email and your password will remain unchanged.'
+  ].join('\n');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Password change verification</title></head>
+      <body style="margin:0;padding:0;background:#05060a;color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#05060a;padding:36px 12px;">
+          <tr><td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;border:1px solid #1f3c48;border-radius:24px;background:#0b0d14;overflow:hidden;">
+              <tr><td style="padding:34px 34px 24px;background:#0f1720;">
+                <div style="font-size:12px;font-weight:800;letter-spacing:7px;text-transform:uppercase;color:#22d3ee;">Sound Scape</div>
+                <h1 style="margin:14px 0 8px;font-size:30px;font-weight:900;color:#fff;">Confirm password change</h1>
+                <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:1.7;">Hi ${safeName}, you (or someone using your account) just requested to change your password. Enter the code below in Sound Scape to continue.</p>
+              </td></tr>
+              <tr><td style="padding:24px 34px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #164e63;border-radius:18px;background:#070a10;">
+                  <tr><td style="padding:18px 26px 8px;">
+                    <div style="font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#67e8f9;">Verification code</div>
+                    <div style="margin-top:6px;height:3px;width:80px;background:#22d3ee;border-radius:99px;"></div>
+                  </td></tr>
+                  <tr><td align="center" style="padding:14px 26px 22px;">
+                    <div style="display:inline-block;padding:18px 24px;border:1px solid #155e75;border-radius:16px;background:#111827;">
+                      <span style="font-family:Consolas,Monaco,'Courier New',monospace;font-size:42px;line-height:1;letter-spacing:12px;font-weight:900;color:#67e8f9;">${safeCode}</span>
+                    </div>
+                  </td></tr>
+                  <tr><td style="padding:0 26px 22px;font-size:14px;line-height:1.7;color:#cbd5e1;">
+                    This code expires in <strong style="color:#fff;">10 minutes</strong>. Don't share it with anyone.
+                  </td></tr>
+                </table>
+              </td></tr>
+              <tr><td style="padding:0 34px 32px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr><td style="padding:14px 18px;border:1px solid #1f2937;border-radius:14px;background:#0f172a;color:#94a3b8;font-size:13px;line-height:1.7;">
+                    <strong style="color:#e2e8f0;">Didn't request this?</strong> You can safely ignore this email — no changes will be made to your account unless this code is entered.
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+    </html>
+  `;
+  return { text, html };
+};
+
+const buildPasswordChangedEmail = ({ name, resetUrl }) => {
+  const safeName = escapeHtml(name || 'there');
+  const safeUrl = escapeHtml(resetUrl || '');
+  const when = new Date().toUTCString();
+  const text = [
+    'Sound Scape',
+    '',
+    `Hi ${name || 'there'},`,
+    '',
+    'Your Sound Scape account password was just changed.',
+    `When: ${when}`,
+    '',
+    'If this was you, no further action is needed.',
+    '',
+    'If you did NOT change your password, secure your account immediately by clicking the link below to reset it:',
+    resetUrl || '',
+    '',
+    'This recovery link expires in 1 hour.'
+  ].join('\n');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Password changed</title></head>
+      <body style="margin:0;padding:0;background:#05060a;color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#05060a;padding:36px 12px;">
+          <tr><td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;border:1px solid #1f3c48;border-radius:24px;background:#0b0d14;overflow:hidden;">
+              <tr><td style="padding:34px 34px 24px;background:#0f1720;">
+                <div style="font-size:12px;font-weight:800;letter-spacing:7px;text-transform:uppercase;color:#22d3ee;">Sound Scape</div>
+                <h1 style="margin:14px 0 8px;font-size:30px;font-weight:900;color:#fff;">Your password was changed</h1>
+                <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:1.7;">Hi ${safeName}, this is a confirmation that the password for your Sound Scape account was successfully updated.</p>
+              </td></tr>
+              <tr><td style="padding:24px 34px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #164e63;border-radius:18px;background:#070a10;">
+                  <tr><td style="padding:18px 22px;">
+                    <div style="font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#67e8f9;">Event time</div>
+                    <div style="margin-top:6px;font-size:16px;color:#ffffff;font-weight:600;">${when}</div>
+                  </td></tr>
+                </table>
+              </td></tr>
+
+              <tr><td style="padding:8px 34px 0;">
+                <p style="margin:0 0 14px;color:#cbd5e1;font-size:14px;line-height:1.7;">
+                  If this was you, you're all set — no further action is needed.
+                </p>
+              </td></tr>
+
+              <tr><td style="padding:14px 34px 8px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #7f1d1d;border-radius:18px;background:linear-gradient(180deg,#1f0a0a,#0a0708);">
+                  <tr><td style="padding:22px 22px 8px;">
+                    <div style="font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#fca5a5;">Wasn't you?</div>
+                    <h2 style="margin:8px 0 4px;font-size:20px;font-weight:900;color:#ffffff;">Secure your account now</h2>
+                    <p style="margin:0;color:#fecaca;font-size:14px;line-height:1.7;">
+                      If you did <strong style="color:#fff;">not</strong> change your password, your account may have been compromised. Click the button below to reset your password and lock out anyone else.
+                    </p>
+                  </td></tr>
+                  <tr><td align="center" style="padding:18px 22px 24px;">
+                    <a href="${safeUrl}" style="display:inline-block;padding:14px 28px;border-radius:14px;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:900;letter-spacing:1px;font-size:14px;text-transform:uppercase;box-shadow:0 14px 30px rgba(220,38,38,0.45);">Reset password & secure account</a>
+                    <p style="margin:14px 0 0;font-size:12px;color:#fecaca;line-height:1.6;">Or paste this URL into your browser:<br>
+                      <span style="color:#fef2f2;word-break:break-all;">${safeUrl}</span>
+                    </p>
+                  </td></tr>
+                </table>
+                <p style="margin:14px 0 0;color:#94a3b8;font-size:12px;line-height:1.6;">
+                  This recovery link expires in <strong style="color:#cbd5e1;">1 hour</strong>. After that you can request a fresh reset at any time from the sign-in page.
+                </p>
+              </td></tr>
+
+              <tr><td style="padding:18px 34px 32px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr><td style="padding:14px 18px;border:1px solid #1f2937;border-radius:14px;background:#0f172a;color:#94a3b8;font-size:13px;line-height:1.7;">
+                    <strong style="color:#e2e8f0;">Security note:</strong> Sound Scape will never ask for your password by email. We sign you out of other sessions automatically after a password change.
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+    </html>
+  `;
+  return { text, html };
+};
+
+const enforceRateLimit = (store, key, limit, windowMs) => {
+  const now = Date.now();
+  const bucket = store.get(key) || { count: 0, firstAttempt: now };
+  if (now - bucket.firstAttempt > windowMs) {
+    bucket.count = 0;
+    bucket.firstAttempt = now;
+  }
+  bucket.count += 1;
+  store.set(key, bucket);
+  return bucket.count <= limit;
+};
+
+// Step 1: Initiate change. Verify current password, generate OTP, send email.
+export const initChangePassword = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { currentPassword } = req.body || {};
+    if (!currentPassword) {
+      return res.status(400).json({ message: 'Current password is required' });
+    }
+
+    const ipKey = (req.ip || 'unknown').toString();
+    const initKey = `init:${String(userId)}:${ipKey}`;
+    if (!enforceRateLimit(recentPasswordChangeInits, initKey, OTP_INIT_LIMIT, OTP_INIT_WINDOW)) {
+      return res.status(429).json({ message: 'Too many code requests. Try again later.' });
+    }
+
+    const user = await User.findById(userId).select('+password +passwordChangeOtpHash +passwordChangeOtpExpires +passwordChangeOtpAttempts');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.password) {
+      return res.status(400).json({ message: 'No password set on this account. Use password reset to create one.' });
+    }
+
+    const ok = await user.comparePassword(currentPassword);
+    if (!ok) return res.status(401).json({ message: 'Current password is incorrect' });
+
+    const code = String(crypto.randomInt(100000, 999999));
+    user.passwordChangeOtpHash = crypto.createHash('sha256').update(code).digest('hex');
+    user.passwordChangeOtpExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+    user.passwordChangeOtpAttempts = 0;
+    await user.save();
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEV] Password change OTP for', user.email, ':', code);
+    }
+
+    try {
+      const mail = buildPasswordChangeOtpEmail({ name: user.name, code });
+      await sendMail({
+        to: user.email,
+        subject: 'Sound Scape - Confirm your password change',
+        text: mail.text,
+        html: mail.html
+      });
+    } catch (mailErr) {
+      console.warn('Password-change OTP email failed:', mailErr.message);
+      // We still return success so attackers can't probe whether email worked.
+    }
+
+    // Hint at where the code was sent without leaking the full address.
+    const maskedEmail = (() => {
+      const [local, domain] = String(user.email || '').split('@');
+      if (!domain) return null;
+      const masked = local.length <= 2 ? `${local[0] || ''}*` : `${local.slice(0, 2)}${'*'.repeat(Math.max(1, local.length - 2))}`;
+      return `${masked}@${domain}`;
+    })();
+
+    res.json({
+      message: 'Verification code sent',
+      maskedEmail,
+      expiresInSeconds: Math.floor(OTP_EXPIRY_MS / 1000)
+    });
+  } catch (err) {
+    console.error('initChangePassword error:', err);
+    res.status(500).json({ message: err.message || 'Failed to send verification code' });
+  }
+};
+
+// Step 2: Complete the change with OTP + new password.
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { otp, newPassword } = req.body || {};
+    if (!otp || !newPassword) {
+      return res.status(400).json({ message: 'Verification code and new password are required' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters' });
+    }
+
+    // Strength check: ≥ 3 of [lowercase, uppercase, digit, symbol]
+    const passedBuckets = [
+      /[a-z]/.test(newPassword),
+      /[A-Z]/.test(newPassword),
+      /\d/.test(newPassword),
+      /[^A-Za-z0-9]/.test(newPassword)
+    ].filter(Boolean).length;
+    if (passedBuckets < 3) {
+      return res.status(400).json({ message: 'Password is too weak. Mix uppercase, lowercase, numbers, and symbols.' });
+    }
+
+    const ipKey = (req.ip || 'unknown').toString();
+    const completeKey = `complete:${String(userId)}:${ipKey}`;
+    if (!enforceRateLimit(recentPasswordChanges, completeKey, CHANGE_PASSWORD_LIMIT, CHANGE_PASSWORD_WINDOW)) {
+      return res.status(429).json({ message: 'Too many attempts. Try again later.' });
+    }
+
+    const user = await User.findById(userId).select('+password +refreshTokenHash +passwordChangeOtpHash +passwordChangeOtpExpires +passwordChangeOtpAttempts');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.passwordChangeOtpHash || !user.passwordChangeOtpExpires) {
+      return res.status(400).json({ message: 'No active verification code. Restart the change-password flow.' });
+    }
+    if (user.passwordChangeOtpExpires.getTime() < Date.now()) {
+      user.passwordChangeOtpHash = undefined;
+      user.passwordChangeOtpExpires = undefined;
+      user.passwordChangeOtpAttempts = 0;
+      await user.save();
+      return res.status(400).json({ message: 'Verification code expired. Request a new one.' });
+    }
+
+    if ((user.passwordChangeOtpAttempts || 0) >= OTP_MAX_ATTEMPTS) {
+      user.passwordChangeOtpHash = undefined;
+      user.passwordChangeOtpExpires = undefined;
+      user.passwordChangeOtpAttempts = 0;
+      await user.save();
+      return res.status(400).json({ message: 'Too many incorrect codes. Restart the change-password flow.' });
+    }
+
+    const submittedHash = crypto.createHash('sha256').update(String(otp).trim()).digest('hex');
+    if (submittedHash !== user.passwordChangeOtpHash) {
+      user.passwordChangeOtpAttempts = (user.passwordChangeOtpAttempts || 0) + 1;
+      await user.save();
+      return res.status(401).json({ message: 'Incorrect verification code' });
+    }
+
+    // Disallow reusing the current password
+    const samePassword = await user.comparePassword(newPassword);
+    if (samePassword) {
+      return res.status(400).json({ message: 'New password must be different from current password' });
+    }
+
+    // Update password and revoke other sessions
+    user.password = newPassword;       // hashed by pre-save hook
+    user.refreshTokenHash = undefined; // sign out other devices
+    user.passwordChangeOtpHash = undefined;
+    user.passwordChangeOtpExpires = undefined;
+    user.passwordChangeOtpAttempts = 0;
+
+    // Generate a one-time reset token for the "wasn't me" link in the success email
+    const resetTokenPlain = crypto.randomBytes(32).toString('hex');
+    user.passwordResetTokenHash = crypto.createHash('sha256').update(resetTokenPlain).digest('hex');
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    // Reset rate-limit buckets on success
+    recentPasswordChanges.delete(completeKey);
+    recentPasswordChangeInits.delete(`init:${String(userId)}:${ipKey}`);
+
+    const appBaseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const resetUrl = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${resetTokenPlain}`;
+
+    // Send confirmation email (failure tolerant)
+    try {
+      const mail = buildPasswordChangedEmail({ name: user.name, resetUrl });
+      await sendMail({
+        to: user.email,
+        subject: 'Your Sound Scape password was changed',
+        text: mail.text,
+        html: mail.html
+      });
+    } catch (mailErr) {
+      console.warn('Password-change success email failed:', mailErr.message);
+    }
+
+    res.json({
+      message: 'Password updated successfully',
+      sessionsRevoked: true
+    });
+  } catch (err) {
+    console.error('changePassword error:', err);
+    res.status(500).json({ message: err.message || 'Failed to change password' });
+  }
+};
+
 // New: resend 6-digit verification code
 export const resendVerification = async (req, res) => {
   const { email } = req.body || {};

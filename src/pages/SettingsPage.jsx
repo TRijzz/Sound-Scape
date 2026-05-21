@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserIcon, LockIcon, PaletteIcon, LogOutIcon, MusicNoteIcon } from '../components/ui/Icons';
+import { UserIcon, LockIcon, LogOutIcon, MusicNoteIcon } from '../components/ui/Icons';
 import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api';
 import albumArtPlaceholder from '../assets/album_art_placeholder.svg';
@@ -12,7 +13,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
   const userBio = user?.bio || '';
   const userAvatar = user?.avatar_url || user?.avatar || '';
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -50,7 +50,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: UserIcon },
     { id: 'account', label: 'Account', icon: LockIcon },
-    { id: 'theme', label: 'Theme', icon: PaletteIcon },
     { id: 'listening-data', label: 'Listening Data', icon: MusicNoteIcon }
   ];
 
@@ -278,75 +277,34 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
   };
 
   const AccountTab = () => {
-    const [passwordData, setPasswordData] = useState({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    });
-
-    const handleChange = (e) => {
-      const { name, value } = e.target;
-      setPasswordData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    };
-
     return (
       <div className="space-y-6">
         <div>
           <h3 className="text-xl font-semibold text-white mb-4">Account Security</h3>
 
-          <div className="mb-6">
-            <h4 className="text-lg font-medium text-white mb-4">Change Password</h4>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  name="currentPassword"
-                  value={passwordData.currentPassword}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-dark-gray border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-neon-blue focus:border-neon-blue transition-all duration-200"
-                  placeholder="Enter current password"
-                />
+          <div className="mb-6 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-400/10 to-transparent p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-neon-blue">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2 4 5v7c0 4.5 3.2 8.5 8 10 4.8-1.5 8-5.5 8-10V5l-8-3z" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  name="newPassword"
-                  value={passwordData.newPassword}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-dark-gray border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-neon-blue focus:border-neon-blue transition-all duration-200"
-                  placeholder="Enter new password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={passwordData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-dark-gray border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-neon-blue focus:border-neon-blue transition-all duration-200"
-                  placeholder="Confirm new password"
-                />
+              <div className="flex-1">
+                <h4 className="text-lg font-bold text-white">Change password</h4>
+                <p className="mt-1 text-sm text-gray-400">For your safety, password changes happen on a dedicated secure page with strength validation and an email receipt.</p>
+                <Link
+                  to="/security/change-password"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neon-blue px-4 py-2 text-sm font-bold text-dark-bg hover:bg-neon-blue/80 transition"
+                >
+                  Open secure page
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </Link>
               </div>
             </div>
-
-            <button className="mt-4 px-6 py-3 bg-neon-blue text-dark-bg rounded-xl font-medium hover:bg-neon-blue/80 transition-all duration-200 hover:scale-105">
-              Update Password
-            </button>
           </div>
 
           <div>
@@ -366,55 +324,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
                 />
                 <span className="text-gray-300">Receive marketing emails</span>
               </label>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const ThemeTab = () => {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-xl font-semibold text-white mb-4">Appearance</h3>
-
-          <div className="mb-6">
-            <h4 className="text-lg font-medium text-white mb-4">Theme</h4>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setIsDarkMode(true)}
-                className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                  isDarkMode
-                    ? 'bg-neon-blue text-dark-bg'
-                    : 'bg-light-gray text-gray-300 hover:bg-light-gray/80'
-                }`}
-              >
-                Dark Mode
-              </button>
-              <button
-                onClick={() => setIsDarkMode(false)}
-                className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                  !isDarkMode
-                    ? 'bg-neon-blue text-dark-bg'
-                    : 'bg-light-gray text-gray-300 hover:bg-light-gray/80'
-                }`}
-              >
-                Light Mode
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-lg font-medium text-white mb-4">Accent Color</h4>
-            <div className="flex space-x-3">
-              {['#00FFFF', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'].map((color) => (
-                <button
-                  key={color}
-                  className="w-12 h-12 rounded-full border-2 border-gray-600 hover:border-white transition-colors"
-                  style={{ backgroundColor: color }}
-                />
-              ))}
             </div>
           </div>
         </div>
@@ -484,8 +393,6 @@ const SettingsPage = ({ defaultTab = 'profile' }) => {
         return <ProfileTab />;
       case 'account':
         return <AccountTab />;
-      case 'theme':
-        return <ThemeTab />;
       case 'listening-data':
         return <ListeningDataTab />;
       default:

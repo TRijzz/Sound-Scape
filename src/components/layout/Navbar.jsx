@@ -145,13 +145,13 @@ const Navbar = () => {
   };
 
   return (
-    <motion.nav 
+    <motion.nav
       className="bg-dark-gray/80 backdrop-blur-md border-b border-gray-800 px-4 lg:px-6 py-4 relative z-50"
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pl-14 lg:pl-0">
         {/* Search Bar */}
         <div className="flex-1 max-w-2xl mx-4 lg:mx-8 relative" ref={searchRef}>
           <form onSubmit={handleSearch} className="relative">

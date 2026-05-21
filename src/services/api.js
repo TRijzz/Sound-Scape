@@ -1169,6 +1169,22 @@ class ApiService {
     }
   }
 
+  // Step 1: validates the current password and triggers an OTP email.
+  async initChangePassword({ currentPassword }) {
+    return this.fetchData('/auth/password/change/init', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword })
+    });
+  }
+
+  // Step 2: completes the change with OTP + new password.
+  async changePassword({ otp, newPassword }) {
+    return this.fetchData('/auth/password/change', {
+      method: 'POST',
+      body: JSON.stringify({ otp, newPassword })
+    });
+  }
+
   // Auth: Get current user
   async getCurrentUser() {
     try {
