@@ -290,7 +290,69 @@ const MusicStationLanding = () => {
       </section>
 
       <LiveExperience />
+      <LandingFooter />
     </div>
+  );
+};
+
+const LandingFooter = () => {
+  const navigate = useNavigate();
+  const quickLinks = [
+    { label: 'Log In', to: '/login' },
+    { label: 'Create Account', to: '/signup' },
+    { label: 'Explore Music', to: '/home' },
+    { label: 'Vinyl Store', to: '/store' }
+  ];
+
+  return (
+    <footer className="relative border-t border-white/10 bg-[#02040a] px-5 py-16 sm:px-8">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
+      <div className="mx-auto grid max-w-7xl gap-10 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Brand */}
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="brand-disc" />
+            <span className="text-base font-black uppercase tracking-[0.3em] text-white">Sound Scape</span>
+          </div>
+          <p className="mt-4 max-w-xs text-sm leading-7 text-slate-400">
+            A cinematic home for albums, playlists and vinyl culture — built for listeners who want music to feel alive before the first note starts.
+          </p>
+        </div>
+
+        {/* Contact */}
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-[0.26em] text-cyan-300">Contact</h3>
+          <ul className="mt-5 space-y-3 text-sm text-slate-400">
+            <li>Email: support@soundscape.app</li>
+            <li>Phone: +977-01-0000000</li>
+          </ul>
+        </div>
+
+        {/* Quick Links */}
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-[0.26em] text-cyan-300">Quick Links</h3>
+          <ul className="mt-5 space-y-3 text-sm">
+            {quickLinks.map((link) => (
+              <li key={link.to}>
+                <button
+                  type="button"
+                  onClick={() => navigate(link.to)}
+                  className="text-slate-400 transition hover:text-white"
+                >
+                  {link.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+      </div>
+
+      <div className="mx-auto mt-12 flex max-w-7xl flex-col items-center gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:justify-between">
+        <span>&copy; {new Date().getFullYear()} Sound Scape. All rights reserved.</span>
+        <span>Stream. Discover. Collect.</span>
+      </div>
+    </footer>
   );
 };
 

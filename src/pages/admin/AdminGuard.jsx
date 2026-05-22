@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import apiService from '../../services/api';
+import PasswordInput from '../../components/ui/PasswordInput';
 
 const emptyForm = {
   username: '',
@@ -171,8 +172,7 @@ export default function AdminGuard({ children }) {
             )}
 
             {!forgot && (
-              <input
-                type="password"
+              <PasswordInput
                 value={form.password}
                 onChange={(e) => updateField('password', e.target.value)}
                 placeholder={resetting ? 'New password' : 'Password'}
@@ -182,8 +182,7 @@ export default function AdminGuard({ children }) {
             )}
 
             {resetting && (
-              <input
-                type="password"
+              <PasswordInput
                 value={form.confirmPassword}
                 onChange={(e) => updateField('confirmPassword', e.target.value)}
                 placeholder="Confirm new password"

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiService from '../../services/api';
+import PasswordInput from '../../components/ui/PasswordInput';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -65,9 +66,8 @@ const ResetPassword = () => {
             <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
               New Password
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -82,9 +82,8 @@ const ResetPassword = () => {
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
               Confirm New Password
             </label>
-            <input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"

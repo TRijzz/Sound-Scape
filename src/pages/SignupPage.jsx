@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useMusic } from '../contexts/MusicContext';
 import apiService from '../services/api.js';
+import PasswordInput from '../components/ui/PasswordInput';
 
 const SignupPage = () => {
   const [formData, setFormData] = useState({
@@ -221,15 +222,14 @@ const SignupPage = () => {
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                 Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 id="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 className={`w-full px-4 py-3 bg-dark-gray border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
-                  errors.password 
-                    ? 'border-red-500 focus:ring-red-500' 
+                  errors.password
+                    ? 'border-red-500 focus:ring-red-500'
                     : 'border-gray-600 focus:ring-neon-blue focus:border-neon-blue'
                 }`}
                 placeholder="Create a password"
@@ -250,15 +250,14 @@ const SignupPage = () => {
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
                 Confirm Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 id="confirmPassword"
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className={`w-full px-4 py-3 bg-dark-gray border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
-                  errors.confirmPassword 
-                    ? 'border-red-500 focus:ring-red-500' 
+                  errors.confirmPassword
+                    ? 'border-red-500 focus:ring-red-500'
                     : 'border-gray-600 focus:ring-neon-blue focus:border-neon-blue'
                 }`}
                 placeholder="Confirm your password"
