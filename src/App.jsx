@@ -110,8 +110,8 @@ function AppContent() {
         <div className={`flex-1 flex flex-col transition-[margin] duration-300 ease-out ${sidebarMarginClass}`}>
           {showSidebar && <Navbar />}
 
-          {/* Page Content */}
-          <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+          {/* Page Content - bottom padding clears the fixed NowPlayingFooter */}
+          <main className="flex-1 overflow-y-auto pb-28">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
