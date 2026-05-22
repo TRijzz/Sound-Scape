@@ -102,23 +102,42 @@ const resolveTracklistEntry = async (entry, vinyl) => {
 export const resolveVinylTracks = async (vinyl) => {
   if (!vinyl) return [];
 
-  if (vinyl.albumId) {
-    const albumId = vinyl.albumId._id || vinyl.albumId;
-    const albumTracksRes = await apiService.getAlbumTracks(albumId);
-    const albumTracks = albumTracksRes?.songs || albumTracksRes?.tracks || [];
-    return albumTracks.map((track) => normalizeVinylTrack(track, vinyl));
+  // Tracklist resolution is best-effort: a linked album/song that is hidden or
+  // missing must NOT break the vinyl page — fall through to an empty tracklist.
+  try {
+    if (vinyl.albumId) {
+      const albumId = vinyl.albumId._id || vinyl.albumId;
+      const albumTracksRes = await apiService.getAlbumTracks(albumId);
+      const albumTracks = albumTracksRes?.songs || albumTracksRes?.tracks || [];
+      if (albumTracks.length > 0) {
+        return albumTracks.map((track) => normalizeVinylTrack(track, vinyl));
+      }
+      // Album had no usable tracks — fall back to the vinyl's own tracklist below.
+    }
+
+    if (vinyl.songId) {
+      const song = vinyl.songId._id || vinyl.songId.name
+        ? vinyl.songId
+        : await apiService.getSong(vinyl.songId);
+      if (song) return [normalizeVinylTrack(song, vinyl)];
+    }
+
+    if (Array.isArray(vinyl.tracklist) && vinyl.tracklist.length > 0) {
+      const tracks = await Promise.all(vinyl.tracklist.map((entry) => resolveTracklistEntry(entry, vinyl)));
+      return tracks.filter(Boolean);
+    }
+  } catch (err) {
+    console.warn('resolveVinylTracks: tracklist unavailable, continuing without it -', err?.message);
   }
 
-  if (vinyl.songId) {
-    const song = vinyl.songId._id || vinyl.songId.name
-      ? vinyl.songId
-      : await apiService.getSong(vinyl.songId);
-    return [normalizeVinylTrack(song, vinyl)];
-  }
-
+  // Last-resort fallback: try the vinyl's embedded tracklist even if a prior step threw.
   if (Array.isArray(vinyl.tracklist) && vinyl.tracklist.length > 0) {
-    const tracks = await Promise.all(vinyl.tracklist.map((entry) => resolveTracklistEntry(entry, vinyl)));
-    return tracks.filter(Boolean);
+    try {
+      const tracks = await Promise.all(vinyl.tracklist.map((entry) => resolveTracklistEntry(entry, vinyl)));
+      return tracks.filter(Boolean);
+    } catch {
+      /* ignore */
+    }
   }
 
   return [];

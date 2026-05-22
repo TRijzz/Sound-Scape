@@ -25,18 +25,45 @@ const VinylPage = () => {
 
   useEffect(() => {
     const fetchVinylData = async () => {
+      setLoading(true);
+      setError(null);
+
+      // Step 1: load the vinyl itself. Only THIS failing should error the page.
+      let data;
       try {
-        setLoading(true);
-        setError(null);
-        const data = await apiService.getVinyl(id);
-        setVinyl(data);
-        const resolvedTracks = await resolveVinylTracks(data);
-        setTracks(resolvedTracks);
-        setTracksByEdition({
-          [String(data?._id || data?.id || '')]: resolvedTracks,
-        });
-        const linkedAlbumId = data?.albumId?._id || data?.albumId || '';
-        if (linkedAlbumId) {
+        data = await apiService.getVinyl(id);
+      } catch (err) {
+        console.error('Error fetching vinyl:', err);
+        setError(err?.message || 'Vinyl not found');
+        setLoading(false);
+        return;
+      }
+
+      if (!data) {
+        setError('Vinyl not found');
+        setLoading(false);
+        return;
+      }
+
+      setVinyl(data);
+      setRelatedVinyls([data]);
+      setCurrentEditionIndex(0);
+
+      // Step 2: everything below is best-effort — never let it error the page.
+      let resolvedTracks = [];
+      try {
+        resolvedTracks = await resolveVinylTracks(data);
+      } catch (trackErr) {
+        console.warn('Vinyl tracklist unavailable:', trackErr?.message);
+      }
+      setTracks(resolvedTracks);
+      setTracksByEdition({
+        [String(data?._id || data?.id || '')]: resolvedTracks,
+      });
+
+      const linkedAlbumId = data?.albumId?._id || data?.albumId || '';
+      if (linkedAlbumId) {
+        try {
           const relatedResponse = await apiService.getVinyls(1, 100, '', true, linkedAlbumId);
           const relatedItems = Array.isArray(relatedResponse?.vinyls) ? relatedResponse.vinyls : [];
           const nextRelated = relatedItems.length > 0 ? relatedItems : [data];
@@ -50,28 +77,22 @@ const VinylPage = () => {
               if (editionId === String(data?._id || data?.id || '')) {
                 return [editionId, resolvedTracks];
               }
-
               try {
                 const editionTracks = await resolveVinylTracks(edition);
                 return [editionId, editionTracks];
               } catch (trackError) {
-                console.error('Error preloading vinyl edition tracks:', trackError);
+                console.warn('Error preloading vinyl edition tracks:', trackError?.message);
                 return [editionId, []];
               }
             })
           );
-
           setTracksByEdition(Object.fromEntries(trackEntries));
-        } else {
-          setRelatedVinyls([data]);
-          setCurrentEditionIndex(0);
+        } catch (relatedErr) {
+          console.warn('Related vinyl editions unavailable:', relatedErr?.message);
         }
-      } catch (err) {
-        console.error('Error fetching vinyl:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
     fetchVinylData();
