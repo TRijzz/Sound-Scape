@@ -220,8 +220,9 @@ export function MusicProvider({ children }) {
 
       await player.playTrack(track);
 
-      if (track._id) {
-        apiService.playSong(track._id).catch((err) => {
+      const trackId = track._id || track.id;
+      if (trackId) {
+        apiService.playSong(trackId).catch((err) => {
           console.error('Failed to record play event:', err);
         });
       }
@@ -693,6 +694,18 @@ export function MusicProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem('authTokens');
+    // Tear down playback so the play bar doesn't linger with the previous user's song.
+    try {
+      player.clearTrack();
+    } catch (err) {
+      console.warn('Failed to clear player on logout:', err?.message);
+    }
+    dispatch({ type: 'SET_CURRENT_TRACK', payload: null });
+    dispatch({ type: 'SET_PLAYING', payload: false });
+    dispatch({ type: 'SET_PROGRESS', payload: 0 });
+    dispatch({ type: 'SET_DURATION', payload: 0 });
+    dispatch({ type: 'SET_QUEUE', payload: [] });
+    dispatch({ type: 'SET_CURRENT_INDEX', payload: 0 });
     dispatch({ type: 'SET_USER', payload: null });
     dispatch({ type: 'SET_ACTIVE_VINYL', payload: null });
     dispatch({ type: 'SET_VINYL_OVERLAY', payload: false });

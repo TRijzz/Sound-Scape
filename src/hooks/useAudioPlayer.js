@@ -245,6 +245,21 @@ export const useAudioPlayer = ({ onEnded } = {}) => {
     }
   }, []);
 
+  // Fully tears the player down — used on logout so the play bar disappears.
+  const clearTrack = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      try { audioRef.current.removeAttribute('src'); audioRef.current.load(); } catch { /* ignore */ }
+    }
+    setCurrentTrack(null);
+    currentTrackRef.current = null;
+    setIsPlaying(false);
+    setProgress(0);
+    setDuration(0);
+    setIsLoading(false);
+    setError(null);
+  }, []);
+
   const seekTo = useCallback((time) => {      //Used to jump from duration to duration of song
     if (!audioRef.current) {
       return;
@@ -288,6 +303,7 @@ export const useAudioPlayer = ({ onEnded } = {}) => {
     pauseTrack,
     resumeTrack,
     stopTrack,
+    clearTrack,
     seekTo,
     setVolumeLevel,
     toggleMute,

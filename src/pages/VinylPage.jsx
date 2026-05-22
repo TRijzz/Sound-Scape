@@ -23,6 +23,15 @@ const VinylPage = () => {
   const [currentEditionIndex, setCurrentEditionIndex] = useState(0);
   const [editionDirection, setEditionDirection] = useState(1);
 
+  // Open the vinyl page at the top, not wherever the previous page was scrolled.
+  // The app's scroll container is the <main> element (overflow-y-auto), so
+  // reset both it and the window to be safe.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [id]);
+
   useEffect(() => {
     const fetchVinylData = async () => {
       setLoading(true);
@@ -404,7 +413,9 @@ const VinylPage = () => {
                                 {track.name || track.title}
                               </div>
                               <div className="text-xs text-gray-500 truncate">
-                                {track.artists?.map((artist) => artist.name).join(', ') || vinyl.artist} � {track.durationLabel || track.duration || '3:45'}
+                                {track.artists?.map((artist) => artist.name).join(', ') || vinyl.artist}
+                                <span className="mx-1.5 text-gray-600">&bull;</span>
+                                {track.durationLabel || track.duration || '3:45'}
                               </div>
                             </div>
                           </div>

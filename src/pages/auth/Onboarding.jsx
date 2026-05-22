@@ -79,7 +79,7 @@ export default function Onboarding() {
 
   const presetGenres = ['Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Classical', 'EDM'];
   const presetMoods = ['Chill', 'Happy', 'Energetic', 'Sad'];
-  const presetLanguages = ['English', 'Hindi', 'Spanish', 'French'];
+  const presetLanguages = ['English', 'Nepali', 'Hindi', 'Spanish', 'French'];
   const presetTags = ['explicit', 'high-energy', 'low-energy', '2010s', '2020s'];
 
   const Pill = ({ label, active, onClick }) => (

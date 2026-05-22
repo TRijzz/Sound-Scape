@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { optionalAdmin, requireAdminOrAuth } from '../middlewares/admin.js';
-import { requireAuth } from '../middlewares/auth.js';
+import { requireAuth, optionalAuth } from '../middlewares/auth.js';
 import { 
   createSong, 
   getSongs, 
@@ -44,7 +44,7 @@ router.get('/for-you', requireAuth, getForYouFeed);   //Onboarding-driven person
 router.get('/analytics/me', requireAuth, getListeningAnalytics);
 router.get('/:id', optionalAdmin, getSong);
 router.get('/:id/lyrics', optionalAdmin, getLyrics);
-router.post('/:id/play', playSong); // Changed from incrementPlayCount to playSong
+router.post('/:id/play', optionalAuth, playSong); // optionalAuth so logged-in plays record ListeningHistory
 
 // Protected routes (require authentication)
 router.post('/', requireAdminOrAuth, upload.fields([
