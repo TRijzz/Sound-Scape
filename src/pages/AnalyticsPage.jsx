@@ -61,11 +61,11 @@ const HeroCard = ({ label, value, icon, accent = 'cyan', subtitle, delay = 0, su
     ? (formatter ? formatter(count) : count.toLocaleString())
     : (value || '—');
   const accentStyle = {
-    cyan: 'from-cyan-400/20 via-cyan-400/5 to-transparent border-cyan-400/30 shadow-cyan-400/20',
-    purple: 'from-purple-500/20 via-purple-500/5 to-transparent border-purple-500/30 shadow-purple-500/20',
-    pink: 'from-pink-500/20 via-pink-500/5 to-transparent border-pink-500/30 shadow-pink-500/20',
-    amber: 'from-amber-400/20 via-amber-400/5 to-transparent border-amber-400/30 shadow-amber-400/20',
-    emerald: 'from-emerald-400/20 via-emerald-400/5 to-transparent border-emerald-400/30 shadow-emerald-400/20'
+    cyan: 'from-[#102530] via-[#0d1620] to-[#0c0d14] border-cyan-400/30',
+    purple: 'from-[#1a1330] via-[#120f20] to-[#0c0d14] border-purple-500/30',
+    pink: 'from-[#281321] via-[#170f17] to-[#0c0d14] border-pink-500/30',
+    amber: 'from-[#2a2011] via-[#171307] to-[#0c0d14] border-amber-400/30',
+    emerald: 'from-[#0f2620] via-[#0c1813] to-[#0c0d14] border-emerald-400/30'
   }[accent];
 
   return (
@@ -74,7 +74,7 @@ const HeroCard = ({ label, value, icon, accent = 'cyan', subtitle, delay = 0, su
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className={`group relative overflow-hidden rounded-2xl border bg-gradient-to-br ${accentStyle} backdrop-blur-xl p-5 shadow-lg shadow-black/30 hover:shadow-[0_8px_40px_rgba(0,191,255,0.18)] transition-shadow`}
+      className={`group relative overflow-hidden rounded-2xl border bg-gradient-to-br ${accentStyle} p-5 shadow-lg shadow-black/40 hover:shadow-[0_8px_40px_rgba(0,191,255,0.18)] transition-shadow`}
     >
       <div aria-hidden className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-white/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       <div className="flex items-start justify-between gap-3">
@@ -110,7 +110,7 @@ const ChartCard = ({ children, delay = 0, className = '' }) => (
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true, amount: 0.2 }}
     transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-    className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-xl p-5 shadow-lg shadow-black/30 ${className}`}
+    className={`relative min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#13141d] p-5 shadow-lg shadow-black/40 ${className}`}
   >
     <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-24 h-48 bg-[radial-gradient(circle_at_top,rgba(0,191,255,0.12),transparent_70%)]" />
     <div className="relative z-10">{children}</div>
@@ -120,7 +120,7 @@ const ChartCard = ({ children, delay = 0, className = '' }) => (
 const TooltipShell = ({ active, payload, label, valueLabel = 'plays' }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-white/15 bg-black/85 backdrop-blur-xl px-3 py-2 text-xs shadow-xl shadow-black/50">
+    <div className="rounded-lg border border-white/15 bg-[#0b0c12] px-3 py-2 text-xs shadow-xl shadow-black/50">
       <div className="text-white/60">{label}</div>
       <div className="text-white font-bold">
         {payload[0].value} {valueLabel}
@@ -159,7 +159,7 @@ const AnalyticsPage = () => {
   if (!isAuthenticated) {
     return (
       <div className="p-6">
-        <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-8 text-center">
+        <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-[#13141d] p-8 text-center">
           <h2 className="text-xl font-bold text-white">Sign in to see your analytics</h2>
           <p className="mt-2 text-sm text-gray-400">We track plays only for signed-in listeners.</p>
           <button
@@ -211,25 +211,26 @@ const AnalyticsPage = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Floating background gradients */}
-      <div aria-hidden className="pointer-events-none absolute inset-0">
+      {/* Floating background gradients (kept behind content; modest blur to avoid
+          GPU compositing artefacts seen with very large blur radii). */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <motion.div
-          initial={{ opacity: 0.3 }}
-          animate={{ opacity: [0.3, 0.55, 0.3] }}
+          initial={{ opacity: 0.28 }}
+          animate={{ opacity: [0.28, 0.45, 0.28] }}
           transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-cyan-500/15 blur-[120px]"
+          className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-cyan-500/12 blur-3xl"
         />
         <motion.div
-          initial={{ opacity: 0.25 }}
-          animate={{ opacity: [0.25, 0.5, 0.25] }}
+          initial={{ opacity: 0.22 }}
+          animate={{ opacity: [0.22, 0.4, 0.22] }}
           transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-          className="absolute top-1/3 -right-24 h-[28rem] w-[28rem] rounded-full bg-purple-500/12 blur-[140px]"
+          className="absolute top-1/3 -right-20 h-96 w-96 rounded-full bg-purple-500/10 blur-3xl"
         />
         <motion.div
-          initial={{ opacity: 0.2 }}
-          animate={{ opacity: [0.2, 0.4, 0.2] }}
+          initial={{ opacity: 0.18 }}
+          animate={{ opacity: [0.18, 0.32, 0.18] }}
           transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut', delay: 4 }}
-          className="absolute bottom-0 left-1/4 h-80 w-80 rounded-full bg-pink-500/10 blur-[120px]"
+          className="absolute bottom-0 left-1/4 h-72 w-72 rounded-full bg-pink-500/10 blur-3xl"
         />
       </div>
 
@@ -343,7 +344,7 @@ const AnalyticsPage = () => {
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <ChartCard delay={0.05} className="lg:col-span-2">
                 <SectionHeader eyebrow="Weekly trend" title="Plays over the last 7 days" />
-                <div className="h-72">
+                <div className="h-72 min-w-0 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={weeklyTrend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                       <defs>
@@ -422,7 +423,7 @@ const AnalyticsPage = () => {
             <section>
               <ChartCard delay={0.05}>
                 <SectionHeader eyebrow="When you listen" title="Plays by hour of day" />
-                <div className="h-64">
+                <div className="h-64 min-w-0 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={hourlyDistribution} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                       <defs>
@@ -461,7 +462,7 @@ const AnalyticsPage = () => {
             <section>
               <SectionHeader eyebrow="History" title="Recently played" />
               {recentlyPlayed.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 text-center text-sm text-gray-500">
+                <div className="rounded-2xl border border-white/10 bg-[#13141d] p-6 text-center text-sm text-gray-500">
                   No recent plays yet
                 </div>
               ) : (
@@ -478,7 +479,7 @@ const AnalyticsPage = () => {
                         whileHover={{ y: -4, transition: { duration: 0.15 } }}
                         type="button"
                         onClick={() => playTrack && playTrack(entry.song)}
-                        className="group w-44 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-3 text-left hover:border-neon-blue/40 hover:bg-white/[0.06] transition"
+                        className="group w-44 shrink-0 rounded-xl border border-white/10 bg-[#13141d] p-3 text-left hover:border-neon-blue/40 hover:bg-[#181a25] transition"
                       >
                         <div className="relative aspect-square overflow-hidden rounded-lg bg-black/40">
                           <img
@@ -514,7 +515,7 @@ const AnalyticsPage = () => {
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5, delay: idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                        className="relative rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 overflow-hidden"
+                        className="relative rounded-2xl border border-white/10 bg-[#13141d] p-5 overflow-hidden"
                       >
                         <div
                           aria-hidden
