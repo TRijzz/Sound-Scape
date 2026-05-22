@@ -1,0 +1,42 @@
+flowchart LR
+  GUEST(["Guest"])
+  USERR(["Registered User"])
+  ADM(["Administrator"])
+  KH(["Khalti Gateway"])
+
+  subgraph SYS["Sound Scape System"]
+    direction TB
+    UC1(["Browse catalogue"])
+    UC2(["Register account"])
+    UC3(["Verify email via OTP"])
+    UC4(["Log in"])
+    UC5(["Complete onboarding"])
+    UC6(["Play song / manage queue"])
+    UC7(["Like songs &amp; build playlists"])
+    UC8(["View made-for-you feed"])
+    UC9(["Browse &amp; buy vinyl"])
+    UC10(["View listening analytics"])
+    UC11(["Change password securely"])
+    UC12(["Manage catalogue &amp; taxonomy"])
+    UC13(["Manage users &amp; visibility"])
+  end
+
+  GUEST --- UC1
+  GUEST --- UC2
+  GUEST --- UC3
+  GUEST --- UC4
+
+  USERR --- UC4
+  USERR --- UC5
+  USERR --- UC6
+  USERR --- UC7
+  USERR --- UC8
+  USERR --- UC9
+  USERR --- UC10
+  USERR --- UC11
+
+  ADM --- UC4
+  ADM --- UC12
+  ADM --- UC13
+
+  UC9 --- KH

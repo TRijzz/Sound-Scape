@@ -1,0 +1,39 @@
+flowchart LR
+  ROOT["Sound Scape<br/>Music Streaming Platform"]
+
+  ROOT --> AUTH["Authentication &amp;<br/>Account System"]
+  ROOT --> STREAM["Music Streaming &amp;<br/>Playback System"]
+  ROOT --> PERS["Personalization &amp;<br/>Onboarding System"]
+  ROOT --> STORE["Vinyl Store &amp;<br/>Payment System"]
+  ROOT --> ADMIN["Admin Management<br/>System"]
+  ROOT --> ANALYTICS["Analytics &amp;<br/>Listening Data System"]
+
+  AUTH --> A1["Register / Sign up"]
+  AUTH --> A2["Login / JWT session"]
+  AUTH --> A3["Email OTP verification"]
+  AUTH --> A4["Google OAuth sign-in"]
+  AUTH --> A5["Secure password change"]
+
+  STREAM --> S1["Browse artists / albums / songs"]
+  STREAM --> S2["Audio playback &amp; queue"]
+  STREAM --> S3["Like songs"]
+  STREAM --> S4["Create / manage playlists"]
+  STREAM --> S5["Search &amp; filter by category"]
+
+  PERS --> P1["Capture taste profile"]
+  PERS --> P2["Made-for-you feed"]
+  PERS --> P3["Mood / genre discovery"]
+
+  STORE --> V1["Browse vinyl catalogue"]
+  STORE --> V2["View vinyl &amp; tracklist"]
+  STORE --> V3["Khalti payment checkout"]
+  STORE --> V4["Owned vinyl collection"]
+
+  ADMIN --> M1["Manage artists / albums / songs"]
+  ADMIN --> M2["Manage vinyls &amp; lyrics"]
+  ADMIN --> M3["Manage users &amp; visibility"]
+  ADMIN --> M4["Taxonomy: genre / mood / category"]
+
+  ANALYTICS --> N1["Record listening history"]
+  ANALYTICS --> N2["Aggregate statistics"]
+  ANALYTICS --> N3["Dashboard charts &amp; insights"]

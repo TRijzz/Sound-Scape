@@ -1,0 +1,38 @@
+flowchart LR
+  subgraph CLIENT["Presentation Tier - React 19 SPA"]
+    direction TB
+    UI["Pages &amp; Components<br/>(Vite build)"]
+    CTX["Context Stores<br/>MusicContext / SidebarContext"]
+    API["API Service Layer<br/>(services/api.js)"]
+    UI --- CTX
+    CTX --- API
+  end
+
+  subgraph SERVER["Application Tier - Express 5 REST API"]
+    direction TB
+    RT["Route Layer<br/>auth / songs / albums / vinyls ..."]
+    MW["Middleware<br/>JWT auth / admin / upload"]
+    CTRL["Controllers<br/>business logic"]
+    RT --- MW
+    MW --- CTRL
+  end
+
+  subgraph DATA["Data Tier"]
+    direction TB
+    DB[("MongoDB<br/>Mongoose ODM")]
+    FS["Static file store<br/>/public audio &amp; images"]
+  end
+
+  subgraph EXT["External Services"]
+    direction TB
+    KHALTI["Khalti<br/>Payment Gateway"]
+    SPOT["Spotify Web API<br/>(catalogue sync)"]
+    SMTP["SMTP / Nodemailer<br/>(email &amp; OTP)"]
+  end
+
+  CLIENT -->|"HTTPS / JSON<br/>REST calls"| SERVER
+  SERVER -->|"Mongoose queries"| DB
+  SERVER -->|"serves media"| FS
+  SERVER -->|"payment init / verify"| KHALTI
+  SERVER -->|"scheduled catalogue sync"| SPOT
+  SERVER -->|"transactional mail"| SMTP

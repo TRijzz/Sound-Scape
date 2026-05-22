@@ -1,0 +1,25 @@
+flowchart TD
+  START([Start]) --> LOGIN["Administrator authenticates"]
+  LOGIN --> AUTHED{"Valid admin<br/>credentials?"}
+  AUTHED -- No --> DENY["Access refused"]
+  DENY --> END1([End])
+  AUTHED -- Yes --> PANEL["Open admin console"]
+  PANEL --> PICK["Select entity type<br/>(artist / album / song / vinyl / lyric)"]
+  PICK --> ACTION{"Choose action"}
+  ACTION -- Create --> CRT["Enter details, upload media"]
+  CRT --> SAVE["Validate &amp; save record"]
+  ACTION -- Edit --> EDT["Modify fields"]
+  EDT --> SAVE
+  ACTION -- Delete --> DEL["Confirm deletion"]
+  DEL --> SAVE
+  ACTION -- Set visibility --> VIS["Toggle is_visible / publish_status"]
+  VIS --> SAVE
+  ACTION -- Edit taxonomy --> TAX["Update genre / mood /<br/>category / language"]
+  TAX --> SAVE
+  SAVE --> OK{"Operation<br/>successful?"}
+  OK -- No --> ERR["Show error message"]
+  ERR --> PICK
+  OK -- Yes --> REFRESH["Catalogue reflects the change"]
+  REFRESH --> MORE{"Manage another<br/>entity?"}
+  MORE -- Yes --> PICK
+  MORE -- No --> END2([End])

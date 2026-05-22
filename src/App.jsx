@@ -83,6 +83,60 @@ function AuthPromptOverlay() {
   );
 }
 
+// Maps the current route to a human-readable page name shown in the browser tab.
+const USER_PAGE_TITLES = [
+  { match: (p) => p === '/home', title: 'Home' },
+  { match: (p) => p.startsWith('/search'), title: 'Search' },
+  { match: (p) => p.startsWith('/artist/'), title: 'Artist' },
+  { match: (p) => p.startsWith('/album/'), title: 'Album' },
+  { match: (p) => p.startsWith('/genre/'), title: 'Genre' },
+  { match: (p) => p === '/moods', title: 'Moods' },
+  { match: (p) => p === '/store', title: 'Vinyl Store' },
+  { match: (p) => p.startsWith('/vinyl/'), title: 'Vinyl' },
+  { match: (p) => p.startsWith('/payment/khalti'), title: 'Payment' },
+  { match: (p) => p === '/login', title: 'Log In' },
+  { match: (p) => p === '/signup', title: 'Sign Up' },
+  { match: (p) => p.startsWith('/forgot-password'), title: 'Forgot Password' },
+  { match: (p) => p.startsWith('/reset-password'), title: 'Reset Password' },
+  { match: (p) => p.startsWith('/verify-email'), title: 'Verify Email' },
+  { match: (p) => p.startsWith('/email-verified'), title: 'Email Verified' },
+  { match: (p) => p.startsWith('/verification-success'), title: 'Email Verified' },
+  { match: (p) => p === '/onboarding', title: 'Onboarding' },
+  { match: (p) => p === '/settings', title: 'Settings' },
+  { match: (p) => p === '/account', title: 'Account' },
+  { match: (p) => p === '/profile', title: 'Profile' },
+  { match: (p) => p.startsWith('/user/'), title: 'Profile' },
+  { match: (p) => p === '/liked', title: 'Liked Songs' },
+  { match: (p) => p === '/library', title: 'Your Library' },
+  { match: (p) => p.startsWith('/playlist/'), title: 'Playlist' },
+  { match: (p) => p === '/analytics', title: 'Analytics' },
+  { match: (p) => p.startsWith('/security/change-password'), title: 'Change Password' }
+];
+
+const ADMIN_PAGE_TITLES = [
+  { match: (p) => p === '/admin/artists', title: 'Artists' },
+  { match: (p) => p === '/admin/albums', title: 'Albums' },
+  { match: (p) => p === '/admin/songs/create', title: 'Create Song' },
+  { match: (p) => p.startsWith('/admin/songs/edit'), title: 'Edit Song' },
+  { match: (p) => p === '/admin/songs', title: 'Songs' },
+  { match: (p) => p.startsWith('/admin/albums/edit'), title: 'Edit Album' },
+  { match: (p) => p === '/admin/categories', title: 'Categories' },
+  { match: (p) => p === '/admin/lyrics', title: 'Lyrics' },
+  { match: (p) => p === '/admin/vinyls', title: 'Vinyls' },
+  { match: (p) => p === '/admin/users', title: 'Users' },
+  { match: (p) => p.startsWith('/admin'), title: 'Dashboard' }
+];
+
+function resolvePageTitle(pathname) {
+  if (pathname === '/') return 'Sound Scape — Music Streaming & Vinyl';
+  if (pathname.startsWith('/admin')) {
+    const entry = ADMIN_PAGE_TITLES.find((t) => t.match(pathname));
+    return `${entry ? entry.title : 'Dashboard'} • Sound Scape Admin`;
+  }
+  const entry = USER_PAGE_TITLES.find((t) => t.match(pathname));
+  return entry ? `${entry.title} • Sound Scape` : 'Sound Scape';
+}
+
 function AppContent() {
   const location = useLocation();
   const { collapsed } = useSidebar();
@@ -101,6 +155,11 @@ function AppContent() {
   const hideChrome = isLandingPage || authShellRoutes.some((route) => location.pathname.startsWith(route));
   const showSidebar = !isAdmin && !hideChrome;
   const sidebarMarginClass = showSidebar ? (collapsed ? 'lg:ml-[76px]' : 'lg:ml-64') : '';
+
+  // Reflect the current page in the browser tab title.
+  React.useEffect(() => {
+    document.title = resolvePageTitle(location.pathname);
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-dark-bg text-white font-inter">

@@ -1,0 +1,78 @@
+classDiagram
+  class User {
+    +ObjectId _id
+    +String name
+    +String email
+    +String password
+    +Boolean emailVerified
+    +Boolean onboarded
+    +String[] preferred_genres
+    +String[] preferred_moods
+    +ObjectId[] likedSongs
+    +ObjectId[] purchased_vinyls
+    +comparePassword(candidate) Boolean
+  }
+  class Artist {
+    +ObjectId _id
+    +String name
+    +String[] genres
+    +Boolean is_visible
+    +String publish_status
+  }
+  class Album {
+    +ObjectId _id
+    +String name
+    +ObjectId[] artists
+    +String release_date
+    +Boolean is_visible
+  }
+  class Song {
+    +ObjectId _id
+    +String name
+    +ObjectId[] artists
+    +ObjectId album
+    +String genre
+    +String mood
+    +String category
+    +String language
+    +String audio_url
+    +Number play_count
+  }
+  class Playlist {
+    +ObjectId _id
+    +String name
+    +ObjectId user
+    +ObjectId[] songs
+    +Boolean is_public
+  }
+  class Vinyl {
+    +ObjectId _id
+    +String name
+    +Number price
+    +ObjectId albumId
+    +ObjectId songId
+    +Boolean display_in_store
+  }
+  class ListeningHistory {
+    +ObjectId _id
+    +ObjectId user
+    +ObjectId song
+    +String genre
+    +Date played_at
+  }
+  class PaymentTransaction {
+    +ObjectId _id
+    +ObjectId user
+    +ObjectId vinyl
+    +Number amount
+    +String status
+  }
+  User "1" --> "*" Playlist : owns
+  User "1" --> "*" ListeningHistory : logs
+  User "1" --> "*" PaymentTransaction : initiates
+  Artist "1" --> "*" Album : releases
+  Album "1" --> "*" Song : contains
+  Artist "*" --> "*" Song : performs
+  Playlist "*" --> "*" Song : references
+  Vinyl "*" --> "1" Album : pressedFrom
+  PaymentTransaction "*" --> "1" Vinyl : settles

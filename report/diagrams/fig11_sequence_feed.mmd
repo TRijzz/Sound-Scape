@@ -1,0 +1,19 @@
+sequenceDiagram
+  actor U as User
+  participant C as Home Page
+  participant A as Express API
+  participant DB as MongoDB
+  U->>C: Open Home (onboarded user)
+  C->>C: detect user has preferences
+  C->>A: GET /api/songs/for-you
+  A->>DB: read preferred genres / moods / languages / tags
+  A->>A: build tiered match query (AND of filters)
+  A->>DB: find songs matching all filters
+  DB-->>A: candidate songs
+  alt Too few results
+    A->>A: relax filters (drop tags, language, mood)
+    A->>DB: re-query with relaxed filter
+    DB-->>A: additional songs
+  end
+  A-->>C: 200 {songs, preferences}
+  C-->>U: Render "Made for you" section

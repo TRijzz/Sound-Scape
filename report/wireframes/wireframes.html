@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sound Scape Wireframes</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #ffffff; font-family: Arial, Helvetica, sans-serif; }
+  .wf {
+    background: #ffffff; border: 2px solid #2A3744; position: relative;
+    margin: 0; overflow: hidden;
+  }
+  .box { background: #EEF1F4; border: 1.5px solid #97A4B0; }
+  .box.solidlbl { display: flex; align-items: center; justify-content: center;
+    color: #5A6470; font-size: 13px; text-align: center; }
+  .ph { background: repeating-linear-gradient(45deg, #E4E8EC, #E4E8EC 8px, #EDEFF2 8px, #EDEFF2 16px);
+    border: 1.5px solid #97A4B0; display: flex; align-items: center; justify-content: center;
+    color: #6B7682; font-size: 12px; }
+  .btn { border: 1.6px solid #3A5566; border-radius: 20px; display: flex;
+    align-items: center; justify-content: center; color: #20323F; font-size: 12.5px;
+    font-weight: bold; background: #DCE6EC; }
+  .btn.primary { background: #2A3744; color: #ffffff; border-color: #2A3744; }
+  .lbl { color: #38444F; font-size: 13px; }
+  .lbl.big { font-size: 26px; font-weight: bold; color: #1B2530; }
+  .lbl.kicker { font-size: 11px; letter-spacing: 2px; color: #6B7682; font-weight: bold; }
+  .lbl.h { font-size: 17px; font-weight: bold; color: #1B2530; }
+  .lbl.mut { color: #7C8893; font-size: 11.5px; }
+  .chip { border: 1.4px solid #6E7C88; border-radius: 14px; background: #E7EDF1;
+    font-size: 11px; color: #3A4855; display: flex; align-items: center; justify-content: center; }
+  .circle { border-radius: 50%; }
+  .row { display: flex; }
+  .cap { position: absolute; left: 0; bottom: 0; width: 100%; text-align: center;
+    font-size: 11px; color: #9AA7B2; padding: 3px 0; }
+  .pos { position: absolute; }
+</style>
+</head>
+<body>
+
+<!-- ================= WF1 : LANDING ================= -->
+<div class="wf" id="wf1" style="width:1080px;height:600px;">
+  <!-- nav -->
+  <div class="box pos" style="left:40px;top:26px;width:1000px;height:56px;border-radius:28px;"></div>
+  <div class="circle box pos" style="left:62px;top:38px;width:32px;height:32px;border-radius:50%;"></div>
+  <div class="lbl pos" style="left:108px;top:47px;font-weight:bold;letter-spacing:2px;">SOUND SCAPE</div>
+  <div class="lbl mut pos" style="left:620px;top:48px;">Vinyls</div>
+  <div class="lbl mut pos" style="left:710px;top:48px;">Experience</div>
+  <div class="lbl mut pos" style="left:830px;top:48px;">Explore</div>
+  <div class="btn pos" style="left:945px;top:38px;width:78px;height:34px;">ENTER</div>
+  <!-- hero left -->
+  <div class="lbl kicker pos" style="left:70px;top:170px;">FUTURE FREQUENCY</div>
+  <div class="box pos" style="left:70px;top:200px;width:440px;height:70px;"></div>
+  <div class="lbl mut pos" style="left:80px;top:226px;">Heading: &ldquo;Sound Scape&rdquo;</div>
+  <div class="box pos" style="left:70px;top:296px;width:430px;height:16px;"></div>
+  <div class="box pos" style="left:70px;top:322px;width:380px;height:16px;"></div>
+  <div class="box pos" style="left:70px;top:348px;width:410px;height:16px;"></div>
+  <div class="lbl mut pos" style="left:74px;top:374px;">Tagline / quote / description text</div>
+  <div class="btn primary pos" style="left:70px;top:410px;width:170px;height:44px;">START LISTENING</div>
+  <div class="btn pos" style="left:258px;top:410px;width:170px;height:44px;">EXPLORE MUSIC</div>
+  <!-- hero right : vinyl -->
+  <div class="circle ph pos" style="left:600px;top:150px;width:340px;height:340px;border-radius:50%;">Animated vinyl record</div>
+  <div class="cap">Wireframe 1 &mdash; Landing Page</div>
+</div>
+
+<!-- ================= WF2 : HOME / PERSONALISED FEED ================= -->
+<div class="wf" id="wf2" style="width:1080px;height:720px;">
+  <!-- sidebar -->
+  <div class="box pos" style="left:0;top:0;width:200px;height:660px;"></div>
+  <div class="lbl pos" style="left:20px;top:22px;font-weight:bold;letter-spacing:1px;font-size:12px;">SOUND SCAPE</div>
+  <div class="box pos" style="left:18px;top:58px;width:164px;height:30px;"></div>
+  <div class="lbl mut pos" style="left:30px;top:66px;">Home</div>
+  <div class="lbl mut pos" style="left:30px;top:104px;">Search</div>
+  <div class="lbl mut pos" style="left:30px;top:138px;">Vinyl Store</div>
+  <div class="lbl mut pos" style="left:30px;top:172px;">Liked Songs</div>
+  <div class="lbl mut pos" style="left:30px;top:206px;">Your Library</div>
+  <div class="lbl mut pos" style="left:30px;top:240px;">Analytics</div>
+  <div class="lbl kicker pos" style="left:22px;top:286px;">PLAYLISTS</div>
+  <div class="lbl mut pos" style="left:30px;top:312px;">+ create playlist</div>
+  <div class="lbl mut pos" style="left:30px;top:600px;">Profile</div>
+  <div class="lbl mut pos" style="left:30px;top:626px;">Settings</div>
+  <!-- top search -->
+  <div class="box pos" style="left:224px;top:20px;width:560px;height:38px;border-radius:19px;"></div>
+  <div class="lbl mut pos" style="left:244px;top:31px;">Search the catalogue...</div>
+  <div class="circle box pos" style="left:1020px;top:20px;width:38px;height:38px;border-radius:50%;"></div>
+  <!-- made for you -->
+  <div class="lbl kicker pos" style="left:224px;top:80px;">MADE FOR YOU</div>
+  <div class="lbl h pos" style="left:224px;top:98px;">Picked from your taste profile</div>
+  <div class="chip pos" style="left:224px;top:128px;width:70px;height:22px;">Hip-Hop</div>
+  <div class="chip pos" style="left:302px;top:128px;width:62px;height:22px;">Happy</div>
+  <div class="chip pos" style="left:372px;top:128px;width:70px;height:22px;">English</div>
+  <div class="chip pos" style="left:450px;top:128px;width:74px;height:22px;">explicit</div>
+  <div class="box pos" style="left:224px;top:162px;width:834px;height:46px;"></div>
+  <div class="box pos" style="left:224px;top:214px;width:834px;height:46px;"></div>
+  <div class="box pos" style="left:224px;top:266px;width:834px;height:46px;"></div>
+  <div class="lbl mut pos" style="left:240px;top:178px;">Song row &mdash; cover, title, artist, duration</div>
+  <!-- top artists -->
+  <div class="lbl h pos" style="left:224px;top:332px;">Top artists</div>
+  <div class="circle ph pos" style="left:224px;top:360px;width:110px;height:110px;border-radius:50%;">artist</div>
+  <div class="circle ph pos" style="left:354px;top:360px;width:110px;height:110px;border-radius:50%;">artist</div>
+  <div class="circle ph pos" style="left:484px;top:360px;width:110px;height:110px;border-radius:50%;">artist</div>
+  <div class="circle ph pos" style="left:614px;top:360px;width:110px;height:110px;border-radius:50%;">artist</div>
+  <div class="circle ph pos" style="left:744px;top:360px;width:110px;height:110px;border-radius:50%;">artist</div>
+  <div class="circle ph pos" style="left:874px;top:360px;width:110px;height:110px;border-radius:50%;">artist</div>
+  <!-- new releases -->
+  <div class="lbl h pos" style="left:224px;top:492px;">New releases</div>
+  <div class="ph pos" style="left:224px;top:520px;width:120px;height:110px;">album</div>
+  <div class="ph pos" style="left:360px;top:520px;width:120px;height:110px;">album</div>
+  <div class="ph pos" style="left:496px;top:520px;width:120px;height:110px;">album</div>
+  <div class="ph pos" style="left:632px;top:520px;width:120px;height:110px;">album</div>
+  <div class="ph pos" style="left:768px;top:520px;width:120px;height:110px;">album</div>
+  <!-- player bar -->
+  <div class="box pos" style="left:0;top:660px;width:1080px;height:60px;"></div>
+  <div class="ph pos" style="left:16px;top:670px;width:40px;height:40px;">art</div>
+  <div class="lbl mut pos" style="left:66px;top:684px;">Now playing &mdash; title / artist</div>
+  <div class="circle box pos" style="left:480px;top:672px;width:36px;height:36px;border-radius:50%;"></div>
+  <div class="lbl mut pos" style="left:484px;top:684px;">&#9654;</div>
+  <div class="box pos" style="left:560px;top:686px;width:340px;height:8px;border-radius:4px;"></div>
+  <div class="cap">Wireframe 2 &mdash; Home / Personalised Feed</div>
+</div>
+
+<!-- ================= WF3 : NOW PLAYING / VINYL PLAYER ================= -->
+<div class="wf" id="wf3" style="width:980px;height:620px;">
+  <div class="lbl h pos" style="left:40px;top:28px;">Now Playing</div>
+  <div class="lbl mut pos" style="left:880px;top:30px;">close</div>
+  <!-- vinyl + tonearm -->
+  <div class="circle ph pos" style="left:60px;top:90px;width:380px;height:380px;border-radius:50%;">Spinning vinyl disc</div>
+  <div class="box pos" style="left:380px;top:70px;width:120px;height:18px;"></div>
+  <div class="lbl mut pos" style="left:392px;top:72px;">tonearm</div>
+  <!-- track info -->
+  <div class="box pos" style="left:520px;top:110px;width:400px;height:46px;"></div>
+  <div class="lbl mut pos" style="left:534px;top:126px;">Track title</div>
+  <div class="box pos" style="left:520px;top:170px;width:280px;height:22px;"></div>
+  <div class="lbl mut pos" style="left:534px;top:175px;">Artist name</div>
+  <div class="circle box pos" style="left:830px;top:166px;width:30px;height:30px;border-radius:50%;"></div>
+  <div class="lbl mut pos" style="left:836px;top:174px;">&hearts;</div>
+  <!-- lyrics panel -->
+  <div class="box pos" style="left:520px;top:214px;width:400px;height:150px;"></div>
+  <div class="lbl mut pos" style="left:534px;top:230px;">Synced lyrics panel</div>
+  <!-- progress -->
+  <div class="box pos" style="left:60px;top:506px;width:860px;height:8px;border-radius:4px;"></div>
+  <div class="lbl mut pos" style="left:60px;top:520px;">1:41</div>
+  <div class="lbl mut pos" style="left:892px;top:520px;">5:08</div>
+  <!-- controls -->
+  <div class="circle box pos" style="left:330px;top:548px;width:34px;height:34px;border-radius:50%;"></div>
+  <div class="circle box pos" style="left:392px;top:548px;width:34px;height:34px;border-radius:50%;"></div>
+  <div class="circle btn primary pos" style="left:454px;top:540px;width:50px;height:50px;border-radius:50%;">&#9654;</div>
+  <div class="circle box pos" style="left:534px;top:548px;width:34px;height:34px;border-radius:50%;"></div>
+  <div class="circle box pos" style="left:596px;top:548px;width:34px;height:34px;border-radius:50%;"></div>
+  <div class="lbl mut pos" style="left:300px;top:592px;">prev &nbsp;&nbsp; shuffle &nbsp;&nbsp; play/pause &nbsp;&nbsp; repeat &nbsp;&nbsp; next</div>
+  <div class="cap">Wireframe 3 &mdash; Now Playing / Vinyl Player</div>
+</div>
+
+<!-- ================= WF4 : VINYL STORE ================= -->
+<div class="wf" id="wf4" style="width:1080px;height:660px;">
+  <div class="box pos" style="left:0;top:0;width:200px;height:660px;"></div>
+  <div class="lbl pos" style="left:20px;top:22px;font-weight:bold;font-size:12px;letter-spacing:1px;">SOUND SCAPE</div>
+  <div class="lbl mut pos" style="left:30px;top:64px;">Home</div>
+  <div class="lbl mut pos" style="left:30px;top:96px;">Search</div>
+  <div class="box pos" style="left:18px;top:120px;width:164px;height:30px;"></div>
+  <div class="lbl mut pos" style="left:30px;top:128px;">Vinyl Store</div>
+  <div class="lbl mut pos" style="left:30px;top:166px;">Liked Songs</div>
+  <div class="lbl mut pos" style="left:30px;top:198px;">Your Library</div>
+  <div class="lbl h pos" style="left:230px;top:28px;">Vinyl Store</div>
+  <div class="lbl mut pos" style="left:230px;top:56px;">Premium pressings tied to the catalogue</div>
+  <!-- grid 3x2 -->
+  <div class="box pos" style="left:230px;top:90px;width:255px;height:240px;"></div>
+  <div class="ph pos" style="left:246px;top:106px;width:223px;height:150px;">vinyl image</div>
+  <div class="lbl mut pos" style="left:246px;top:266px;">Vinyl name</div>
+  <div class="lbl mut pos" style="left:246px;top:286px;">Artist &mdash; Rs. price</div>
+  <div class="btn pos" style="left:246px;top:302px;width:80px;height:22px;">BUY</div>
+  <div class="box pos" style="left:512px;top:90px;width:255px;height:240px;"></div>
+  <div class="ph pos" style="left:528px;top:106px;width:223px;height:150px;">vinyl image</div>
+  <div class="lbl mut pos" style="left:528px;top:266px;">Vinyl name</div>
+  <div class="lbl mut pos" style="left:528px;top:286px;">Artist &mdash; Rs. price</div>
+  <div class="btn pos" style="left:528px;top:302px;width:80px;height:22px;">BUY</div>
+  <div class="box pos" style="left:794px;top:90px;width:255px;height:240px;"></div>
+  <div class="ph pos" style="left:810px;top:106px;width:223px;height:150px;">vinyl image</div>
+  <div class="lbl mut pos" style="left:810px;top:266px;">Vinyl name</div>
+  <div class="lbl mut pos" style="left:810px;top:286px;">Artist &mdash; Rs. price</div>
+  <div class="btn pos" style="left:810px;top:302px;width:80px;height:22px;">BUY</div>
+  <div class="box pos" style="left:230px;top:350px;width:255px;height:240px;"></div>
+  <div class="ph pos" style="left:246px;top:366px;width:223px;height:150px;">vinyl image</div>
+  <div class="lbl mut pos" style="left:246px;top:526px;">Vinyl name</div>
+  <div class="lbl mut pos" style="left:246px;top:546px;">Artist &mdash; Rs. price</div>
+  <div class="btn pos" style="left:246px;top:562px;width:80px;height:22px;">BUY</div>
+  <div class="box pos" style="left:512px;top:350px;width:255px;height:240px;"></div>
+  <div class="ph pos" style="left:528px;top:366px;width:223px;height:150px;">vinyl image</div>
+  <div class="lbl mut pos" style="left:528px;top:526px;">Vinyl name</div>
+  <div class="lbl mut pos" style="left:528px;top:546px;">Artist &mdash; Rs. price</div>
+  <div class="btn pos" style="left:528px;top:562px;width:80px;height:22px;">BUY</div>
+  <div class="box pos" style="left:794px;top:350px;width:255px;height:240px;"></div>
+  <div class="ph pos" style="left:810px;top:366px;width:223px;height:150px;">vinyl image</div>
+  <div class="lbl mut pos" style="left:810px;top:526px;">Vinyl name</div>
+  <div class="lbl mut pos" style="left:810px;top:546px;">Artist &mdash; Rs. price</div>
+  <div class="btn pos" style="left:810px;top:562px;width:80px;height:22px;">BUY</div>
+  <div class="cap">Wireframe 4 &mdash; Vinyl Store</div>
+</div>
+
+<!-- ================= WF5 : ANALYTICS DASHBOARD ================= -->
+<div class="wf" id="wf5" style="width:1080px;height:760px;">
+  <div class="lbl kicker pos" style="left:40px;top:28px;">LISTENING ATLAS</div>
+  <div class="lbl big pos" style="left:40px;top:44px;">Your Listening Analytics</div>
+  <!-- stat cards 3x2 -->
+  <div class="box pos" style="left:40px;top:96px;width:320px;height:96px;"></div>
+  <div class="box pos" style="left:380px;top:96px;width:320px;height:96px;"></div>
+  <div class="box pos" style="left:720px;top:96px;width:320px;height:96px;"></div>
+  <div class="box pos" style="left:40px;top:208px;width:320px;height:96px;"></div>
+  <div class="box pos" style="left:380px;top:208px;width:320px;height:96px;"></div>
+  <div class="box pos" style="left:720px;top:208px;width:320px;height:96px;"></div>
+  <div class="lbl mut pos" style="left:56px;top:112px;">Listening hours</div>
+  <div class="lbl mut pos" style="left:396px;top:112px;">Songs played</div>
+  <div class="lbl mut pos" style="left:736px;top:112px;">Favourite genre</div>
+  <div class="lbl mut pos" style="left:56px;top:224px;">Favourite artist</div>
+  <div class="lbl mut pos" style="left:396px;top:224px;">Weekly activity</div>
+  <div class="lbl mut pos" style="left:736px;top:224px;">Listening streak</div>
+  <div class="lbl big pos" style="left:56px;top:140px;">123</div>
+  <div class="lbl big pos" style="left:396px;top:140px;">456</div>
+  <div class="lbl big pos" style="left:56px;top:252px;">&mdash;</div>
+  <!-- charts -->
+  <div class="box solidlbl pos" style="left:40px;top:324px;width:660px;height:200px;">Weekly listening trend &mdash; area chart</div>
+  <div class="box solidlbl pos" style="left:720px;top:324px;width:320px;height:200px;">Genre distribution<br/>donut chart</div>
+  <div class="box solidlbl pos" style="left:40px;top:540px;width:1000px;height:130px;">Plays by hour of day &mdash; bar chart</div>
+  <!-- recently played -->
+  <div class="lbl h pos" style="left:40px;top:686px;">Recently played</div>
+  <div class="ph pos" style="left:40px;top:710px;width:120px;height:36px;">track</div>
+  <div class="ph pos" style="left:176px;top:710px;width:120px;height:36px;">track</div>
+  <div class="ph pos" style="left:312px;top:710px;width:120px;height:36px;">track</div>
+  <div class="ph pos" style="left:448px;top:710px;width:120px;height:36px;">track</div>
+  <div class="ph pos" style="left:584px;top:710px;width:120px;height:36px;">track</div>
+  <div class="cap">Wireframe 5 &mdash; Analytics Dashboard</div>
+</div>
+
+<!-- ================= WF6 : ADMIN - SONGS MANAGEMENT ================= -->
+<div class="wf" id="wf6" style="width:1080px;height:620px;">
+  <div class="box pos" style="left:0;top:0;width:200px;height:620px;"></div>
+  <div class="lbl pos" style="left:20px;top:22px;font-weight:bold;font-size:12px;letter-spacing:1px;">ADMIN PANEL</div>
+  <div class="lbl mut pos" style="left:30px;top:64px;">Artists</div>
+  <div class="lbl mut pos" style="left:30px;top:96px;">Albums</div>
+  <div class="box pos" style="left:18px;top:120px;width:164px;height:30px;"></div>
+  <div class="lbl mut pos" style="left:30px;top:128px;">Songs</div>
+  <div class="lbl mut pos" style="left:30px;top:166px;">Vinyls</div>
+  <div class="lbl mut pos" style="left:30px;top:198px;">Lyrics</div>
+  <div class="lbl mut pos" style="left:30px;top:230px;">Categories</div>
+  <div class="lbl mut pos" style="left:30px;top:262px;">Users</div>
+  <!-- header -->
+  <div class="lbl h pos" style="left:230px;top:26px;">Songs Management</div>
+  <div class="box pos" style="left:230px;top:58px;width:380px;height:34px;border-radius:17px;"></div>
+  <div class="lbl mut pos" style="left:246px;top:68px;">Search songs...</div>
+  <div class="box pos" style="left:626px;top:58px;width:150px;height:34px;"></div>
+  <div class="lbl mut pos" style="left:640px;top:68px;">Category &#9662;</div>
+  <div class="box pos" style="left:792px;top:58px;width:120px;height:34px;"></div>
+  <div class="lbl mut pos" style="left:806px;top:68px;">Sort &#9662;</div>
+  <div class="btn primary pos" style="left:930px;top:58px;width:118px;height:34px;">+ NEW SONG</div>
+  <!-- table header -->
+  <div class="box pos" style="left:230px;top:110px;width:818px;height:34px;"></div>
+  <div class="lbl mut pos" style="left:244px;top:120px;">Cover</div>
+  <div class="lbl mut pos" style="left:330px;top:120px;">Song name</div>
+  <div class="lbl mut pos" style="left:540px;top:120px;">Artist</div>
+  <div class="lbl mut pos" style="left:690px;top:120px;">Genre</div>
+  <div class="lbl mut pos" style="left:800px;top:120px;">Mood</div>
+  <div class="lbl mut pos" style="left:940px;top:120px;">Actions</div>
+  <!-- rows -->
+  <div class="box pos" style="left:230px;top:148px;width:818px;height:62px;"></div>
+  <div class="box pos" style="left:230px;top:214px;width:818px;height:62px;"></div>
+  <div class="box pos" style="left:230px;top:280px;width:818px;height:62px;"></div>
+  <div class="box pos" style="left:230px;top:346px;width:818px;height:62px;"></div>
+  <div class="box pos" style="left:230px;top:412px;width:818px;height:62px;"></div>
+  <div class="box pos" style="left:230px;top:478px;width:818px;height:62px;"></div>
+  <div class="ph pos" style="left:244px;top:160px;width:38px;height:38px;"></div>
+  <div class="lbl mut pos" style="left:330px;top:172px;">Song row &mdash; name, artist, taxonomy, edit / delete / visibility</div>
+  <div class="cap">Wireframe 6 &mdash; Admin: Songs Management</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+flowchart TD
+  START([Start]) --> FORM["User opens Sign-up form"]
+  FORM --> ENTER["Enter name, email, password"]
+  ENTER --> SUBMIT["Submit registration"]
+  SUBMIT --> VALID{"Input valid &amp;<br/>email unique?"}
+  VALID -- No --> ERR["Show validation error"]
+  ERR --> ENTER
+  VALID -- Yes --> CREATE["Create User record<br/>(password hashed)"]
+  CREATE --> CODE["Generate 6-digit code<br/>send verification email"]
+  CODE --> VERIFY["User enters OTP code"]
+  VERIFY --> CHECK{"Code correct<br/>&amp; not expired?"}
+  CHECK -- No --> RESEND{"Resend code?"}
+  RESEND -- Yes --> CODE
+  RESEND -- No --> VERIFY
+  CHECK -- Yes --> MARK["Mark emailVerified = true"]
+  MARK --> ONB["Redirect to Onboarding"]
+  ONB --> PICK["Pick genres, moods,<br/>languages, tags"]
+  PICK --> SAVE["Save preferences<br/>onboarded = true"]
+  SAVE --> HOME["Redirect to personalised Home"]
+  HOME --> END([End])
