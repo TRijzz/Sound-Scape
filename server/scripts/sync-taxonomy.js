@@ -159,14 +159,14 @@ const run = async () => {
   ).sort((left, right) => left.localeCompare(right));
 
   await syncCollection(Category, taxonomyNames, {
-    insert: { description: 'Auto-generated category' },
+    insert: { description: 'Default category' },
     update: { is_public: true }
   });
 
   await Category.updateMany({}, { $set: { is_public: true } });
 
   await syncCollection(Genre, taxonomyNames, {
-    insert: { description: 'Auto-generated genre' },
+    insert: { description: 'Default genre' },
     update: { is_active: true }
   });
 

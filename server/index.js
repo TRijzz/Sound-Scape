@@ -26,7 +26,7 @@ import paymentRoutes from './src/routes/payment.routes.js';
 import { scheduleDataRefresh } from './src/scripts/scheduler.js';
 import './src/config/passport.js';
 
-const app = express();
+const app = express();      // Create Express app to start backend server
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,7 +52,7 @@ app.use(passport.initialize());
 const PORT = process.env.PORT || 5000;
 
 // DB
-connectDB().then(() => {
+connectDB().then(() => {            // Conneccts MongoDB and starts server
   app.listen(PORT, () => {
     console.log(`API listening on port ${PORT}`);
     console.log('Server restarted and ready for file uploads!');
@@ -150,7 +150,7 @@ app.get('/api/placeholder/:width/:height', (req, res) => {
 
 // Support wildcard size as single param to handle `/api/placeholder/40/40`
 
-// Routes
+// Connects all backend routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/artists', artistRoutes);
@@ -206,7 +206,7 @@ app.use((req, res) => {
     });
   }
 });
-app.use((err, req, res, next) => {
+app.use((err, req, res, next) => {        //Error Handler
   console.error(err);
   res.status(err.status || 500).json({ message: err.message || 'Server Error' });
 });

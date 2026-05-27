@@ -25,7 +25,10 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "tailwind:init": "tailwindcss init -p"
+    "tailwind:init": "tailwindcss init -p",
+    "dev:client": "react-scripts start",
+    "dev:server": "npm --prefix server run dev",
+    "dev": "concurrently --kill-others-on-fail --names \"client,server\" --prefix-colors \"cyan,magenta\" \"npm run dev:client\" \"npm run dev:server\""
   },
   "eslintConfig": {
     "extends": [
@@ -47,6 +50,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.19",
+    "concurrently": "^9.2.1",
     "postcss": "^8.4.40",
     "tailwindcss": "^3.4.7"
   },
