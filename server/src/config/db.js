@@ -50,7 +50,7 @@ const fixIndexes = async () => {
 
 export const connectDB = async () => {
   try {
-    const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vinyl_demo';
+    const uri = process.env.MONGO_URI || process.env.MONGO_URL || 'mongodb://127.0.0.1:27017/vinyl_demo';
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
     });
@@ -60,7 +60,7 @@ export const connectDB = async () => {
   } catch (error) {
     console.error('MongoDB connection error:', error.message);
     console.error('Make sure MongoDB is running and the connection string is correct.');
-    console.error('Connection string:', process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vinyl_demo');
+    console.error('Connection string:', process.env.MONGO_URI || process.env.MONGO_URL || 'mongodb://127.0.0.1:27017/vinyl_demo');
     process.exit(1);
   }
 };

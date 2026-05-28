@@ -34,7 +34,7 @@ const __dirname = path.dirname(__filename);
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.use(cors({ 
+app.use(cors({            //Applies cors middleware to allow cross-origin requests from frontend
   origin: true, 
   credentials: true, 
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'],
@@ -186,7 +186,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// 404 / Error - only catch API routes
+// 404 / Error 
 app.use((req, res) => {
   if (req.path.startsWith('/api')) {
     res.status(404).json({ message: 'Not Found' });

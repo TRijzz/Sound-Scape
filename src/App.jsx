@@ -176,7 +176,7 @@ function AppContent() {                     //Frontend Layout, decides when to s
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <Routes>
+              <Routes>        //Maps URLs to page components
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/search" element={<SearchResultsPage />} />
@@ -225,12 +225,12 @@ function AppContent() {                     //Frontend Layout, decides when to s
       
       {/* Now Playing Footer */}
       {!hideChrome && <NowPlayingFooter />}
-      <AuthPromptOverlay />
+      <AuthPromptOverlay />                        {/* Warning appears when guest tries to perform an action without login. */}
     </div>
   );
 }
 
-function App() {
+function App() {      //Whole app UI wrapped
   return (
     <MusicProvider>
       <SidebarProvider>
