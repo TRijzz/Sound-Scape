@@ -137,7 +137,7 @@ function resolvePageTitle(pathname) {
   return entry ? `${entry.title} • Sound Scape` : 'Sound Scape';
 }
 
-function AppContent() {
+function AppContent() {                     //Frontend Layout, decides when to show sidebar/navbar and sets page title based on route
   const location = useLocation();
   const { collapsed } = useSidebar();
   const isAdmin = location.pathname.startsWith('/admin');
