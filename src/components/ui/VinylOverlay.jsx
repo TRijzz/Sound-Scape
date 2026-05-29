@@ -21,7 +21,7 @@ import {
 import LyricsOverlay from './LyricsOverlay';
 import useEscapeKey from '../../hooks/useEscapeKey';
 
-const ROTATION_PER_SECOND = 22;
+const ROTATION_PER_SECOND = 22;       //Vinyl Rotattion per second
 const SCRUB_RESISTANCE = 0.18;
 const SCRUB_TIME_PER_DELTA = 0.013;
 const SCRUB_ROTATION_PER_DELTA = 0.52;

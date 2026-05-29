@@ -13,6 +13,10 @@ export default function Onboarding() {
   const [moods, setMoods] = React.useState([]);
   const [languages, setLanguages] = React.useState([]);
   const [tags, setTags] = React.useState([]);
+  const [artists, setArtists] = React.useState([]); // selected artist IDs
+  const [artistOptions, setArtistOptions] = React.useState([]);
+  const [artistsLoading, setArtistsLoading] = React.useState(false);
+  const [artistSearch, setArtistSearch] = React.useState('');
 
   React.useEffect(() => {
     const init = async () => {
@@ -25,6 +29,8 @@ export default function Onboarding() {
           setMoods(me.preferred_moods || []);
           setLanguages(me.preferred_languages || []);
           setTags(me.preferred_tags || []);
+          const followed = me.followed_artists || me.followedArtists || [];
+          setArtists(followed.map(a => (typeof a === 'string' ? a : a?._id || a?.id)).filter(Boolean));
         }
       } catch (e) {
         // continue silently
@@ -35,8 +41,28 @@ export default function Onboarding() {
     init();
   }, [setUser]);
 
+  React.useEffect(() => {
+    const loadArtists = async () => {
+      try {
+        setArtistsLoading(true);
+        const list = await api.getPopularArtists(40);
+        setArtistOptions(Array.isArray(list) ? list : []);
+      } catch (e) {
+        setArtistOptions([]);
+      } finally {
+        setArtistsLoading(false);
+      }
+    };
+    loadArtists();
+  }, []);
+
   const toggle = (list, setList, item) => {
     setList(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
+  };
+
+  const toggleArtist = (artistId) => {
+    if (!artistId) return;
+    setArtists(prev => prev.includes(artistId) ? prev.filter(id => id !== artistId) : [...prev, artistId]);
   };
 
   const save = async () => {
@@ -58,6 +84,7 @@ export default function Onboarding() {
         preferred_moods: moods,
         preferred_languages: languages,
         preferred_tags: tags,
+        followed_artists: artists,
       });
       if (me) {
         setUser({
@@ -67,6 +94,7 @@ export default function Onboarding() {
           preferred_moods: moods,
           preferred_languages: languages,
           preferred_tags: tags,
+          followed_artists: artists,
         });
       }
       navigate('/home');
@@ -88,6 +116,39 @@ export default function Onboarding() {
       className={`px-3 py-2 rounded-lg border ${active ? 'bg-neon-blue text-dark-bg border-neon-blue' : 'bg-light-gray/50 text-white border-gray-700'}`}
     >{label}</button>
   );
+
+  const filteredArtists = React.useMemo(() => {
+    const q = artistSearch.trim().toLowerCase();
+    if (!q) return artistOptions;
+    return artistOptions.filter(a => (a?.name || '').toLowerCase().includes(q));
+  }, [artistOptions, artistSearch]);
+
+  const ArtistCard = ({ artist }) => {
+    const id = artist?._id || artist?.id;
+    const active = artists.includes(id);
+    const img = artist?.profile_image_url || artist?.image_url || artist?.cover_image_url || '/api/placeholder/120/120';
+    return (
+      <button
+        onClick={() => toggleArtist(id)}
+        className={`group relative flex flex-col items-center text-center p-3 rounded-xl border transition ${active ? 'border-neon-blue bg-neon-blue/10' : 'border-gray-700 bg-light-gray/30 hover:border-gray-500'}`}
+      >
+        <div className={`relative w-20 h-20 rounded-full overflow-hidden ring-2 ${active ? 'ring-neon-blue' : 'ring-transparent'}`}>
+          <img
+            src={img}
+            alt={artist?.name || 'Artist'}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.src = '/api/placeholder/120/120'; }}
+          />
+          {active && (
+            <div className="absolute inset-0 bg-neon-blue/30 flex items-center justify-center">
+              <span className="text-dark-bg font-bold text-lg">✓</span>
+            </div>
+          )}
+        </div>
+        <span className="mt-2 text-sm text-white line-clamp-2">{artist?.name || 'Unknown'}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-dark-bg text-white flex items-center justify-center p-6">
@@ -135,6 +196,34 @@ export default function Onboarding() {
                 <Pill key={t} label={t} active={tags.includes(t)} onClick={() => toggle(tags, setTags, t)} />
               ))}
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+              <div>
+                <h2 className="text-lg font-semibold">Favourite Artists</h2>
+                <p className="text-sm text-gray-400">Pick a few — we'll surface their songs and albums on your home.</p>
+              </div>
+              <span className="text-sm text-gray-400">{artists.length} selected</span>
+            </div>
+            <input
+              type="text"
+              value={artistSearch}
+              onChange={(e) => setArtistSearch(e.target.value)}
+              placeholder="Search artists..."
+              className="w-full mb-3 px-3 py-2 rounded-lg bg-dark-bg border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue"
+            />
+            {artistsLoading ? (
+              <div className="text-gray-400 text-sm py-6 text-center">Loading artists...</div>
+            ) : filteredArtists.length === 0 ? (
+              <div className="text-gray-400 text-sm py-6 text-center">No artists found.</div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-96 overflow-y-auto pr-1">
+                {filteredArtists.map(a => (
+                  <ArtistCard key={a?._id || a?.id} artist={a} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

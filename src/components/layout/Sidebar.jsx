@@ -217,7 +217,13 @@ function Sidebar() {
               const Icon = item.icon;
               const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
               return (
-                <li key={item.path}>
+                <li key={item.path} className="relative">
+                  {isActive && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute -left-3 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-neon-blue shadow-[0_0_12px_rgba(0,191,255,0.8)]"
+                    />
+                  )}
                   <Link
                     to={item.path}
                     title={collapsed ? item.label : undefined}
@@ -227,12 +233,6 @@ function Sidebar() {
                         : 'text-gray-300 hover:text-white hover:bg-white/[0.06] border border-transparent hover:border-white/10'
                     }`}
                   >
-                    {isActive && (
-                      <motion.span
-                        layoutId="sidebar-active-indicator"
-                        className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-neon-blue shadow-[0_0_12px_rgba(0,191,255,0.8)]"
-                      />
-                    )}
                     <Icon className={`h-5 w-5 shrink-0 ${isActive ? '' : 'group-hover:text-white'}`} />
                     <AnimatePresence initial={false}>
                       {!collapsed && (

@@ -110,10 +110,14 @@ const MusicStationLanding = () => {
   const glowY = useTransform(smoothProgress, [0, 1], ['14%', '82%']);
 
   const handleMouseMove = (event) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+    // .cursor-glow and the ::before backdrop are position: fixed, so the
+    // CSS variables need to be viewport-relative — NOT relative to the
+    // (multi-screen-tall) scrollable container.
+    const vw = window.innerWidth || 1;
+    const vh = window.innerHeight || 1;
     setCursor({
-      x: ((event.clientX - rect.left) / rect.width) * 100,
-      y: ((event.clientY - rect.top) / rect.height) * 100
+      x: (event.clientX / vw) * 100,
+      y: (event.clientY / vh) * 100
     });
   };
 

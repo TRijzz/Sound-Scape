@@ -77,7 +77,7 @@ const NowPlayingFooter = () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const handlePlayPause = () => {
+  const handlePlayPause = () => {     //Hanldes Play and Pause on footer
     if (isPlaying) {
       pauseTrack();
     } else {

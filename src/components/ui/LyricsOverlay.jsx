@@ -19,7 +19,7 @@ import {
 } from '../ui/Icons';
 import useEscapeKey from '../../hooks/useEscapeKey';
 
-const LYRIC_HIGHLIGHT_LEAD_SECONDS = 0.35;
+const LYRIC_HIGHLIGHT_LEAD_SECONDS = 0.35;        // Highlights Lyrics
 
 const normalizeTrackTitle = (value = '') => value
   .toLowerCase()
@@ -54,7 +54,7 @@ const parseLRC = (lrcString) => {
   }).filter(l => l.text);
 };
 
-const estimateLineTimes = (lines, trackDuration) => {
+const estimateLineTimes = (lines, trackDuration) => {         //Automatic Distrubution of line times if not provided
   if (!Array.isArray(lines) || lines.length === 0) return [];
 
   const safeDuration = trackDuration > 0 ? trackDuration : 180;
@@ -148,14 +148,14 @@ const LyricsOverlay = ({ isOpen, onClose }) => {        //Lyrics Overlay Compone
     }
   };
 
-  const handleLineClick = (time) => {
+  const handleLineClick = (time) => {           //Jumps to the line time when clicked and reenables syncing
     if (time !== null && time !== undefined) {
       setProgress(time);
       setIsFollowingLyrics(true);
     }
   };
 
-  const handleSyncFollow = () => {
+  const handleSyncFollow = () => {        //Reenables Syncing
     setIsFollowingLyrics(true);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {

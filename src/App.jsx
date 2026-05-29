@@ -176,7 +176,7 @@ function AppContent() {                     //Frontend Layout, decides when to s
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <Routes>        //Maps URLs to page components
+              <Routes>                                            {/* Maps URLs to page components */}
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/search" element={<SearchResultsPage />} />
@@ -204,7 +204,7 @@ function AppContent() {                     //Frontend Layout, decides when to s
                 <Route path="/playlist/:id" element={<PlaylistPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/security/change-password" element={<ChangePassword />} />
-                <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
+                <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />      {/* Admin protected routes */}
                 <Route path="/admin/reset-password" element={<AdminGuard><AdminPage /></AdminGuard>} />
                 <Route path="/admin/artists" element={<AdminGuard><AdminArtists /></AdminGuard>} />
                 <Route path="/admin/albums" element={<AdminGuard><AdminAlbums /></AdminGuard>} />
