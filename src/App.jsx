@@ -137,6 +137,53 @@ function resolvePageTitle(pathname) {
   return entry ? `${entry.title} • Sound Scape` : 'Sound Scape';
 }
 
+// Top progress bar shown briefly on every route change so navigation
+// always has an immediate visual response, even before the new page's
+// data fetches resolve.
+function RouteProgress() {
+  const location = useLocation();
+  const [active, setActive] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+  const firstRender = React.useRef(true);
+
+  React.useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setActive(true);
+    setProgress(15);
+    const ramp = setTimeout(() => setProgress(70), 80);
+    const settle = setTimeout(() => setProgress(95), 260);
+    const finish = setTimeout(() => {
+      setProgress(100);
+      const hide = setTimeout(() => {
+        setActive(false);
+        setProgress(0);
+      }, 180);
+      return () => clearTimeout(hide);
+    }, 520);
+    return () => {
+      clearTimeout(ramp);
+      clearTimeout(settle);
+      clearTimeout(finish);
+    };
+  }, [location.pathname]);
+
+  if (!active) return null;
+  return (
+    <div
+      aria-hidden
+      className="fixed top-0 left-0 right-0 z-[100] h-[2px] pointer-events-none"
+    >
+      <div
+        className="h-full bg-gradient-to-r from-neon-blue via-cyan-300 to-purple-500 shadow-[0_0_8px_rgba(0,191,255,0.8)] transition-[width,opacity] duration-200 ease-out"
+        style={{ width: `${progress}%`, opacity: progress >= 100 ? 0 : 1 }}
+      />
+    </div>
+  );
+}
+
 function AppContent() {                     //Frontend Layout, decides when to show sidebar/navbar and sets page title based on route
   const location = useLocation();
   const { collapsed } = useSidebar();
@@ -163,6 +210,7 @@ function AppContent() {                     //Frontend Layout, decides when to s
 
   return (
     <div className="min-h-screen bg-dark-bg text-white font-inter">
+      <RouteProgress />
       <div className="flex">
         {showSidebar && <Sidebar />}
 
@@ -172,9 +220,10 @@ function AppContent() {                     //Frontend Layout, decides when to s
           {/* Page Content - bottom padding clears the fixed NowPlayingFooter */}
           <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-28">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
+              key={location.pathname}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
               <Routes>                                            {/* Maps URLs to page components */}
                 <Route path="/" element={<LandingPage />} />
