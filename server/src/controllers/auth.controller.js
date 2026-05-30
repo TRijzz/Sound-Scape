@@ -308,16 +308,18 @@ export const register = async (req, res) => {        //Registers user and return
       console.log('[DEV] Verify on frontend:', `${appBaseUrl}/verify-email`);
     }
 
-    try {
-      const verificationEmail = buildVerificationCodeEmail({ name: user.name, code });
-      await sendMail({          //Sends verification code to the user's email
-        to: user.email,
-        subject: 'Sound Scape verification code',
-        ...verificationEmail,
-      });
-    } catch (mailErr) {
-      console.warn('Email send failed:', mailErr.message);
-    }
+    // Fire-and-forget the verification email so the signup response
+    // returns immediately. SMTP through Gmail can take 2-5s; making
+    // the user wait for it just to see "account created" makes signup
+    // feel broken on slower hosts (e.g. Render free tier).
+    const verificationEmail = buildVerificationCodeEmail({ name: user.name, code });
+    sendMail({
+      to: user.email,
+      subject: 'Sound Scape verification code',
+      ...verificationEmail,
+    }).catch((mailErr) => {
+      console.warn('Email send failed (signup verification):', mailErr.message);
+    });
 
     res.status(201).json({
       accessToken,
