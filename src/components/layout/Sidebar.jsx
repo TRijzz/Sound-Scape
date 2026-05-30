@@ -12,6 +12,7 @@ import {
 } from '../ui/Icons';
 import { usePlaylistActions } from '../../hooks/usePlaylists';
 import { useSidebar } from '../../contexts/SidebarContext';
+import { useMusic } from '../../contexts/MusicContext';
 import albumArtPlaceholder from '../../assets/album_art_placeholder.svg';
 import useEscapeKey from '../../hooks/useEscapeKey';
 
@@ -63,10 +64,21 @@ const BurgerIcon = ({ open, className = '' }) => (
   </motion.svg>
 );
 
+// Height of the NowPlayingFooter when a track is loaded, in pixels.
+// Must match the rendered height of the footer so the sidebar's bottom
+// section doesn't get covered by the player. If the footer ever
+// changes height, update this constant.
+const PLAYER_FOOTER_HEIGHT = 96;
+
 function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { collapsed: rawCollapsed, toggleCollapsed, mobileOpen, openMobile, closeMobile } = useSidebar();
+  const { currentTrack, previewSession } = useMusic();
+
+  // The footer player renders the same condition: any track loaded.
+  // When it does, shrink the sidebar so its bottom buttons aren't covered.
+  const playerVisible = Boolean(previewSession?.currentTrack || currentTrack);
   const [showCreate, setShowCreate] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
   const { playlists, handleCreatePlaylist, handleEditPlaylist, handleDeletePlaylist } = usePlaylistActions();
@@ -163,11 +175,16 @@ function Sidebar() {
           x: isMobileVisible ? 0 : undefined
         }}
         transition={sidebarTransition}
-        className={`fixed top-0 left-0 h-screen z-50 flex flex-col overflow-hidden border-r border-white/[0.06]
+        className={`fixed top-0 left-0 z-50 flex flex-col overflow-hidden border-r border-white/[0.06]
           bg-[linear-gradient(180deg,rgba(10,10,16,0.92),rgba(6,8,14,0.88))] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.55)]
           ${isMobileVisible ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          transition-transform duration-300 ease-out`}
-        style={{ width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH }}
+          transition-[transform,height] duration-300 ease-out`}
+        style={{
+          width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
+          // Shrink the sidebar so its bottom buttons stay visible above
+          // the NowPlayingFooter when a track is loaded.
+          height: playerVisible ? `calc(100vh - ${PLAYER_FOOTER_HEIGHT}px)` : '100vh'
+        }}
       >
         {/* Decorative gradient */}
         <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-24 h-48 bg-[radial-gradient(circle_at_top,rgba(0,191,255,0.25),transparent_60%)]" />
