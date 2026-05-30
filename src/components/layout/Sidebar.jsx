@@ -66,7 +66,7 @@ const BurgerIcon = ({ open, className = '' }) => (
 function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { collapsed, toggleCollapsed, mobileOpen, openMobile, closeMobile } = useSidebar();
+  const { collapsed: rawCollapsed, toggleCollapsed, mobileOpen, openMobile, closeMobile } = useSidebar();
   const [showCreate, setShowCreate] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
   const { playlists, handleCreatePlaylist, handleEditPlaylist, handleDeletePlaylist } = usePlaylistActions();
@@ -118,6 +118,14 @@ function Sidebar() {
 
   // The desktop sidebar uses fixed positioning; the mobile drawer slides in.
   const isMobileVisible = mobileOpen;
+
+  // `rawCollapsed` (from context) only applies to the desktop layout
+  // (icon-only vs. full). When the mobile drawer is open, always render
+  // the full-width layout — there's no UX concept of a "collapsed mobile
+  // drawer," and the user can't reach the desktop collapse-toggle button
+  // below `lg` anyway. Shadowing `collapsed` here means every JSX usage
+  // below picks up the corrected value automatically.
+  const collapsed = rawCollapsed && !isMobileVisible;
 
   return (
     <>
