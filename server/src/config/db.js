@@ -48,7 +48,7 @@ const fixIndexes = async () => {
   }
 };
 
-export const connectDB = async () => {
+export const connectDB = async () => {              //Connects to MongoDB 
   try {
     const uri = process.env.MONGO_URI || process.env.MONGO_URL || 'mongodb://127.0.0.1:27017/vinyl_demo';
     await mongoose.connect(uri, {
