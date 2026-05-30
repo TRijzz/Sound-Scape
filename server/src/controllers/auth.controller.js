@@ -934,16 +934,16 @@ export const resendVerification = async (req, res) => {
     console.log('[DEV] Email verification code (resend):', code);
   }
 
-  try {
-    const verificationEmail = buildVerificationCodeEmail({ name: user.name, code });
-    await sendMail({
-      to: user.email,
-      subject: 'Sound Scape verification code',
-      ...verificationEmail,
-    });
-  } catch (mailErr) {
-    console.warn('Email send failed:', mailErr.message);
-  }
+  // Fire-and-forget so the endpoint returns immediately. Hosts that
+  // block outbound SMTP make awaited sends hang for 2 minutes.
+  const verificationEmail = buildVerificationCodeEmail({ name: user.name, code });
+  sendMail({
+    to: user.email,
+    subject: 'Sound Scape verification code',
+    ...verificationEmail,
+  }).catch((mailErr) => {
+    console.warn('Email send failed (resend verification):', mailErr.message);
+  });
 
   res.json({ message: 'Verification code sent' });
 }
