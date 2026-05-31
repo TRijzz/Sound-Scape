@@ -30,12 +30,6 @@ const app = express();      // Create Express app to start backend server
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Serve user-uploaded media (audio, images, lyrics, misc) from public/.
-// IMPORTANT: we mount each subdirectory individually so we never expose
-// the CRA `public/index.html` template — that would clobber the built
-// React app in production. The catch-all production static serve from
-// `build/` is registered later in this file.
 const publicDir = path.resolve(__dirname, '../public');
 app.use('/songs', express.static(path.join(publicDir, 'songs')));
 app.use('/images', express.static(path.join(publicDir, 'images')));

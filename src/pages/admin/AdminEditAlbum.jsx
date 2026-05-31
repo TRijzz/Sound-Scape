@@ -152,10 +152,13 @@ export default function AdminEditAlbum() {
 
       await apiService.updateAlbum(id, formData);
       showToast('Album updated successfully', 'success');
-      setTimeout(() => navigate('/admin/albums'), 1000);
+      // Stay on the edit page so the admin can keep iterating (upload
+      // audio for more tracks, add vinyls, tweak metadata, etc.). The
+      // "Back to List" / "Cancel" buttons are right there if they're done.
     } catch (error) {
       console.error('Error updating album:', error);
       showToast(error.message || 'Failed to update album', 'error');
+    } finally {
       setSaving(false);
     }
   };

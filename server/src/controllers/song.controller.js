@@ -801,7 +801,7 @@ export const getSong = async (req, res) => {
 /**
  * Record a play event and return song details including storage location
  */
-export const playSong = async (req, res) => {
+export const playSong = async (req, res) => {           //Play Event from control 
   try {
     const id = req.params.id;
     const userId = req.user ? req.user.id : null;
@@ -1018,7 +1018,7 @@ export const getForYouFeed = async (req, res) => {
   }
 };
 
-export const getPersonalizedRecommendations = async (req, res) => {
+export const getPersonalizedRecommendations = async (req, res) => {             //Recommendations sending process
   try {
     const userId = req.user?.id || req.user?._id;
     const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 12, 24));

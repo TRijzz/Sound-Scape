@@ -26,11 +26,6 @@ const storage = multer.diskStorage({
       folder = 'lyrics';
     }
 
-    // Organize by Genre/Artist if available?
-    // For now, keep it simple: public/songs, public/images
-    // The user asked to "arrange from the folders", but that's for reading.
-    // For writing, we can create folders if we want.
-    // Let's stick to flat or simple structure for now to ensure it works.
     
     const uploadPath = path.join(publicDir, folder);
     

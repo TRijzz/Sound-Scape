@@ -208,11 +208,14 @@ export default function AdminEditSong() {
 
       await apiService.updateSong(id, formData);
       showToast('Song updated successfully', 'success');
-      setTimeout(() => navigate('/admin/songs'), 1000);
+      // Stay on the edit page — admins often want to make multiple
+      // tweaks (re-upload audio, fix lyrics, adjust metadata) without
+      // being kicked back to the list after every save.
     } catch (error) {
       console.error('Error updating song:', error);
       const detail = error.details?.error || error.details?.message || error.message;
       showToast('Failed to update song: ' + detail, 'error');
+    } finally {
       setSaving(false);
     }
   };

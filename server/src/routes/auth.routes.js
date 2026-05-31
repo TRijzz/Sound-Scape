@@ -54,7 +54,7 @@ router.post('/logout', requireAuth, (req, res) => {
   res.status(200).json({ success: true });
 });
 
-// Email verification (6-digit code to match frontend)
+// Email verification (6-digit code)
 router.post('/verify-email', verifyEmailCode);
 router.post('/resend-verification', resendVerification);
 

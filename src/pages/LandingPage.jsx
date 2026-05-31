@@ -1,4 +1,4 @@
-import React from 'react';
+  import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { useMusic } from '../contexts/MusicContext';
@@ -360,6 +360,7 @@ const LandingFooter = () => {
   );
 };
 
+// GOD DID song implemented 
 const GOD_DID_SRC = encodeURI('/songs/DJ Khaled/GOD DID/GOD DID (feat. Rick Ross, Lil Wayne, Jay-Z, John Legend & Fridayy).mp3');
 const SEGMENT_START = 138;
 const SEGMENT_END = 160;
@@ -367,7 +368,7 @@ const FADE_DURATION = 3;
 
 const LiveExperience = () => {
   const sectionRef = React.useRef(null);
-  const audioRef = React.useRef(null);
+  const audioRef = React.useRef(null);          //Audio Tag 
   const audioCtxRef = React.useRef(null);
   const analyserRef = React.useRef(null);
   const sourceRef = React.useRef(null);
@@ -443,10 +444,10 @@ const LiveExperience = () => {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.45;
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.45;        //Triggers when scrolling 45% of the section is visible 
         inViewRef.current = visible;
         if (visible) {
-          if (!userPausedRef.current && !hasPlayedRef.current) attemptPlay();
+          if (!userPausedRef.current && !hasPlayedRef.current) attemptPlay();       //Plays Audio when section is visible.
         } else {
           audio.pause();
           setIsLive(false);

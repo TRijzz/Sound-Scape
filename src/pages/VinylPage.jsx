@@ -127,7 +127,7 @@ const VinylPage = () => {
     [relatedVinyls]
   );
   const hasEditionSwitcher = relatedVinyls.length > 1;
-  const handlePurchase = async () => {
+  const handlePurchase = async () => {                  // Clicks on Buy
     if (!vinyl) return;
 
     if (ownsCurrentEdition) {
@@ -137,11 +137,11 @@ const VinylPage = () => {
 
     setPurchasePending(true);
     try {
-      const response = await apiService.initiateKhaltiVinylPayment(vinyl._id || vinyl.id);
+      const response = await apiService.initiateKhaltiVinylPayment(vinyl._id || vinyl.id);        //Purchase Frontend API call
       if (!response?.payment_url) {
         throw new Error('Khalti did not return a payment URL.');
       }
-      window.location.assign(response.payment_url);
+      window.location.assign(response.payment_url);             //Redirects to Khalti for payment
     } catch (err) {
       const message = err?.status === 401 && !isAuthenticated
         ? 'Please log in to pay with Khalti.'
